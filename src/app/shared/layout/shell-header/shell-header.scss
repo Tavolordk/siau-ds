@@ -27,6 +27,7 @@
     display: block;
     height: 3.5rem;
     width: auto;
+    max-width: 100%;
     object-fit: contain;
   }
 
@@ -69,5 +70,91 @@
   &__avatar-initials {
     font-size: var(--siau-text-sm);
     font-weight: var(--siau-font-weight-semibold);
+  }
+}
+
+@media (max-width: 1200px) {
+  .siau-shell-header {
+    gap: var(--siau-space-4);
+    padding: 0 var(--siau-space-5);
+
+    &__brand {
+      min-width: 11rem;
+    }
+
+    &__title {
+      font-size: var(--siau-text-xl);
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .siau-shell-header {
+    height: auto;
+    min-height: 4.5rem;
+    padding: var(--siau-space-3) var(--siau-space-4);
+    gap: var(--siau-space-3);
+
+    &__brand {
+      min-width: auto;
+      max-width: 8.5rem;
+    }
+
+    &__seal-img {
+      height: 2.75rem;
+    }
+
+    &__title {
+      font-size: var(--siau-text-lg);
+      line-height: 1.15;
+    }
+
+    &__avatar {
+      width: 2.6rem;
+      height: 2.6rem;
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .siau-shell-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    padding: var(--siau-space-3);
+    gap: var(--siau-space-2);
+
+    &__brand {
+      max-width: 5.5rem;
+    }
+
+    &__seal-img {
+      height: 2.25rem;
+    }
+
+    &__title {
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    &__avatar {
+      width: 2.35rem;
+      height: 2.35rem;
+    }
+
+    &__avatar-initials {
+      font-size: 0.72rem;
+    }
+  }
+}
+
+@media (max-width: 380px) {
+  .siau-shell-header {
+    &__brand {
+      max-width: 4.5rem;
+    }
+
+    &__title {
+      font-size: 0.82rem;
+    }
   }
 }

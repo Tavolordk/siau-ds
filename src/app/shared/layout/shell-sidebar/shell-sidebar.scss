@@ -1,6 +1,7 @@
 :host {
   display: block;
-  height: 100%;
+  width: auto;
+  min-height: 100%;
 }
 
 .siau-shell-sidebar {
@@ -8,7 +9,7 @@
   flex-direction: column;
   gap: var(--siau-space-4);
   width: 14rem;
-  height: 100%;
+  min-height: 100%;
   padding: var(--siau-space-4);
   background-color: var(--siau-surface-rail);
   transition: width var(--siau-duration-slow) var(--siau-ease-out);
@@ -57,6 +58,8 @@
 
   &__nav {
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   &__list {
@@ -132,6 +135,90 @@
     .siau-shell-sidebar__item {
       justify-content: center;
       padding: var(--siau-space-3);
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  :host {
+    width: 100%;
+    min-height: auto;
+  }
+
+  .siau-shell-sidebar {
+    width: 100%;
+    min-height: auto;
+    padding: var(--siau-space-3) var(--siau-space-4);
+    gap: var(--siau-space-3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+
+    &--collapsed {
+      width: 100%;
+    }
+
+    &__collapse {
+      display: none;
+    }
+
+    &__nav {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 0.15rem;
+    }
+
+    &__list {
+      flex-direction: row;
+      gap: var(--siau-space-2);
+      width: max-content;
+      min-width: 100%;
+    }
+
+    &__item {
+      width: auto;
+      min-width: 8rem;
+      justify-content: center;
+      padding: var(--siau-space-3) var(--siau-space-4);
+      background-color: rgba(255, 255, 255, 0.28);
+      white-space: nowrap;
+    }
+
+    &__item-label {
+      overflow: visible;
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .siau-shell-sidebar {
+    padding: var(--siau-space-2) var(--siau-space-3);
+
+    &__item {
+      min-width: 3rem;
+      padding: var(--siau-space-2) var(--siau-space-3);
+      gap: var(--siau-space-2);
+      border-radius: var(--siau-radius-pill);
+    }
+
+    &__item-icon {
+      font-size: 1.15rem;
+      width: 1.15rem;
+      height: 1.15rem;
+    }
+
+    &__item-label {
+      font-size: 0.78rem;
+    }
+  }
+}
+
+@media (max-width: 420px) {
+  .siau-shell-sidebar {
+    &__item {
+      min-width: 2.75rem;
+    }
+
+    &__item-label {
+      display: none;
     }
   }
 }

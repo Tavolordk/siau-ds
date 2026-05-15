@@ -1,24 +1,24 @@
 :host {
   display: block;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .siau-shell {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100vh;
   background-color: var(--siau-surface-header);
 
   &__body {
     display: flex;
-    flex: 1;
-    min-height: 0;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: calc(100vh - 5rem);
   }
 
   &__content {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
-    overflow: auto;
     background: linear-gradient(
       135deg,
       var(--siau-surface-app-gradient-start) 0%,
@@ -26,5 +26,38 @@
       var(--siau-surface-app-gradient-end) 100%
     );
     padding: var(--siau-space-8) var(--siau-space-10);
+  }
+}
+
+@media (max-width: 1200px) {
+  .siau-shell {
+    &__content {
+      padding: var(--siau-space-6) var(--siau-space-8);
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .siau-shell {
+    &__body {
+      flex-direction: column;
+      min-height: calc(100vh - 4.5rem);
+    }
+
+    &__content {
+      padding: var(--siau-space-5);
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .siau-shell {
+    &__body {
+      min-height: calc(100vh - 4rem);
+    }
+
+    &__content {
+      padding: var(--siau-space-4);
+    }
   }
 }
