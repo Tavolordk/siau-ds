@@ -1,0 +1,77 @@
+:host {
+  display: inline-flex;
+}
+
+.siau-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--siau-space-1);
+  padding: 0.25rem var(--siau-space-3);
+  border-radius: var(--siau-radius-pill);
+  font-family: var(--siau-font-body);
+  font-size: var(--siau-text-xs);
+  font-weight: var(--siau-font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+
+  &__icon {
+    font-size: 0.875rem;
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+
+  &__label {
+    letter-spacing: 0.01em;
+  }
+
+  // ---- Solid variants ---------------------------------------------------
+  &--solid {
+    &.siau-badge--success {
+      background-color: var(--siau-color-success-bg);
+      color: var(--siau-color-success-fg);
+    }
+    &.siau-badge--warning {
+      background-color: var(--siau-color-warning-bg);
+      color: var(--siau-color-warning-fg);
+    }
+    &.siau-badge--danger {
+      background-color: var(--siau-color-danger-bg);
+      color: var(--siau-color-danger-fg);
+    }
+    &.siau-badge--info {
+      background-color: var(--siau-color-info-bg);
+      color: var(--siau-color-info-fg);
+    }
+    &.siau-badge--neutral {
+      background-color: var(--siau-color-muted-bg);
+      color: var(--siau-color-muted-fg);
+    }
+  }
+
+  // ---- Outline variants -------------------------------------------------
+  &--outline {
+    background-color: transparent;
+
+    &.siau-badge--success {
+      color: var(--siau-color-success-fg);
+      border-color: var(--siau-color-success-ring);
+    }
+    &.siau-badge--warning {
+      color: var(--siau-color-warning-fg);
+      border-color: var(--siau-color-warning-ring);
+    }
+    &.siau-badge--danger {
+      color: var(--siau-color-danger-fg);
+      border-color: var(--siau-color-danger-ring);
+    }
+    &.siau-badge--info {
+      color: var(--siau-color-info-fg);
+      border-color: var(--siau-color-info-ring);
+    }
+    &.siau-badge--neutral {
+      color: var(--siau-color-muted-fg);
+      border-color: var(--siau-color-muted-ring);
+    }
+  }
+}

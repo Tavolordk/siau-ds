@@ -1,0 +1,73 @@
+:host {
+  display: block;
+}
+
+.siau-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--siau-space-6);
+  height: 5rem;
+  padding: 0 var(--siau-space-6);
+  background-color: var(--siau-surface-header);
+  color: var(--siau-color-neutral-0);
+  box-shadow: var(--siau-shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    flex: none;
+    min-width: 14rem;
+  }
+
+  &__seal-img {
+    display: block;
+    height: 3.5rem;
+    width: auto;
+    object-fit: contain;
+  }
+
+  &__title {
+    flex: 1;
+    margin: 0;
+    text-align: center;
+    font-family: var(--siau-font-display);
+    font-size: var(--siau-text-2xl);
+    font-weight: var(--siau-font-weight-bold);
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+  }
+
+  &__avatar {
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--siau-color-neutral-0);
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    transition: background-color var(--siau-duration-base) var(--siau-ease-out);
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.16);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+    }
+  }
+
+  &__avatar-initials {
+    font-size: var(--siau-text-sm);
+    font-weight: var(--siau-font-weight-semibold);
+  }
+}

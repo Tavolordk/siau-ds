@@ -1,0 +1,41 @@
+<div class="siau-file-upload">
+    @if (label(); as labelText) {
+    <label class="siau-file-upload__label">
+        {{ labelText }}
+        @if (required()) {
+        <span class="siau-file-upload__required" aria-hidden="true">♦</span>
+        }
+    </label>
+    }
+
+    <div [class]="zoneClasses()" role="button" tabindex="0" [attr.aria-disabled]="disabled() ? 'true' : null"
+        (click)="onZoneClick()" (keydown.enter)="onZoneClick()" (keydown.space)="onZoneClick(); $event.preventDefault()"
+        (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+        @if (!hasFile()) {
+        <div class="siau-file-upload__empty">
+            <mat-icon class="siau-file-upload__icon" aria-hidden="true">upload</mat-icon>
+            <p class="siau-file-upload__placeholder">{{ placeholder() }}</p>
+            <p class="siau-file-upload__hint">{{ resolvedHint() }}</p>
+        </div>
+        } @else {
+        <div class="siau-file-upload__filled">
+            <mat-icon class="siau-file-upload__file-icon" aria-hidden="true">description</mat-icon>
+            <div class="siau-file-upload__info">
+                <p class="siau-file-upload__filename">{{ selectedFile()?.name }}</p>
+                <p class="siau-file-upload__filesize">{{ fileSizeDisplay() }}</p>
+            </div>
+            <button type="button" class="siau-file-upload__remove" aria-label="Quitar archivo"
+                (click)="onRemove($event)">
+                <mat-icon aria-hidden="true">close</mat-icon>
+            </button>
+        </div>
+        }
+    </div>
+
+    @if (errorMessage(); as err) {
+    <p class="siau-file-upload__error" role="alert">{{ err }}</p>
+    }
+
+    <input #fileInput type="file" class="siau-file-upload__native" [accept]="acceptAttr()" [disabled]="disabled()"
+        (change)="onFileInputChange($event)" />
+</div>

@@ -1,1 +1,19 @@
-/* You can add global styles to this file, and also import other style files */
+@use './app/shared/ui/tokens/tokens';
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--siau-font-body);
+  background-color: var(--siau-surface-app);
+  color: var(--siau-color-neutral-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

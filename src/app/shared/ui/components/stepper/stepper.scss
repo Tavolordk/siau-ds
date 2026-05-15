@@ -1,0 +1,186 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.siau-stepper {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--siau-color-neutral-50);
+  border-radius: var(--siau-radius-lg);
+  padding: var(--siau-space-4);
+  min-height: 100%;
+
+  &__title {
+    margin: 0 0 var(--siau-space-3);
+    font-family: var(--siau-font-body);
+    font-size: var(--siau-text-xs);
+    font-weight: var(--siau-font-weight-semibold);
+    color: var(--siau-color-neutral-500);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--siau-space-1);
+    flex: 1;
+  }
+
+  // ---- Step button ------------------------------------------------------
+  &__step {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
+
+    display: flex;
+    align-items: center;
+    gap: var(--siau-space-3);
+    padding: var(--siau-space-3);
+    border-radius: var(--siau-radius-md);
+    font-family: var(--siau-font-body);
+    font-size: var(--siau-text-sm);
+    color: var(--siau-color-neutral-700);
+    transition:
+      background-color var(--siau-duration-base) var(--siau-ease-out),
+      color var(--siau-duration-base) var(--siau-ease-out);
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--siau-focus-ring);
+    }
+
+    &:hover:not(:disabled) {
+      background-color: var(--siau-color-neutral-100);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+
+  &__marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background-color: var(--siau-color-neutral-200);
+    color: var(--siau-color-neutral-600);
+    flex: none;
+    transition:
+      background-color var(--siau-duration-base) var(--siau-ease-out),
+      color var(--siau-duration-base) var(--siau-ease-out);
+  }
+
+  &__icon,
+  &__check {
+    font-size: 1rem;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  &__label {
+    flex: 1;
+    line-height: var(--siau-line-tight);
+    font-weight: var(--siau-font-weight-medium);
+  }
+
+  // ---- Step states ------------------------------------------------------
+  &__step--pending {
+    color: var(--siau-color-neutral-600);
+
+    .siau-stepper__marker {
+      background-color: var(--siau-color-neutral-200);
+      color: var(--siau-color-neutral-500);
+    }
+  }
+
+  &__step--active {
+    background-color: var(--siau-color-neutral-0);
+    color: var(--siau-color-primary-800);
+    font-weight: var(--siau-font-weight-semibold);
+    box-shadow: var(--siau-shadow-sm);
+
+    .siau-stepper__marker {
+      background-color: var(--siau-color-primary-700);
+      color: var(--siau-color-neutral-0);
+    }
+
+    .siau-stepper__label {
+      font-weight: var(--siau-font-weight-semibold);
+    }
+  }
+
+  &__step--completed {
+    color: var(--siau-color-neutral-700);
+
+    .siau-stepper__marker {
+      background-color: transparent;
+      color: var(--siau-color-success-fg);
+    }
+
+    .siau-stepper__check {
+      font-size: 1.5rem;
+      width: 1.5rem;
+      height: 1.5rem;
+    }
+  }
+
+  &__step--disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  // ---- Progress section -------------------------------------------------
+  &__progress {
+    margin-top: var(--siau-space-6);
+    padding-top: var(--siau-space-4);
+    border-top: 1px solid var(--siau-border-subtle);
+  }
+
+  &__progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--siau-space-2);
+  }
+
+  &__progress-label {
+    font-size: var(--siau-text-xs);
+    font-weight: var(--siau-font-weight-semibold);
+    color: var(--siau-color-neutral-500);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &__progress-count {
+    font-size: var(--siau-text-xs);
+    font-weight: var(--siau-font-weight-semibold);
+    color: var(--siau-color-neutral-700);
+  }
+
+  &__progress-track {
+    width: 100%;
+    height: 4px;
+    background-color: var(--siau-color-neutral-200);
+    border-radius: var(--siau-radius-pill);
+    overflow: hidden;
+  }
+
+  &__progress-bar {
+    height: 100%;
+    background-color: var(--siau-color-primary-700);
+    border-radius: var(--siau-radius-pill);
+    transition: width var(--siau-duration-slow) var(--siau-ease-out);
+  }
+}

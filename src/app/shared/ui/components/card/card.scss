@@ -1,0 +1,65 @@
+:host {
+  display: block;
+}
+
+.siau-card {
+  background-color: var(--siau-surface-card);
+  border: 1px solid var(--siau-border-subtle);
+  border-radius: var(--siau-radius-lg);
+  transition: box-shadow var(--siau-duration-base) var(--siau-ease-out);
+
+  &--squared {
+    border-radius: 0;
+  }
+
+  // ---- Elevations -------------------------------------------------------
+  &--flat {
+    box-shadow: none;
+  }
+  &--raised {
+    box-shadow: var(--siau-shadow-sm);
+  }
+  &--floating {
+    box-shadow: var(--siau-shadow-lg);
+    border-color: transparent;
+  }
+
+  // ---- Padding ----------------------------------------------------------
+  &--padding-none {
+    padding: 0;
+  }
+  &--padding-sm {
+    padding: var(--siau-space-3);
+  }
+  &--padding-md {
+    padding: var(--siau-space-5);
+  }
+  &--padding-lg {
+    padding: var(--siau-space-8);
+  }
+
+  // ---- Accents (left border indicators) ---------------------------------
+  // Used for info callouts like the "Esta sección es opcional" boxes
+  // in the wizard. Border-left only — no radius on that side.
+  &--accent-info,
+  &--accent-warning,
+  &--accent-success,
+  &--accent-danger {
+    border-left-width: 4px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  &--accent-info {
+    border-left-color: var(--siau-color-info-fg);
+  }
+  &--accent-warning {
+    border-left-color: var(--siau-color-warning-fg);
+  }
+  &--accent-success {
+    border-left-color: var(--siau-color-success-fg);
+  }
+  &--accent-danger {
+    border-left-color: var(--siau-color-danger-fg);
+  }
+}

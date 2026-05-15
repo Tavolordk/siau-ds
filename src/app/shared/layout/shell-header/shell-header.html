@@ -1,0 +1,15 @@
+<header class="siau-shell-header" role="banner">
+    <div class="siau-shell-header__brand">
+        <img src="sspc.png" alt="Escudo SSPC" class="siau-shell-header__seal-img" />
+    </div>
+
+    <h2 class="siau-shell-header__title">{{ title() }}</h2>
+
+    <button type="button" class="siau-shell-header__avatar" aria-label="Menú de usuario" (click)="onAvatarClick()">
+        @if (userInitials(); as initials) {
+        <span class="siau-shell-header__avatar-initials">{{ initials }}</span>
+        } @else {
+        <mat-icon aria-hidden="true">person</mat-icon>
+        }
+    </button>
+</header>

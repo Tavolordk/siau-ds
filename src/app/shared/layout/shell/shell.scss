@@ -1,0 +1,30 @@
+:host {
+  display: block;
+  height: 100vh;
+}
+
+.siau-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--siau-surface-header);
+
+  &__body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    background: linear-gradient(
+      135deg,
+      var(--siau-surface-app-gradient-start) 0%,
+      var(--siau-surface-app) 48%,
+      var(--siau-surface-app-gradient-end) 100%
+    );
+    padding: var(--siau-space-8) var(--siau-space-10);
+  }
+}
