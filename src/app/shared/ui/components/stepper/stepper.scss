@@ -31,7 +31,6 @@
     flex: 1;
   }
 
-  // ---- Step button ------------------------------------------------------
   &__step {
     appearance: none;
     border: 0;
@@ -40,7 +39,6 @@
     text-align: left;
     cursor: pointer;
     user-select: none;
-
     display: flex;
     align-items: center;
     gap: var(--siau-space-3);
@@ -95,7 +93,6 @@
     font-weight: var(--siau-font-weight-medium);
   }
 
-  // ---- Step states ------------------------------------------------------
   &__step--pending {
     color: var(--siau-color-neutral-600);
 
@@ -141,7 +138,6 @@
     cursor: not-allowed;
   }
 
-  // ---- Progress section -------------------------------------------------
   &__progress {
     margin-top: var(--siau-space-6);
     padding-top: var(--siau-space-4);
@@ -182,5 +178,67 @@
     background-color: var(--siau-color-primary-700);
     border-radius: var(--siau-radius-pill);
     transition: width var(--siau-duration-slow) var(--siau-ease-out);
+  }
+}
+
+@media (max-width: 992px) {
+  .siau-stepper {
+    min-height: auto;
+
+    &__title {
+      display: none;
+    }
+
+    &__list {
+      flex-direction: row;
+      overflow-x: auto;
+      gap: var(--siau-space-2);
+      padding-bottom: var(--siau-space-1);
+    }
+
+    &__list li {
+      flex: 0 0 auto;
+    }
+
+    &__step {
+      min-width: 9rem;
+      justify-content: center;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    &__label {
+      flex: none;
+    }
+
+    &__progress {
+      margin-top: var(--siau-space-3);
+      padding-top: var(--siau-space-3);
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .siau-stepper {
+    padding: var(--siau-space-3);
+
+    &__step {
+      min-width: 3rem;
+      padding: var(--siau-space-2);
+      border-radius: var(--siau-radius-pill);
+    }
+
+    &__label {
+      display: none;
+    }
+
+    &__marker {
+      width: 1.6rem;
+      height: 1.6rem;
+    }
+
+    &__progress-label {
+      display: none;
+    }
   }
 }

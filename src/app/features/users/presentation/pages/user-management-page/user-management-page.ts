@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/c
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { UserRecord } from '../../../domain/models/user-record.model';
+import { UserRegistrationWizard } from '../../components/user-registration-wizard/user-registration-wizard';
 
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
@@ -9,12 +10,13 @@ type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
     selector: 'app-user-management-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, MatIconModule],
+    imports: [FormsModule, MatIconModule, UserRegistrationWizard],
     templateUrl: './user-management-page.html',
     styleUrl: './user-management-page.scss',
 })
 export class UserManagementPage {
     protected readonly searchTerm = signal<string>('');
+    protected readonly isRegistrationOpen = signal<boolean>(false);
 
     protected readonly users = signal<readonly UserRecord[]>([
         {
@@ -79,6 +81,14 @@ export class UserManagementPage {
 
     protected updateSearchTerm(value: string): void {
         this.searchTerm.set(value);
+    }
+
+    protected openRegistration(): void {
+        this.isRegistrationOpen.set(true);
+    }
+
+    protected closeRegistration(): void {
+        this.isRegistrationOpen.set(false);
     }
 
     protected getRoleTone(role: UserRecord['role']): BadgeTone {

@@ -12,8 +12,6 @@
   padding: var(--siau-space-4);
   background-color: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(2px);
-
-  // Entrance animation
   animation: siau-modal-backdrop-in var(--siau-duration-base) var(--siau-ease-out);
 
   &__surface {
@@ -30,18 +28,20 @@
     &--sm {
       max-width: 24rem;
     }
+
     &--md {
       max-width: 35rem;
     }
+
     &--lg {
       max-width: 45rem;
     }
+
     &--xl {
-      max-width: 60rem;
+      max-width: 64rem;
     }
   }
 
-  // ---- Header -----------------------------------------------------------
   &__header {
     display: flex;
     align-items: flex-start;
@@ -117,13 +117,13 @@
     &:hover {
       background-color: rgba(255, 255, 255, 0.12);
     }
+
     &:focus-visible {
       outline: none;
       box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.4);
     }
   }
 
-  // ---- Content ----------------------------------------------------------
   &__content {
     flex: 1;
     min-height: 0;
@@ -132,11 +132,61 @@
   }
 }
 
-// ---- Animations ---------------------------------------------------------
+@media (max-width: 768px) {
+  .siau-modal {
+    padding: var(--siau-space-3);
+    align-items: stretch;
+
+    &__surface {
+      max-height: calc(100vh - var(--siau-space-6));
+      border-radius: var(--siau-radius-lg);
+    }
+
+    &__header {
+      padding: var(--siau-space-4);
+      gap: var(--siau-space-2);
+    }
+
+    &__icon-wrap {
+      width: 2rem;
+      height: 2rem;
+    }
+
+    &__title {
+      font-size: var(--siau-text-base);
+    }
+
+    &__subtitle {
+      font-size: var(--siau-text-xs);
+    }
+
+    &__badge {
+      display: none;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .siau-modal {
+    padding: 0;
+
+    &__surface {
+      min-height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+    }
+
+    &__header {
+      padding: var(--siau-space-3);
+    }
+  }
+}
+
 @keyframes siau-modal-backdrop-in {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -147,6 +197,7 @@
     opacity: 0;
     transform: scale(0.96) translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);

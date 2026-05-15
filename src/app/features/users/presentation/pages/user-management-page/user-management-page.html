@@ -10,7 +10,7 @@
     </header>
 
     <div class="users-page__actions">
-        <button type="button" class="users-page__new-button">
+        <button type="button" class="users-page__new-button" (click)="openRegistration()">
             <mat-icon aria-hidden="true">add</mat-icon>
             <span>Nuevo Usuario</span>
         </button>
@@ -88,3 +88,5 @@
         </footer>
     </article>
 </section>
+
+<app-user-registration-wizard [open]="isRegistrationOpen()" (closed)="closeRegistration()" />

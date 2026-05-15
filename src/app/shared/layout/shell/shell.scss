@@ -1,24 +1,29 @@
 :host {
   display: block;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .siau-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   background-color: var(--siau-surface-header);
+  overflow: hidden;
 
   &__body {
     display: flex;
     align-items: stretch;
     flex: 1 1 auto;
-    min-height: calc(100vh - 5rem);
+    min-height: 0;
+    overflow: hidden;
   }
 
   &__content {
     flex: 1 1 auto;
     min-width: 0;
+    min-height: 0;
+    overflow: auto;
     background: linear-gradient(
       135deg,
       var(--siau-surface-app-gradient-start) 0%,
@@ -41,7 +46,6 @@
   .siau-shell {
     &__body {
       flex-direction: column;
-      min-height: calc(100vh - 4.5rem);
     }
 
     &__content {
@@ -52,10 +56,6 @@
 
 @media (max-width: 576px) {
   .siau-shell {
-    &__body {
-      min-height: calc(100vh - 4rem);
-    }
-
     &__content {
       padding: var(--siau-space-4);
     }

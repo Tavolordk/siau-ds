@@ -1,0 +1,200 @@
+<siau-modal [open]="open()" title="Registrar Nuevo Usuario"
+    subtitle="Complete las secciones requeridas para crear una cuenta" icon="person_add" size="xl"
+    [headerBadge]="headerBadge()" (close)="closeWizard()">
+    <section class="registration-wizard">
+        <aside class="registration-wizard__sidebar">
+            <siau-stepper [steps]="steps()" [activeIndex]="activeIndex()" (stepClick)="goToStep($event)" />
+        </aside>
+
+        <form class="registration-wizard__content">
+            @switch (activeStepId()) {
+            @case ('personal-data') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Datos personales</h3>
+                    <p>Captura la información de identificación de la persona usuaria.</p>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <siau-input label="Nombre" placeholder="Ingresa el nombre" [required]="true"
+                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)" />
+
+                    <siau-input label="Primer apellido" placeholder="Ingresa el primer apellido" [required]="true"
+                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)" />
+
+                    <siau-input label="Segundo apellido" placeholder="Ingresa el segundo apellido"
+                        [value]="form().secondLastName" (valueChange)="updateForm('secondLastName', $event)" />
+
+                    <siau-input label="CURP" placeholder="Ingresa la CURP" [required]="true" [maxLength]="18"
+                        [value]="form().curp" (valueChange)="updateForm('curp', $event)" />
+
+                    <siau-input label="RFC" placeholder="Ingresa el RFC" [maxLength]="13" [value]="form().rfc"
+                        (valueChange)="updateForm('rfc', $event)" />
+
+                    <siau-input label="Fecha de nacimiento" type="date" [value]="form().birthDate"
+                        (valueChange)="updateForm('birthDate', $event)" />
+
+                    <siau-select label="Sexo" placeholder="Selecciona una opción" [options]="genderOptions"
+                        [value]="form().gender" (valueChange)="updateForm('gender', $event)" />
+                </div>
+            </section>
+            }
+
+            @case ('assignment') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Adscripción</h3>
+                    <p>Selecciona la estructura institucional a la que pertenece la persona usuaria.</p>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
+                        [options]="institutionOptions" [value]="form().institution"
+                        (valueChange)="updateForm('institution', $event)" />
+
+                    <siau-select label="Dependencia" placeholder="Selecciona la dependencia" [required]="true"
+                        [options]="dependencyOptions" [value]="form().dependency"
+                        (valueChange)="updateForm('dependency', $event)" />
+
+                    <siau-select label="Corporación" placeholder="Selecciona la corporación" [required]="true"
+                        [options]="corporationOptions" [value]="form().corporation"
+                        (valueChange)="updateForm('corporation', $event)" />
+
+                    <siau-select label="Área" placeholder="Selecciona el área" [required]="true" [options]="areaOptions"
+                        [value]="form().area" (valueChange)="updateForm('area', $event)" />
+
+                    <siau-input label="Cargo" placeholder="Ingresa el cargo" [value]="form().position"
+                        (valueChange)="updateForm('position', $event)" />
+                </div>
+            </section>
+            }
+
+            @case ('commission') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Comisión</h3>
+                    <p>Registra la información de comisión o asignación administrativa.</p>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <siau-select label="Tipo de comisión" placeholder="Selecciona el tipo" [options]="commissionOptions"
+                        [value]="form().commissionType" (valueChange)="updateForm('commissionType', $event)" />
+
+                    <siau-input label="Fecha inicial" type="date" [value]="form().commissionStart"
+                        (valueChange)="updateForm('commissionStart', $event)" />
+
+                    <siau-input label="Fecha final" type="date" [value]="form().commissionEnd"
+                        (valueChange)="updateForm('commissionEnd', $event)" />
+                </div>
+            </section>
+            }
+
+            @case ('documents') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Archivos</h3>
+                    <p>Adjunta los documentos necesarios para validar el registro.</p>
+                </div>
+
+                <div class="registration-wizard__documents">
+                    <siau-file-upload label="Identificación oficial" placeholder="Carga la identificación oficial"
+                        accept="documents" [required]="true" />
+
+                    <siau-file-upload label="Comprobante institucional" placeholder="Carga el comprobante institucional"
+                        accept="documents" />
+
+                    <siau-file-upload label="Nombramiento o comisión" placeholder="Carga el documento de nombramiento"
+                        accept="documents" />
+                </div>
+            </section>
+            }
+
+            @case ('contact') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Medios de contacto</h3>
+                    <p>Captura teléfonos y correos para notificaciones institucionales.</p>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <siau-input label="Teléfono de oficina" type="tel" placeholder="Ingresa el teléfono de oficina"
+                        [value]="form().officePhone" (valueChange)="updateForm('officePhone', $event)" />
+
+                    <siau-input label="Teléfono móvil" type="tel" placeholder="Ingresa el teléfono móvil"
+                        [value]="form().mobilePhone" (valueChange)="updateForm('mobilePhone', $event)" />
+
+                    <siau-input label="Correo institucional" type="email" placeholder="nombre@dominio.gob.mx"
+                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)" />
+
+                    <siau-input label="Correo alternativo" type="email" placeholder="correo alternativo"
+                        [value]="form().alternativeEmail" (valueChange)="updateForm('alternativeEmail', $event)" />
+                </div>
+            </section>
+            }
+
+            @case ('profiles') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Perfiles</h3>
+                    <p>Asigna el sistema y perfil con el que operará la persona usuaria.</p>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <siau-select label="Sistema" placeholder="Selecciona el sistema" [required]="true"
+                        [options]="systemOptions" [value]="form().system"
+                        (valueChange)="updateForm('system', $event)" />
+
+                    <siau-select label="Perfil" placeholder="Selecciona el perfil" [required]="true"
+                        [options]="profileOptions" [value]="form().profile"
+                        (valueChange)="updateForm('profile', $event)" />
+                </div>
+
+                <siau-divider label="Resumen de permisos" />
+
+                <div class="registration-wizard__permission-card">
+                    <strong>Permisos base</strong>
+                    <span>Consulta, registro, edición y administración según el perfil seleccionado.</span>
+                </div>
+            </section>
+            }
+
+            @case ('account') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__heading">
+                    <h3>Cuenta</h3>
+                    <p>Define los datos iniciales de acceso para la cuenta del sistema.</p>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <siau-input label="Nombre de usuario" placeholder="usuario.apellido" [required]="true"
+                        [value]="form().username" (valueChange)="updateForm('username', $event)" />
+
+                    <siau-input label="Contraseña temporal" type="password"
+                        placeholder="Ingresa una contraseña temporal" [required]="true"
+                        [value]="form().temporaryPassword" (valueChange)="updateForm('temporaryPassword', $event)" />
+                </div>
+
+                <div class="registration-wizard__notice">
+                    La persona usuaria deberá cambiar su contraseña en el primer inicio de sesión.
+                </div>
+            </section>
+            }
+            }
+
+            <footer class="registration-wizard__footer">
+                <siau-button label="Cancelar" variant="secondary" (clicked)="closeWizard()" />
+
+                <div class="registration-wizard__footer-actions">
+                    <siau-button label="Anterior" variant="tertiary" [disabled]="isFirstStep()"
+                        (clicked)="previousStep()" />
+
+                    @if (isLastStep()) {
+                    <siau-button label="Guardar usuario" icon="save" (clicked)="nextStep()" />
+                    } @else {
+                    <siau-button label="Continuar" trailingIcon="arrow_forward" (clicked)="nextStep()" />
+                    }
+                </div>
+            </footer>
+        </form>
+    </section>
+</siau-modal>
