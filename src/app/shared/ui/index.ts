@@ -20,3 +20,4 @@ export * from './components/input/input';
 export * from './components/modal/modal';
 export * from './components/select/select';
 export * from './components/stepper/stepper';
+export * from './components/page-placeholder/page-placeholder';

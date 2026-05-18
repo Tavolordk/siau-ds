@@ -1,47 +1,57 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs';
 import { SiauShellHeader } from '../shell-header/shell-header';
 import { SiauShellSidebar, SidebarItem } from '../shell-sidebar/shell-sidebar';
 
-/**
- * SIAU Shell — main application layout.
- *
- * Composes header + sidebar + content slot. Manages the sidebar's
- * collapsed/active state internally. Renders user-projected content
- * via <ng-content/>.
- *
- * Nav items and active state are hardcoded here for the demo. When we
- * wire up routing, the active state will derive from the current URL.
- */
 @Component({
-    selector: 'siau-shell',
-    standalone: true,
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [SiauShellHeader, SiauShellSidebar],
-    templateUrl: './shell.html',
-    styleUrl: './shell.scss',
+  selector: 'siau-shell',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SiauShellHeader, SiauShellSidebar],
+  templateUrl: './shell.html',
+  styleUrl: './shell.scss',
 })
 export class SiauShell {
-    protected readonly sidebarCollapsed = signal<boolean>(false);
-    protected readonly activeItemId = signal<string>('usuarios');
+  private readonly router = inject(Router);
+  private readonly currentUrl = signal<string>(this.router.url);
 
-    protected readonly navItems: SidebarItem[] = [
-        { id: 'usuarios', label: 'Usuarios', icon: 'group' },
-        { id: 'solicitudes', label: 'Solicitudes', icon: 'description' },
-        { id: 'administracion', label: 'Administración', icon: 'tune' },
-        { id: 'reportes', label: 'Reportes', icon: 'insert_chart' },
-        { id: 'bitacora', label: 'Bitácora', icon: 'timeline' },
-        { id: 'modals', label: 'Modals', icon: 'layers' },
-    ];
+  protected readonly sidebarCollapsed = signal<boolean>(false);
 
-    protected onItemClick(itemId: string): void {
-        this.activeItemId.set(itemId);
+  protected readonly navItems: SidebarItem[] = [
+    { id: 'usuarios', label: 'Usuarios', icon: 'group', route: '/usuarios' },
+    { id: 'solicitudes', label: 'Solicitudes', icon: 'description', route: '/solicitudes' },
+    { id: 'administracion', label: 'Administración', icon: 'tune', route: '/administracion' },
+    { id: 'reportes', label: 'Reportes', icon: 'insert_chart', route: '/reportes' },
+    { id: 'bitacora', label: 'Bitácora', icon: 'timeline', route: '/bitacora' },
+    { id: 'modals', label: 'Modals', icon: 'layers', route: '/modals' },
+  ];
+
+  protected readonly activeItemId = computed(() => {
+    const url = this.currentUrl();
+
+    return this.navItems.find((item) => url.startsWith(item.route))?.id ?? 'usuarios';
+  });
+
+  constructor() {
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe((event) => {
+        this.currentUrl.set(event.urlAfterRedirects);
+      });
+  }
+
+  protected onItemClick(item: SidebarItem): void {
+    if (item.disabled) {
+      return;
     }
 
-    protected onCollapseToggle(): void {
-        this.sidebarCollapsed.update((v) => !v);
-    }
+    void this.router.navigateByUrl(item.route);
+  }
 
-    protected onAvatarClick(): void {
-        console.log('Avatar clicked — abrir menú de perfil');
-    }
+  protected onCollapseToggle(): void {
+    this.sidebarCollapsed.update((value) => !value);
+  }
+
+  protected onAvatarClick(): void {}
 }
