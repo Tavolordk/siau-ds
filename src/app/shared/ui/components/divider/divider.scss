@@ -1,100 +1,24 @@
 :host {
-  display: contents;
+  display: block;
+  margin: var(--siau-space-6) 0;
 }
 
 .siau-divider {
-  // ---- Base (horizontal, sin label) -------------------------------------
-  &--horizontal:not(.siau-divider--labeled) {
-    display: block;
-    width: 100%;
-    border: 0;
-    height: 1px;
-    background-color: var(--siau-border-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--siau-space-3);
+}
 
-    &.siau-divider--subtle {
-      background-color: var(--siau-color-neutral-100);
-    }
-    &.siau-divider--default {
-      background-color: var(--siau-border-subtle);
-    }
-    &.siau-divider--strong {
-      background-color: var(--siau-border-default);
-    }
+.siau-divider__line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.72);
+}
 
-    &.siau-divider--spacing-sm {
-      margin: var(--siau-space-2) 0;
-    }
-    &.siau-divider--spacing-md {
-      margin: var(--siau-space-4) 0;
-    }
-    &.siau-divider--spacing-lg {
-      margin: var(--siau-space-6) 0;
-    }
-  }
-
-  // ---- Vertical ---------------------------------------------------------
-  &--vertical {
-    display: inline-block;
-    width: 1px;
-    align-self: stretch;
-    background-color: var(--siau-border-subtle);
-
-    &.siau-divider--subtle {
-      background-color: var(--siau-color-neutral-100);
-    }
-    &.siau-divider--default {
-      background-color: var(--siau-border-subtle);
-    }
-    &.siau-divider--strong {
-      background-color: var(--siau-border-default);
-    }
-
-    &.siau-divider--spacing-sm {
-      margin: 0 var(--siau-space-2);
-    }
-    &.siau-divider--spacing-md {
-      margin: 0 var(--siau-space-4);
-    }
-    &.siau-divider--spacing-lg {
-      margin: 0 var(--siau-space-6);
-    }
-  }
-
-  // ---- Labeled (horizontal con texto en medio) --------------------------
-  &--labeled {
-    display: flex;
-    align-items: center;
-    gap: var(--siau-space-3);
-    width: 100%;
-
-    &.siau-divider--spacing-sm {
-      margin: var(--siau-space-2) 0;
-    }
-    &.siau-divider--spacing-md {
-      margin: var(--siau-space-4) 0;
-    }
-    &.siau-divider--spacing-lg {
-      margin: var(--siau-space-6) 0;
-    }
-
-    .siau-divider__line {
-      flex: 1;
-      height: 1px;
-      background-color: var(--siau-border-subtle);
-    }
-
-    .siau-divider__label {
-      font-family: var(--siau-font-body);
-      font-size: var(--siau-text-xs);
-      font-weight: var(--siau-font-weight-semibold);
-      color: var(--siau-color-neutral-500);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      white-space: nowrap;
-    }
-
-    &.siau-divider--strong .siau-divider__line {
-      background-color: var(--siau-border-default);
-    }
-  }
+.siau-divider__label {
+  color: var(--siau-color-primary-400);
+  font-size: var(--siau-text-xs);
+  font-weight: var(--siau-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }

@@ -1,18 +1,17 @@
-<button matRipple [matRippleDisabled]="isDisabled()" [type]="type()" [class]="cssClasses()" [disabled]="isDisabled()"
-    [attr.aria-label]="resolvedAriaLabel()" [attr.aria-busy]="loading() ? 'true' : null" (click)="onClick($event)">
-    @if (loading()) {
-    <span class="siau-button__spinner" aria-hidden="true"></span>
-    } @else if (icon()) {
+<button
+  class="siau-button"
+  [class]="'siau-button siau-button--' + variant()"
+  [type]="type()"
+  [disabled]="disabled()"
+  (click)="handleClick()"
+>
+  @if (icon()) {
     <mat-icon class="siau-button__icon" aria-hidden="true">{{ icon() }}</mat-icon>
-    }
+  }
 
-    @if (label()) {
-    <span class="siau-button__label">{{ label() }}</span>
-    }
+  <span class="siau-button__label">{{ label() }}</span>
 
-    @if (trailingIcon() && !loading()) {
-    <mat-icon class="siau-button__icon siau-button__icon--trailing" aria-hidden="true">
-        {{ trailingIcon() }}
-    </mat-icon>
-    }
+  @if (trailingIcon()) {
+    <mat-icon class="siau-button__icon" aria-hidden="true">{{ trailingIcon() }}</mat-icon>
+  }
 </button>

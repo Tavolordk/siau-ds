@@ -1,47 +1,24 @@
-<div class="siau-input-wrapper">
-    @if (label(); as labelText) {
-    <label class="siau-input__label">
-        {{ labelText }}
-        @if (required()) {
-        <span class="siau-input__required" aria-hidden="true">♦</span>
-        <span class="siau-input__sr-only">(obligatorio)</span>
-        }
-    </label>
+<label class="siau-input">
+  <span class="siau-input__label">
+    {{ label() }}
+
+    @if (required()) {
+      <strong>*</strong>
     }
+  </span>
 
-    <div [class]="wrapperClasses()">
-        @if (prefixIcon(); as icon) {
-        <mat-icon class="siau-input__icon siau-input__icon--prefix" aria-hidden="true">
-            {{ icon }}
-        </mat-icon>
-        }
+  <input
+    class="siau-input__control"
+    [type]="type()"
+    [value]="value()"
+    [placeholder]="placeholder()"
+    [required]="required()"
+    [disabled]="disabled()"
+    [attr.maxlength]="maxLength()"
+    (input)="handleInput($event)"
+  />
 
-        <input class="siau-input__field" [type]="resolvedType()" [value]="internalValue()" [placeholder]="placeholder()"
-            [disabled]="disabled()" [readonly]="isReadonly()" [attr.maxlength]="maxLength()"
-            [autocomplete]="autocomplete()" [attr.aria-invalid]="hasError() ? 'true' : null"
-            [attr.aria-required]="required() ? 'true' : null" (input)="onInput($event)" (focus)="onFocus()"
-            (blur)="onBlur()" />
-
-        @if (showRevealToggle()) {
-        <button type="button" class="siau-input__action"
-            [attr.aria-label]="passwordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-            (click)="togglePasswordVisibility()">
-            <mat-icon aria-hidden="true">
-                {{ passwordVisible() ? 'visibility_off' : 'visibility' }}
-            </mat-icon>
-        </button>
-        } @else if (suffixIcon(); as icon) {
-        <mat-icon class="siau-input__icon siau-input__icon--suffix" aria-hidden="true">
-            {{ icon }}
-        </mat-icon>
-        }
-    </div>
-
-    @if (hasError()) {
-    <p class="siau-input__message siau-input__message--error" role="alert">
-        {{ errorMessage() }}
-    </p>
-    } @else if (hint(); as hintText) {
-    <p class="siau-input__message">{{ hintText }}</p>
-    }
-</div>
+  @if (hint()) {
+    <span class="siau-input__hint">{{ hint() }}</span>
+  }
+</label>

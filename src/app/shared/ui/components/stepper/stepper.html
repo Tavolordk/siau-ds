@@ -1,34 +1,38 @@
-<nav class="siau-stepper" aria-label="Pasos del formulario">
-    @if (title(); as titleText) {
-    <p class="siau-stepper__title">{{ titleText }}</p>
+<nav class="siau-stepper" aria-label="Progreso de registro">
+  <h3 class="siau-stepper__title">Secciones</h3>
+
+  <ol class="siau-stepper__list">
+    @for (step of steps(); track step.id; let index = $index) {
+      <li>
+        <button
+          type="button"
+          class="siau-stepper__step"
+          [class]="'siau-stepper__step siau-stepper__step--' + getStepState(index, step)"
+          [disabled]="step.disabled"
+          (click)="selectStep(step)"
+        >
+          <span class="siau-stepper__marker">
+            @if (step.completed && index !== activeIndex()) {
+              <mat-icon class="siau-stepper__check" aria-hidden="true">check_circle</mat-icon>
+            } @else {
+              <mat-icon class="siau-stepper__icon" aria-hidden="true">{{ step.icon }}</mat-icon>
+            }
+          </span>
+
+          <span class="siau-stepper__label">{{ step.label }}</span>
+        </button>
+      </li>
     }
+  </ol>
 
-    <ol class="siau-stepper__list">
-        @for (step of steps(); track step.id; let i = $index) {
-        <li>
-            <button type="button" [class]="stepClasses(i)" [disabled]="step.disabled || !navigable()"
-                [attr.aria-current]="stateOf(i) === 'active' ? 'step' : null" (click)="onStepClick(step)">
-                <span class="siau-stepper__marker">
-                    @if (stateOf(i) === 'completed') {
-                    <mat-icon class="siau-stepper__check" aria-hidden="true">check_circle</mat-icon>
-                    } @else {
-                    <mat-icon class="siau-stepper__icon" aria-hidden="true">{{ step.icon }}</mat-icon>
-                    }
-                </span>
-                <span class="siau-stepper__label">{{ step.label }}</span>
-            </button>
-        </li>
-        }
-    </ol>
-
-    <div class="siau-stepper__progress">
-        <div class="siau-stepper__progress-header">
-            <span class="siau-stepper__progress-label">{{ progressLabel() }}</span>
-            <span class="siau-stepper__progress-count">{{ completedCount() }}/{{ steps().length }}</span>
-        </div>
-        <div class="siau-stepper__progress-track" role="progressbar" [attr.aria-valuenow]="progressPercent()"
-            aria-valuemin="0" aria-valuemax="100">
-            <div class="siau-stepper__progress-bar" [style.width.%]="progressPercent()"></div>
-        </div>
+  <div class="siau-stepper__progress">
+    <div class="siau-stepper__progress-header">
+      <span class="siau-stepper__progress-label">Avance</span>
+      <span class="siau-stepper__progress-count">{{ completedCount() }}/{{ steps().length }}</span>
     </div>
+
+    <div class="siau-stepper__progress-track">
+      <span class="siau-stepper__progress-bar" [style.width.%]="progress()"></span>
+    </div>
+  </div>
 </nav>

@@ -47,14 +47,6 @@
     font-family: var(--siau-font-body);
     font-size: var(--siau-text-sm);
     color: var(--siau-color-neutral-700);
-    transition:
-      background-color var(--siau-duration-base) var(--siau-ease-out),
-      color var(--siau-duration-base) var(--siau-ease-out);
-
-    &:focus-visible {
-      outline: none;
-      box-shadow: var(--siau-focus-ring);
-    }
 
     &:hover:not(:disabled) {
       background-color: var(--siau-color-neutral-100);
@@ -75,9 +67,6 @@
     background-color: var(--siau-color-neutral-200);
     color: var(--siau-color-neutral-600);
     flex: none;
-    transition:
-      background-color var(--siau-duration-base) var(--siau-ease-out),
-      color var(--siau-duration-base) var(--siau-ease-out);
   }
 
   &__icon,
@@ -93,15 +82,6 @@
     font-weight: var(--siau-font-weight-medium);
   }
 
-  &__step--pending {
-    color: var(--siau-color-neutral-600);
-
-    .siau-stepper__marker {
-      background-color: var(--siau-color-neutral-200);
-      color: var(--siau-color-neutral-500);
-    }
-  }
-
   &__step--active {
     background-color: var(--siau-color-neutral-0);
     color: var(--siau-color-primary-800);
@@ -111,10 +91,6 @@
     .siau-stepper__marker {
       background-color: var(--siau-color-primary-700);
       color: var(--siau-color-neutral-0);
-    }
-
-    .siau-stepper__label {
-      font-weight: var(--siau-font-weight-semibold);
     }
   }
 
@@ -135,7 +111,6 @@
 
   &__step--disabled {
     opacity: 0.45;
-    cursor: not-allowed;
   }
 
   &__progress {
@@ -151,18 +126,11 @@
     margin-bottom: var(--siau-space-2);
   }
 
-  &__progress-label {
-    font-size: var(--siau-text-xs);
-    font-weight: var(--siau-font-weight-semibold);
-    color: var(--siau-color-neutral-500);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
+  &__progress-label,
   &__progress-count {
     font-size: var(--siau-text-xs);
     font-weight: var(--siau-font-weight-semibold);
-    color: var(--siau-color-neutral-700);
+    color: var(--siau-color-neutral-600);
   }
 
   &__progress-track {
@@ -174,10 +142,10 @@
   }
 
   &__progress-bar {
+    display: block;
     height: 100%;
     background-color: var(--siau-color-primary-700);
     border-radius: var(--siau-radius-pill);
-    transition: width var(--siau-duration-slow) var(--siau-ease-out);
   }
 }
 

@@ -1,44 +1,42 @@
 @if (open()) {
-<!-- Trick to evaluate the body lock effect -->
-@if (bodyScrollLocked()) {}
-
-<div class="siau-modal" role="dialog" aria-modal="true" [attr.aria-labelledby]="title() ? 'siau-modal-title' : null"
-    [attr.aria-describedby]="subtitle() ? 'siau-modal-subtitle' : null" (click)="onBackdropClick()">
-    <div [class]="surfaceClasses()" (click)="onSurfaceClick($event)">
-
-        @if (title() || icon() || !hideCloseButton()) {
-        <header class="siau-modal__header">
-            @if (icon(); as iconName) {
-            <span class="siau-modal__icon-wrap" aria-hidden="true">
-                <mat-icon class="siau-modal__icon">{{ iconName }}</mat-icon>
-            </span>
-            }
-
-            <div class="siau-modal__heading">
-                @if (title(); as titleText) {
-                <h2 id="siau-modal-title" class="siau-modal__title">{{ titleText }}</h2>
-                }
-                @if (subtitle(); as subtitleText) {
-                <p id="siau-modal-subtitle" class="siau-modal__subtitle">{{ subtitleText }}</p>
-                }
-            </div>
-
-            @if (headerBadge(); as badgeText) {
-            <span class="siau-modal__badge">{{ badgeText }}</span>
-            }
-
-            @if (!hideCloseButton()) {
-            <button type="button" class="siau-modal__close" aria-label="Cerrar" (click)="onCloseClick()">
-                <mat-icon aria-hidden="true">close</mat-icon>
-            </button>
-            }
-        </header>
+  <div class="siau-modal" role="dialog" aria-modal="true" (click)="closeModal()">
+    <section
+      class="siau-modal__surface"
+      [class]="'siau-modal__surface siau-modal__surface--' + size()"
+      (click)="stopPropagation($event)"
+    >
+      <header class="siau-modal__header">
+        @if (icon()) {
+          <span class="siau-modal__icon-wrap">
+            <mat-icon class="siau-modal__icon" aria-hidden="true">{{ icon() }}</mat-icon>
+          </span>
         }
 
-        <div class="siau-modal__content">
-            <ng-content />
+        <div class="siau-modal__heading">
+          <h2 class="siau-modal__title">{{ title() }}</h2>
+
+          @if (subtitle()) {
+            <p class="siau-modal__subtitle">{{ subtitle() }}</p>
+          }
         </div>
 
-    </div>
-</div>
+        @if (headerBadge()) {
+          <span class="siau-modal__badge">{{ headerBadge() }}</span>
+        }
+
+        <button
+          type="button"
+          class="siau-modal__close"
+          aria-label="Cerrar modal"
+          (click)="closeModal()"
+        >
+          <mat-icon aria-hidden="true">close</mat-icon>
+        </button>
+      </header>
+
+      <div class="siau-modal__content">
+        <ng-content />
+      </div>
+    </section>
+  </div>
 }

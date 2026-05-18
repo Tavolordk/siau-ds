@@ -1,36 +1,27 @@
-<div class="siau-select-wrapper">
-    @if (label(); as labelText) {
-    <label class="siau-select__label">
-        {{ labelText }}
-        @if (required()) {
-        <span class="siau-select__required" aria-hidden="true">♦</span>
-        }
-    </label>
+<label class="siau-select">
+  <span class="siau-select__label">
+    {{ label() }}
+
+    @if (required()) {
+      <strong>*</strong>
     }
+  </span>
 
-    <div [class]="wrapperClasses()">
-        <select class="siau-select__field" [disabled]="disabled()" [value]="currentValue()"
-            [attr.aria-invalid]="hasError() ? 'true' : null" [attr.aria-required]="required() ? 'true' : null"
-            (change)="onChangeNative($event)" (focus)="onFocus()" (blur)="onBlur()">
-            <option value="" [selected]="isEmpty()" disabled hidden>
-                {{ placeholder() }}
-            </option>
+  <select
+    class="siau-select__control"
+    [value]="value()"
+    [required]="required()"
+    [disabled]="disabled()"
+    (change)="handleChange($event)"
+  >
+    <option value="" disabled>{{ placeholder() }}</option>
 
-            @for (opt of options(); track opt.value) {
-            <option [value]="opt.value" [disabled]="opt.disabled ?? false">
-                {{ opt.label }}
-            </option>
-            }
-        </select>
-
-        <mat-icon class="siau-select__chevron" aria-hidden="true">expand_more</mat-icon>
-    </div>
-
-    @if (hasError()) {
-    <p class="siau-select__message siau-select__message--error" role="alert">
-        {{ errorMessage() }}
-    </p>
-    } @else if (hint(); as hintText) {
-    <p class="siau-select__message">{{ hintText }}</p>
+    @for (option of options(); track option.value) {
+      <option [value]="option.value">{{ option.label }}</option>
     }
-</div>
+  </select>
+
+  @if (hint()) {
+    <span class="siau-select__hint">{{ hint() }}</span>
+  }
+</label>

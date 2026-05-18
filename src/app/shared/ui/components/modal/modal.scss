@@ -15,14 +15,14 @@
   animation: siau-modal-backdrop-in var(--siau-duration-base) var(--siau-ease-out);
 
   &__surface {
-    background-color: var(--siau-surface-elevated);
-    border-radius: var(--siau-radius-xl);
-    box-shadow: var(--siau-shadow-modal);
     width: 100%;
     max-height: calc(100vh - 4rem);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background-color: var(--siau-surface-elevated);
+    border-radius: var(--siau-radius-xl);
+    box-shadow: var(--siau-shadow-modal);
     animation: siau-modal-surface-in var(--siau-duration-slow) var(--siau-ease-out);
 
     &--sm {
@@ -67,7 +67,6 @@
     font-size: 1.25rem;
     width: 1.25rem;
     height: 1.25rem;
-    color: var(--siau-color-neutral-0);
   }
 
   &__heading {
@@ -112,15 +111,9 @@
     align-items: center;
     justify-content: center;
     flex: none;
-    transition: background-color var(--siau-duration-fast) var(--siau-ease-out);
 
     &:hover {
       background-color: rgba(255, 255, 255, 0.12);
-    }
-
-    &:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.4);
     }
   }
 
@@ -145,11 +138,6 @@
     &__header {
       padding: var(--siau-space-4);
       gap: var(--siau-space-2);
-    }
-
-    &__icon-wrap {
-      width: 2rem;
-      height: 2rem;
     }
 
     &__title {
