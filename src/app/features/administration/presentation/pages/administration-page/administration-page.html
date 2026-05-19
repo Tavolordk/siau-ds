@@ -1,0 +1,92 @@
+<section class="administration-page">
+    <header class="administration-page__header">
+        <div class="administration-page__heading">
+            <span class="administration-page__accent"></span>
+            <div>
+                <h1>Administración</h1>
+                <p>Administra catálogos, estructuras institucionales y configuraciones del sistema</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="administration-page__modules" aria-label="Módulos administrativos">
+        @for (module of modules(); track module.id) {
+        <article class="admin-module-card">
+            <div class="admin-module-card__icon">
+                <mat-icon aria-hidden="true">{{ module.icon }}</mat-icon>
+            </div>
+
+            <div class="admin-module-card__content">
+                <h2>{{ module.title }}</h2>
+                <p>{{ module.description }}</p>
+                <strong>{{ module.totalRecords }} registros</strong>
+            </div>
+        </article>
+        }
+    </section>
+
+    <article class="admin-table-card">
+        <div class="admin-table-card__toolbar">
+            <label class="admin-table-card__search">
+                <mat-icon aria-hidden="true">search</mat-icon>
+                <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
+                    placeholder="Buscar catálogo..." aria-label="Buscar catálogo" />
+            </label>
+
+            <button type="button" class="admin-table-card__button">
+                <mat-icon aria-hidden="true">add</mat-icon>
+                <span>Nuevo catálogo</span>
+            </button>
+        </div>
+
+        <div class="admin-table-card__scroll">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Catálogo</th>
+                        <th>Descripción</th>
+                        <th>Registros</th>
+                        <th>Última actualización</th>
+                        <th>Estatus</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (catalog of filteredCatalogs(); track catalog.id) {
+                    <tr>
+                        <td data-label="Catálogo">{{ catalog.name }}</td>
+                        <td data-label="Descripción">{{ catalog.description }}</td>
+                        <td data-label="Registros">{{ catalog.records }}</td>
+                        <td data-label="Última actualización">{{ catalog.lastUpdate }}</td>
+                        <td data-label="Estatus">
+                            <span class="badge" [class]="'badge badge--' + getStatusTone(catalog.status)">
+                                {{ catalog.status }}
+                            </span>
+                        </td>
+                        <td data-label="Acciones">
+                            <div class="admin-table__actions">
+                                <button type="button" aria-label="Ver catálogo">
+                                    <mat-icon>visibility</mat-icon>
+                                </button>
+
+                                <button type="button" aria-label="Editar catálogo">
+                                    <mat-icon>edit</mat-icon>
+                                </button>
+
+                                <button type="button" aria-label="Configurar catálogo">
+                                    <mat-icon>settings</mat-icon>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="admin-table-card__footer">
+            Mostrando {{ filteredCatalogs().length }} de {{ catalogs().length }} catálogos
+        </footer>
+    </article>
+</section>

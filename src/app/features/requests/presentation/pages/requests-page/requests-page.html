@@ -1,0 +1,109 @@
+<section class="requests-page">
+    <header class="requests-page__header">
+        <div class="requests-page__heading">
+            <span class="requests-page__accent"></span>
+            <div>
+                <h1>Solicitudes</h1>
+                <p>Consulta y administra las solicitudes de alta, modificación y baja de usuarios</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="requests-page__summary" aria-label="Resumen de solicitudes">
+        <article class="summary-card">
+            <span class="summary-card__label">Pendientes</span>
+            <strong>{{ pendingRequests() }}</strong>
+        </article>
+
+        <article class="summary-card">
+            <span class="summary-card__label">En revisión</span>
+            <strong>{{ reviewRequests() }}</strong>
+        </article>
+
+        <article class="summary-card">
+            <span class="summary-card__label">Aprobadas</span>
+            <strong>{{ approvedRequests() }}</strong>
+        </article>
+
+        <article class="summary-card">
+            <span class="summary-card__label">Rechazadas</span>
+            <strong>{{ rejectedRequests() }}</strong>
+        </article>
+    </section>
+
+    <article class="requests-table-card">
+        <div class="requests-table-card__toolbar">
+            <label class="requests-table-card__search">
+                <mat-icon aria-hidden="true">search</mat-icon>
+                <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
+                    placeholder="Buscar por folio, solicitante o institución..." aria-label="Buscar solicitud" />
+            </label>
+
+            <button type="button" class="requests-table-card__button">
+                <mat-icon aria-hidden="true">filter_list</mat-icon>
+                <span>Filtros</span>
+            </button>
+        </div>
+
+        <div class="requests-table-card__scroll">
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Tipo</th>
+                        <th>Solicitante</th>
+                        <th>Institución</th>
+                        <th>Fecha</th>
+                        <th>Prioridad</th>
+                        <th>Estatus</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (request of filteredRequests(); track request.folio) {
+                    <tr>
+                        <td data-label="Folio">{{ request.folio }}</td>
+                        <td data-label="Tipo">{{ request.type }}</td>
+                        <td data-label="Solicitante">{{ request.applicant }}</td>
+                        <td data-label="Institución">{{ request.institution }}</td>
+                        <td data-label="Fecha">{{ request.createdAt }}</td>
+                        <td data-label="Prioridad">
+                            <span class="badge" [class]="'badge badge--' + getPriorityTone(request.priority)">
+                                {{ request.priority }}
+                            </span>
+                        </td>
+                        <td data-label="Estatus">
+                            <span class="badge" [class]="'badge badge--' + getStatusTone(request.status)">
+                                {{ request.status }}
+                            </span>
+                        </td>
+                        <td data-label="Acciones">
+                            <div class="requests-table__actions">
+                                <button type="button" aria-label="Ver detalle" (click)="openRequestDetail(request)">
+                                    <mat-icon>visibility</mat-icon>
+                                </button>
+
+                                <button type="button" aria-label="Aprobar solicitud" (click)="approveRequest(request)">
+                                    <mat-icon>check_circle</mat-icon>
+                                </button>
+
+                                <button type="button" aria-label="Rechazar solicitud" (click)="rejectRequest(request)">
+                                    <mat-icon>cancel</mat-icon>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="requests-table-card__footer">
+            Mostrando {{ filteredRequests().length }} de {{ requests().length }} solicitudes
+        </footer>
+    </article>
+</section>
+
+<app-request-detail-modal [request]="selectedRequest()" (closed)="closeRequestDetail()"
+    (approved)="approveRequest($event)" (rejected)="rejectRequest($event)" />

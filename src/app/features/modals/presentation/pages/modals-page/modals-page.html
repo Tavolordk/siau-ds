@@ -1,0 +1,97 @@
+<section class="modals-page">
+    <header class="modals-page__header">
+        <div class="modals-page__heading">
+            <span class="modals-page__accent"></span>
+            <div>
+                <h1>Modals</h1>
+                <p>Biblioteca visual de modales, diálogos y componentes emergentes del sistema</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="modals-page__grid">
+        @for (demo of demos; track demo.id) {
+        <article class="modal-demo-card" [class]="'modal-demo-card modal-demo-card--' + demo.id">
+            <div class="modal-demo-card__icon">
+                <mat-icon aria-hidden="true">{{ demo.icon }}</mat-icon>
+            </div>
+
+            <div class="modal-demo-card__content">
+                <h2>{{ demo.title }}</h2>
+                <p>{{ demo.description }}</p>
+            </div>
+
+            <siau-button [label]="demo.buttonLabel" variant="secondary" (clicked)="openModal(demo.id)" />
+        </article>
+        }
+    </section>
+</section>
+
+<siau-modal [open]="isOpen('success')" title="Operación exitosa" subtitle="La información fue guardada correctamente"
+    icon="check_circle" size="md" headerBadge="Éxito" (close)="closeModal()">
+    <section class="modal-content modal-content--success">
+        <div class="modal-content__icon">
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+        </div>
+
+        <h3>Registro completado</h3>
+        <p>El usuario fue registrado correctamente y ya se encuentra disponible en el sistema.</p>
+
+        <footer>
+            <siau-button label="Aceptar" (clicked)="closeModal()" />
+        </footer>
+    </section>
+</siau-modal>
+
+<siau-modal [open]="isOpen('warning')" title="Advertencia" subtitle="Revisa la información antes de continuar"
+    icon="warning" size="md" headerBadge="Atención" (close)="closeModal()">
+    <section class="modal-content modal-content--warning">
+        <div class="modal-content__icon">
+            <mat-icon aria-hidden="true">warning</mat-icon>
+        </div>
+
+        <h3>Información incompleta</h3>
+        <p>Algunos campos obligatorios no han sido capturados. Completa la información para continuar.</p>
+
+        <footer>
+            <siau-button label="Cerrar" variant="secondary" (clicked)="closeModal()" />
+            <siau-button label="Revisar" (clicked)="closeModal()" />
+        </footer>
+    </section>
+</siau-modal>
+
+<siau-modal [open]="isOpen('error')" title="Error" subtitle="No fue posible completar la operación" icon="error"
+    size="md" headerBadge="Error" (close)="closeModal()">
+    <section class="modal-content modal-content--error">
+        <div class="modal-content__icon">
+            <mat-icon aria-hidden="true">error</mat-icon>
+        </div>
+
+        <h3>Ocurrió un problema</h3>
+        <p>El sistema no pudo procesar la solicitud. Intenta nuevamente o contacta al administrador.</p>
+
+        <footer>
+            <siau-button label="Cerrar" variant="secondary" (clicked)="closeModal()" />
+            <siau-button label="Intentar nuevamente" variant="danger" (clicked)="closeModal()" />
+        </footer>
+    </section>
+</siau-modal>
+
+<siau-modal [open]="isOpen('confirmation')" title="Confirmar acción"
+    subtitle="Esta operación modificará la información del sistema" icon="help" size="md" headerBadge="Confirmación"
+    (close)="closeModal()">
+    <section class="modal-content modal-content--confirmation">
+        <div class="modal-content__icon">
+            <mat-icon aria-hidden="true">help</mat-icon>
+        </div>
+
+        <h3>¿Deseas continuar?</h3>
+        <p>Esta acción aplicará cambios sobre el registro seleccionado. Puedes cancelar si necesitas revisar los datos.
+        </p>
+
+        <footer>
+            <siau-button label="Cancelar" variant="secondary" (clicked)="closeModal()" />
+            <siau-button label="Confirmar" (clicked)="closeModal()" />
+        </footer>
+    </section>
+</siau-modal>

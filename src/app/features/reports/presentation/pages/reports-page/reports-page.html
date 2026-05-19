@@ -1,0 +1,124 @@
+<section class="reports-page">
+    <header class="reports-page__header">
+        <div class="reports-page__heading">
+            <span class="reports-page__accent"></span>
+            <div>
+                <h1>Reportes</h1>
+                <p>Visualiza indicadores, métricas y reportes operativos del sistema</p>
+            </div>
+        </div>
+
+        <button type="button" class="reports-page__export">
+            <mat-icon aria-hidden="true">download</mat-icon>
+            <span>Exportar</span>
+        </button>
+    </header>
+
+    <section class="reports-page__kpis" aria-label="Indicadores principales">
+        @for (kpi of kpis(); track kpi.id) {
+        <article class="kpi-card">
+            <div class="kpi-card__icon">
+                <mat-icon aria-hidden="true">{{ kpi.icon }}</mat-icon>
+            </div>
+
+            <div>
+                <span>{{ kpi.label }}</span>
+                <strong>{{ kpi.value }}</strong>
+                <p>{{ kpi.helper }}</p>
+            </div>
+        </article>
+        }
+    </section>
+
+    <section class="reports-page__charts">
+        <article class="chart-card chart-card--wide">
+            <header class="chart-card__header">
+                <div>
+                    <h2>Solicitudes por mes</h2>
+                    <p>Comparativo mensual entre solicitudes generadas y aprobadas</p>
+                </div>
+            </header>
+
+            <div class="bar-chart" aria-label="Gráfica de solicitudes por mes">
+                @for (metric of monthlyMetrics(); track metric.month) {
+                <div class="bar-chart__group">
+                    <div class="bar-chart__bars">
+                        <span class="bar-chart__bar bar-chart__bar--requests"
+                            [style.height.%]="getBarHeight(metric.requests)"
+                            [attr.title]="'Solicitudes: ' + metric.requests"></span>
+
+                        <span class="bar-chart__bar bar-chart__bar--approved"
+                            [style.height.%]="getBarHeight(metric.approved)"
+                            [attr.title]="'Aprobadas: ' + metric.approved"></span>
+                    </div>
+
+                    <strong>{{ metric.month }}</strong>
+                </div>
+                }
+            </div>
+
+            <footer class="chart-card__legend">
+                <span><i class="legend-dot legend-dot--requests"></i>Solicitudes</span>
+                <span><i class="legend-dot legend-dot--approved"></i>Aprobadas</span>
+            </footer>
+        </article>
+
+        <article class="chart-card">
+            <header class="chart-card__header">
+                <div>
+                    <h2>Resolución</h2>
+                    <p>Distribución general</p>
+                </div>
+            </header>
+
+            <div class="donut-chart">
+                <div class="donut-chart__ring">
+                    <strong>87%</strong>
+                    <span>Aprobación</span>
+                </div>
+            </div>
+
+            <div class="status-list">
+                @for (status of statusMetrics(); track status.label) {
+                <div [class]="getStatusToneClass(status.tone)">
+                    <span>{{ status.label }}</span>
+                    <strong>{{ status.value }}%</strong>
+                </div>
+                }
+            </div>
+        </article>
+    </section>
+
+    <article class="activity-card">
+        <header class="activity-card__header">
+            <div>
+                <h2>Actividad reciente</h2>
+                <p>Últimos movimientos operativos registrados</p>
+            </div>
+        </header>
+
+        <div class="activity-card__scroll">
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Evento</th>
+                        <th>Área</th>
+                        <th>Fecha</th>
+                        <th>Estatus</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (activity of activities(); track activity.id) {
+                    <tr>
+                        <td data-label="Evento">{{ activity.event }}</td>
+                        <td data-label="Área">{{ activity.area }}</td>
+                        <td data-label="Fecha">{{ activity.date }}</td>
+                        <td data-label="Estatus">{{ activity.status }}</td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </article>
+</section>

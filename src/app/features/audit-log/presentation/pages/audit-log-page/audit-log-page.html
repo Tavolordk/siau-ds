@@ -1,0 +1,92 @@
+<section class="audit-page">
+    <header class="audit-page__header">
+        <div class="audit-page__heading">
+            <span class="audit-page__accent"></span>
+            <div>
+                <h1>Bitácora</h1>
+                <p>Consulta el historial de acciones, accesos y movimientos realizados en el sistema</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="audit-page__summary" aria-label="Resumen de eventos">
+        <article class="audit-summary-card">
+            <span>Total eventos</span>
+            <strong>{{ totalEvents() }}</strong>
+        </article>
+
+        <article class="audit-summary-card">
+            <span>Accesos</span>
+            <strong>{{ accessCount() }}</strong>
+        </article>
+
+        <article class="audit-summary-card">
+            <span>Seguridad</span>
+            <strong>{{ securityCount() }}</strong>
+        </article>
+
+        <article class="audit-summary-card audit-summary-card--critical">
+            <span>Críticos</span>
+            <strong>{{ criticalCount() }}</strong>
+        </article>
+    </section>
+
+    <article class="audit-table-card">
+        <div class="audit-table-card__toolbar">
+            <label class="audit-table-card__search">
+                <mat-icon aria-hidden="true">search</mat-icon>
+                <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
+                    placeholder="Buscar por usuario, evento, módulo o IP..." aria-label="Buscar evento de bitácora" />
+            </label>
+
+            <button type="button" class="audit-table-card__button">
+                <mat-icon aria-hidden="true">download</mat-icon>
+                <span>Exportar</span>
+            </button>
+        </div>
+
+        <div class="audit-table-card__scroll">
+            <table class="audit-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Evento</th>
+                        <th>Tipo</th>
+                        <th>Módulo</th>
+                        <th>Fecha</th>
+                        <th>IP</th>
+                        <th>Severidad</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (log of filteredLogs(); track log.id) {
+                    <tr>
+                        <td data-label="ID">{{ log.id }}</td>
+                        <td data-label="Usuario">{{ log.user }}</td>
+                        <td data-label="Evento">{{ log.event }}</td>
+                        <td data-label="Tipo">
+                            <span class="badge" [class]="'badge badge--' + getTypeTone(log.type)">
+                                {{ log.type }}
+                            </span>
+                        </td>
+                        <td data-label="Módulo">{{ log.module }}</td>
+                        <td data-label="Fecha">{{ log.date }}</td>
+                        <td data-label="IP">{{ log.ipAddress }}</td>
+                        <td data-label="Severidad">
+                            <span class="badge" [class]="'badge badge--' + getSeverityTone(log.severity)">
+                                {{ log.severity }}
+                            </span>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="audit-table-card__footer">
+            Mostrando {{ filteredLogs().length }} de {{ logs().length }} eventos
+        </footer>
+    </article>
+</section>
