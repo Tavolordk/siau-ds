@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import {
-    SiauButton,
     SiauInput,
     SiauModal,
     SiauSelect,
@@ -120,7 +119,6 @@ const INITIAL_FORM: UserRegistrationForm = {
         SiauStepper,
         SiauInput,
         SiauSelect,
-        SiauButton,
         MatIconModule,
     ],
     templateUrl: './user-registration-wizard.html',
