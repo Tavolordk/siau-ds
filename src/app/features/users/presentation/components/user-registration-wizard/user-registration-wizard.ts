@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
 import {
     SiauButton,
-    SiauDivider,
-    SiauFileUpload,
     SiauInput,
     SiauModal,
     SiauSelect,
@@ -10,7 +9,7 @@ import {
     SiauStep,
     SiauStepper,
 } from '../../../../../shared/ui';
-
+type AccountStatus = 'active' | 'disabled' | 'suspended';
 type WizardStepId =
     | 'personal-data'
     | 'assignment'
@@ -28,24 +27,50 @@ interface UserRegistrationForm {
     rfc: string;
     birthDate: string;
     gender: string;
+
+    institutionType: string;
+    entity: string;
+    municipality: string;
     institution: string;
-    dependency: string;
-    corporation: string;
-    area: string;
+    decentralizedBody: string;
+    administrativeUnit: string;
     position: string;
-    commissionType: string;
-    commissionStart: string;
-    commissionEnd: string;
-    officePhone: string;
-    mobilePhone: string;
+    functions: string;
+    admissionDate: string;
+    employeeNumber: string;
+
+    commissionInstitutionType: string;
+    commissionInstitution: string;
+    commissionEntity: string;
+    commissionMunicipality: string;
+    commissionDependency: string;
+    commissionDecentralizedBody: string;
+    commissionAdministrativeUnit: string;
+
     email: string;
-    alternativeEmail: string;
-    system: string;
-    profile: string;
+    phone: string;
+    extension: string;
+
+    profiles: string[];
+
     username: string;
-    temporaryPassword: string;
+    password: string;
+    confirmPassword: string;
+    accountStatus: AccountStatus;
 }
 
+interface UserProfileOption {
+    readonly value: string;
+    readonly label: string;
+    readonly description: string;
+}
+interface AssignedSystemProfile {
+    readonly id: string;
+    readonly system: string;
+    readonly systemLabel: string;
+    readonly role: string;
+    readonly roleLabel: string;
+}
 const INITIAL_FORM: UserRegistrationForm = {
     firstName: '',
     lastName: '',
@@ -54,22 +79,36 @@ const INITIAL_FORM: UserRegistrationForm = {
     rfc: '',
     birthDate: '',
     gender: '',
+
+    institutionType: '',
+    entity: '',
+    municipality: '',
     institution: '',
-    dependency: '',
-    corporation: '',
-    area: '',
+    decentralizedBody: '',
+    administrativeUnit: '',
     position: '',
-    commissionType: '',
-    commissionStart: '',
-    commissionEnd: '',
-    officePhone: '',
-    mobilePhone: '',
+    functions: '',
+    admissionDate: '',
+    employeeNumber: '',
+
+    commissionInstitutionType: '',
+    commissionInstitution: '',
+    commissionEntity: '',
+    commissionMunicipality: '',
+    commissionDependency: '',
+    commissionDecentralizedBody: '',
+    commissionAdministrativeUnit: '',
+
     email: '',
-    alternativeEmail: '',
-    system: '',
-    profile: '',
+    phone: '',
+    extension: '',
+
+    profiles: [],
+
     username: '',
-    temporaryPassword: '',
+    password: '',
+    confirmPassword: '',
+    accountStatus: 'active',
 };
 
 @Component({
@@ -82,8 +121,7 @@ const INITIAL_FORM: UserRegistrationForm = {
         SiauInput,
         SiauSelect,
         SiauButton,
-        SiauDivider,
-        SiauFileUpload,
+        MatIconModule,
     ],
     templateUrl: './user-registration-wizard.html',
     styleUrl: './user-registration-wizard.scss',
@@ -94,55 +132,63 @@ export class UserRegistrationWizard {
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
-    protected readonly form = signal<UserRegistrationForm>(INITIAL_FORM);
-
+    protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
+    protected readonly selectedSystem = signal<string>('');
+    protected readonly selectedRole = signal<string>('');
+    protected readonly assignedSystemProfiles = signal<AssignedSystemProfile[]>([]);
+    protected readonly showPassword = signal<boolean>(false);
+    protected readonly showConfirmPassword = signal<boolean>(false);
     protected readonly genderOptions: readonly SiauSelectOption[] = [
         { value: 'M', label: 'Mujer' },
         { value: 'H', label: 'Hombre' },
         { value: 'N', label: 'No especificado' },
     ];
-
-    protected readonly institutionOptions: readonly SiauSelectOption[] = [
-        { value: 'sspc', label: 'Secretaría de Seguridad y Protección Ciudadana' },
-        { value: 'sesnsp', label: 'Secretariado Ejecutivo del Sistema Nacional de Seguridad Pública' },
-        { value: 'guardia-nacional', label: 'Guardia Nacional' },
-    ];
-
-    protected readonly dependencyOptions: readonly SiauSelectOption[] = [
-        { value: 'administracion', label: 'Administración' },
-        { value: 'seguridad', label: 'Seguridad Pública' },
-        { value: 'tecnologias', label: 'Tecnologías de la Información' },
-    ];
-
-    protected readonly corporationOptions: readonly SiauSelectOption[] = [
-        { value: 'corporacion-central', label: 'Corporación Central' },
-        { value: 'corporacion-estatal', label: 'Corporación Estatal' },
-        { value: 'corporacion-operativa', label: 'Corporación Operativa' },
-    ];
-
-    protected readonly areaOptions: readonly SiauSelectOption[] = [
-        { value: 'usuarios', label: 'Administración de Usuarios' },
-        { value: 'operacion', label: 'Operación' },
-        { value: 'soporte', label: 'Soporte Institucional' },
-    ];
-
-    protected readonly commissionOptions: readonly SiauSelectOption[] = [
-        { value: 'temporal', label: 'Temporal' },
-        { value: 'permanente', label: 'Permanente' },
-        { value: 'especial', label: 'Especial' },
-    ];
-
     protected readonly systemOptions: readonly SiauSelectOption[] = [
         { value: 'siau', label: 'SIAU' },
         { value: 'rnpsp', label: 'RNPSP' },
-        { value: 'control-confianza', label: 'Control de confianza' },
+        { value: 'plataforma-mexico', label: 'Plataforma México' },
+        { value: 'control-confianza', label: 'Control de Confianza' },
     ];
 
-    protected readonly profileOptions: readonly SiauSelectOption[] = [
-        { value: 'admin', label: 'Administrador' },
-        { value: 'enlace', label: 'Enlace Institucional' },
+    protected readonly roleOptions: readonly SiauSelectOption[] = [
+        { value: 'administrador', label: 'Administrador' },
+        { value: 'enlace-institucional', label: 'Enlace Institucional' },
         { value: 'usuario', label: 'Usuario' },
-        { value: 'supervisor', label: 'Supervisor Estatal' },
+        { value: 'supervisor-estatal', label: 'Supervisor Estatal' },
+    ];
+    protected readonly institutionTypeOptions: readonly SiauSelectOption[] = [
+        { value: 'federal', label: 'Federal' },
+        { value: 'estatal', label: 'Estatal' },
+        { value: 'municipal', label: 'Municipal' },
+    ];
+
+    protected readonly trustLevelOptions: readonly SiauSelectOption[] = [
+        { value: 'vigente', label: 'Vigente' },
+        { value: 'pendiente', label: 'Pendiente' },
+        { value: 'expirado', label: 'Expirado' },
+    ];
+
+    protected readonly profileOptions: readonly UserProfileOption[] = [
+        {
+            value: 'admin',
+            label: 'Administrador',
+            description: 'Acceso completo a la administración del sistema.',
+        },
+        {
+            value: 'enlace',
+            label: 'Enlace Institucional',
+            description: 'Gestión de usuarios y solicitudes de su institución.',
+        },
+        {
+            value: 'usuario',
+            label: 'Usuario',
+            description: 'Acceso operativo a las funciones asignadas.',
+        },
+        {
+            value: 'supervisor',
+            label: 'Supervisor Estatal',
+            description: 'Consulta y supervisión de registros estatales.',
+        },
     ];
 
     protected readonly stepOrder: readonly WizardStepId[] = [
@@ -159,13 +205,24 @@ export class UserRegistrationWizard {
         return this.stepOrder.indexOf(this.activeStepId());
     });
 
+    protected readonly activeStepNumber = computed(() => this.activeIndex() + 1);
+
+    protected readonly stepProgressSegments = computed(() => {
+        const activeNumber = this.activeStepNumber();
+
+        return this.stepOrder.map((_, index) => ({
+            id: `segment-${index + 1}`,
+            active: index < activeNumber,
+        }));
+    });
+
     protected readonly steps = computed<readonly SiauStep[]>(() => {
         const completed = this.completedSteps();
 
         return [
             {
                 id: 'personal-data',
-                label: 'Datos personales',
+                label: 'Datos Personales',
                 icon: 'person',
                 completed: completed.includes('personal-data'),
             },
@@ -178,31 +235,31 @@ export class UserRegistrationWizard {
             {
                 id: 'commission',
                 label: 'Comisión',
-                icon: 'badge',
+                icon: 'business_center',
                 completed: completed.includes('commission'),
             },
             {
                 id: 'documents',
                 label: 'Archivos',
-                icon: 'folder',
+                icon: 'description',
                 completed: completed.includes('documents'),
             },
             {
                 id: 'contact',
-                label: 'Medios de contacto',
-                icon: 'contact_phone',
+                label: 'Medio de Contacto',
+                icon: 'phone',
                 completed: completed.includes('contact'),
             },
             {
                 id: 'profiles',
                 label: 'Perfiles',
-                icon: 'admin_panel_settings',
+                icon: 'shield',
                 completed: completed.includes('profiles'),
             },
             {
                 id: 'account',
                 label: 'Cuenta',
-                icon: 'lock',
+                icon: 'vpn_key',
                 completed: completed.includes('account'),
             },
         ];
@@ -221,15 +278,12 @@ export class UserRegistrationWizard {
     protected nextStep(): void {
         const current = this.activeStepId();
         const currentIndex = this.stepOrder.indexOf(current);
+
         this.markCompleted(current);
 
         if (currentIndex < this.stepOrder.length - 1) {
             this.activeStepId.set(this.stepOrder[currentIndex + 1]);
-            return;
         }
-
-        this.closed.emit();
-        this.resetWizard();
     }
 
     protected previousStep(): void {
@@ -245,11 +299,33 @@ export class UserRegistrationWizard {
         this.resetWizard();
     }
 
-    protected updateForm<K extends keyof UserRegistrationForm>(key: K, value: string | null): void {
+    protected submit(): void {
+        this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+        this.closed.emit();
+        this.resetWizard();
+    }
+
+    protected updateForm<K extends keyof UserRegistrationForm>(
+        key: K,
+        value: UserRegistrationForm[K] | string | null
+    ): void {
         this.form.update((current) => ({
             ...current,
             [key]: value ?? '',
         }));
+    }
+
+    protected toggleProfile(profile: string): void {
+        this.form.update((current) => {
+            const exists = current.profiles.includes(profile);
+
+            return {
+                ...current,
+                profiles: exists
+                    ? current.profiles.filter((item) => item !== profile)
+                    : [...current.profiles, profile],
+            };
+        });
     }
 
     protected isFirstStep(): boolean {
@@ -273,10 +349,70 @@ export class UserRegistrationWizard {
     private resetWizard(): void {
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
-        this.form.set(INITIAL_FORM);
+        this.form.set({ ...INITIAL_FORM, profiles: [] });
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+        this.assignedSystemProfiles.set([]);
+        this.showPassword.set(false);
+        this.showConfirmPassword.set(false);
     }
 
     private isWizardStep(value: string): value is WizardStepId {
         return this.stepOrder.includes(value as WizardStepId);
+    }
+    protected updateSelectedSystem(value: string | null): void {
+        this.selectedSystem.set(value ?? '');
+    }
+
+    protected updateSelectedRole(value: string | null): void {
+        this.selectedRole.set(value ?? '');
+    }
+
+    protected addAssignedProfile(): void {
+        const system = this.selectedSystem();
+        const role = this.selectedRole();
+
+        if (!system || !role) {
+            return;
+        }
+
+        const systemOption = this.systemOptions.find((item) => item.value === system);
+        const roleOption = this.roleOptions.find((item) => item.value === role);
+
+        if (!systemOption || !roleOption) {
+            return;
+        }
+
+        const newItem: AssignedSystemProfile = {
+            id: `${system}-${role}-${Date.now()}`,
+            system,
+            role,
+            systemLabel: systemOption.label,
+            roleLabel: roleOption.label,
+        };
+
+        this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+    }
+
+    protected removeAssignedProfile(id: string): void {
+        this.assignedSystemProfiles.update((current) =>
+            current.filter((item) => item.id !== id)
+        );
+    }
+    protected togglePasswordVisibility(): void {
+        this.showPassword.update((value) => !value);
+    }
+
+    protected toggleConfirmPasswordVisibility(): void {
+        this.showConfirmPassword.update((value) => !value);
+    }
+
+    protected setAccountStatus(status: AccountStatus): void {
+        this.form.update((current) => ({
+            ...current,
+            accountStatus: status,
+        }));
     }
 }

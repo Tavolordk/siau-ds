@@ -3,31 +3,27 @@
 
   <ol class="siau-stepper__list">
     @for (step of steps(); track step.id; let index = $index) {
-      <li>
-        <button
-          type="button"
-          class="siau-stepper__step"
-          [class]="'siau-stepper__step siau-stepper__step--' + getStepState(index, step)"
-          [disabled]="step.disabled"
-          (click)="selectStep(step)"
-        >
-          <span class="siau-stepper__marker">
-            @if (step.completed && index !== activeIndex()) {
-              <mat-icon class="siau-stepper__check" aria-hidden="true">check_circle</mat-icon>
-            } @else {
-              <mat-icon class="siau-stepper__icon" aria-hidden="true">{{ step.icon }}</mat-icon>
-            }
-          </span>
+    <li>
+      <button type="button" class="siau-stepper__step"
+        [class]="'siau-stepper__step siau-stepper__step--' + getStepState(index, step)" [disabled]="step.disabled"
+        (click)="selectStep(step)">
+        <span class="siau-stepper__marker">
+          @if (step.completed && index !== activeIndex()) {
+          <mat-icon class="siau-stepper__check" aria-hidden="true">check_circle</mat-icon>
+          } @else {
+          <mat-icon class="siau-stepper__icon" aria-hidden="true">{{ step.icon }}</mat-icon>
+          }
+        </span>
 
-          <span class="siau-stepper__label">{{ step.label }}</span>
-        </button>
-      </li>
+        <span class="siau-stepper__label">{{ step.label }}</span>
+      </button>
+    </li>
     }
   </ol>
 
   <div class="siau-stepper__progress">
     <div class="siau-stepper__progress-header">
-      <span class="siau-stepper__progress-label">Avance</span>
+      <span class="siau-stepper__progress-label">Progreso</span>
       <span class="siau-stepper__progress-count">{{ completedCount() }}/{{ steps().length }}</span>
     </div>
 

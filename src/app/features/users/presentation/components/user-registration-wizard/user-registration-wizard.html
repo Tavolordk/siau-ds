@@ -1,5 +1,5 @@
 <siau-modal [open]="open()" title="Registrar Nuevo Usuario"
-    subtitle="Complete las secciones requeridas para crear una cuenta" icon="person_add" size="xl"
+    subtitle="Complete todas las secciones requeridas para crear el acceso" icon="person_add" size="xl"
     [headerBadge]="headerBadge()" (close)="closeWizard()">
     <section class="registration-wizard">
         <aside class="registration-wizard__sidebar">
@@ -10,9 +10,24 @@
             @switch (activeStepId()) {
             @case ('personal-data') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Datos personales</h3>
-                    <p>Captura la información de identificación de la persona usuaria.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">person</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Datos personales</h3>
+                        <p>Captura la información de identificación de la persona usuaria.</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
+                        }}</span>
+                </div>
+
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
                 </div>
 
                 <div class="registration-wizard__grid">
@@ -42,157 +57,469 @@
 
             @case ('assignment') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Adscripción</h3>
-                    <p>Selecciona la estructura institucional a la que pertenece la persona usuaria.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">business</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Adscripción</h3>
+                        <p>Centro de trabajo y datos laborales del usuario</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
+                            }}</span>
+                    </div>
                 </div>
 
-                <div class="registration-wizard__grid">
-                    <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
-                        [options]="institutionOptions" [value]="form().institution"
-                        (valueChange)="updateForm('institution', $event)" />
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
+                </div>
 
-                    <siau-select label="Dependencia" placeholder="Selecciona la dependencia" [required]="true"
-                        [options]="dependencyOptions" [value]="form().dependency"
-                        (valueChange)="updateForm('dependency', $event)" />
+                <div class="registration-wizard__grid registration-wizard__grid--assignment">
+                    <siau-select label="Tipo de Institución" placeholder="" [required]="true"
+                        [options]="institutionTypeOptions" [value]="form().institutionType"
+                        (valueChange)="updateForm('institutionType', $event)" />
 
-                    <siau-select label="Corporación" placeholder="Selecciona la corporación" [required]="true"
-                        [options]="corporationOptions" [value]="form().corporation"
-                        (valueChange)="updateForm('corporation', $event)" />
+                    <siau-input label="Entidad" placeholder="Ej. Ciudad de México" [required]="true"
+                        [value]="form().entity" (valueChange)="updateForm('entity', $event)" />
 
-                    <siau-select label="Área" placeholder="Selecciona el área" [required]="true" [options]="areaOptions"
-                        [value]="form().area" (valueChange)="updateForm('area', $event)" />
+                    <siau-input label="Municipio / Alcaldía" placeholder="Ej. Cuauhtémoc" [required]="true"
+                        [value]="form().municipality" (valueChange)="updateForm('municipality', $event)" />
 
-                    <siau-input label="Cargo" placeholder="Ingresa el cargo" [value]="form().position"
+                    <siau-input label="Institución" placeholder="Ej. SSPC" [required]="true"
+                        [value]="form().institution" (valueChange)="updateForm('institution', $event)" />
+
+                    <siau-input label="Órgano desconcentrado" placeholder="Opcional" [value]="form().decentralizedBody"
+                        (valueChange)="updateForm('decentralizedBody', $event)" />
+
+                    <siau-input label="Unidad administrativa" placeholder="Opcional" [value]="form().administrativeUnit"
+                        (valueChange)="updateForm('administrativeUnit', $event)" />
+
+                    <siau-input label="Cargo" placeholder="Ej. Analista" [value]="form().position"
                         (valueChange)="updateForm('position', $event)" />
+
+                    <siau-input label="Funciones" placeholder="Descripción de funciones" [value]="form().functions"
+                        (valueChange)="updateForm('functions', $event)" />
+
+                    <siau-input label="Fecha de Ingreso" type="date" [required]="true" [value]="form().admissionDate"
+                        (valueChange)="updateForm('admissionDate', $event)" />
+
+                    <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true"
+                        [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)" />
                 </div>
             </section>
             }
 
             @case ('commission') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Comisión</h3>
-                    <p>Registra la información de comisión o asignación administrativa.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">business_center</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Comisión</h3>
+                        <p>Datos de comisión interinstitucional (si aplica)</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
+                        }}</span>
                 </div>
 
-                <div class="registration-wizard__grid">
-                    <siau-select label="Tipo de comisión" placeholder="Selecciona el tipo" [options]="commissionOptions"
-                        [value]="form().commissionType" (valueChange)="updateForm('commissionType', $event)" />
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
+                </div>
 
-                    <siau-input label="Fecha inicial" type="date" [value]="form().commissionStart"
-                        (valueChange)="updateForm('commissionStart', $event)" />
+                <div class="registration-wizard__info-box">
+                    <mat-icon aria-hidden="true">info</mat-icon>
+                    <span>Esta sección es <strong>opcional.</strong> Complétala únicamente si el usuario estará
+                        comisionado en una institución distinta a su adscripción.</span>
+                </div>
 
-                    <siau-input label="Fecha final" type="date" [value]="form().commissionEnd"
-                        (valueChange)="updateForm('commissionEnd', $event)" />
+                <div class="registration-wizard__grid registration-wizard__grid--commission">
+                    <siau-select label="Tipo de Institución" placeholder="" [required]="true"
+                        [options]="institutionTypeOptions" [value]="form().commissionInstitutionType"
+                        (valueChange)="updateForm('commissionInstitutionType', $event)" />
+
+                    <siau-input label="Institución" placeholder="Nombre de la institución" [required]="true"
+                        [value]="form().commissionInstitution"
+                        (valueChange)="updateForm('commissionInstitution', $event)" />
+
+                    <siau-input label="Entidad" placeholder="Entidad federativa" [required]="true"
+                        [value]="form().commissionEntity" (valueChange)="updateForm('commissionEntity', $event)" />
+
+                    <siau-input label="Municipio / Alcaldía" placeholder="Municipio o alcaldía" [required]="true"
+                        [value]="form().commissionMunicipality"
+                        (valueChange)="updateForm('commissionMunicipality', $event)" />
+
+                    <siau-input label="Dependencia" placeholder="Opcional" [value]="form().commissionDependency"
+                        (valueChange)="updateForm('commissionDependency', $event)" />
+
+                    <siau-input label="Órgano desconcentrado" placeholder="Opcional"
+                        [value]="form().commissionDecentralizedBody"
+                        (valueChange)="updateForm('commissionDecentralizedBody', $event)" />
+
+                    <siau-input label="Unidad administrativa" placeholder="Opcional"
+                        [value]="form().commissionAdministrativeUnit"
+                        (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
                 </div>
             </section>
             }
 
             @case ('documents') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Archivos</h3>
-                    <p>Adjunta los documentos necesarios para validar el registro.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">description</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Archivos</h3>
+                        <p>Carga de documentos de identidad y laborales</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
+                        }}</span>
                 </div>
 
-                <div class="registration-wizard__documents">
-                    <siau-file-upload label="Identificación oficial" placeholder="Carga la identificación oficial"
-                        accept="documents" [required]="true" />
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
+                </div>
 
-                    <siau-file-upload label="Comprobante institucional" placeholder="Carga el comprobante institucional"
-                        accept="documents" />
+                <div class="registration-wizard__info-box registration-wizard__info-box--documents">
+                    <mat-icon aria-hidden="true">info</mat-icon>
+                    <span>
+                        Carga los documentos de identidad del nuevo usuario. Formatos aceptados:
+                        PDF, JPG y PNG con un tamaño máximo de 5 MB por archivo.
+                    </span>
+                </div>
 
-                    <siau-file-upload label="Nombramiento o comisión" placeholder="Carga el documento de nombramiento"
-                        accept="documents" />
+                <div class="registration-wizard__documents-grid">
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">
+                            INE <span>*</span>
+                        </div>
+
+                        <input id="document-ine" type="file" class="registration-wizard__file-input"
+                            accept=".pdf,.jpg,.jpeg,.png" />
+
+                        <label for="document-ine" class="registration-wizard__upload-box">
+                            <span class="registration-wizard__upload-icon">
+                                <mat-icon aria-hidden="true">upload</mat-icon>
+                            </span>
+
+                            <span class="registration-wizard__upload-title">Haz clic para cargar</span>
+                            <span class="registration-wizard__upload-text">PDF, JPG o PNG · Máx. 5 MB</span>
+                        </label>
+                    </div>
+
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">
+                            Credencial Laboral <span>*</span>
+                        </div>
+
+                        <input id="document-laboral" type="file" class="registration-wizard__file-input"
+                            accept=".pdf,.jpg,.jpeg,.png" />
+
+                        <label for="document-laboral" class="registration-wizard__upload-box">
+                            <span class="registration-wizard__upload-icon">
+                                <mat-icon aria-hidden="true">upload</mat-icon>
+                            </span>
+
+                            <span class="registration-wizard__upload-title">Haz clic para cargar</span>
+                            <span class="registration-wizard__upload-text">PDF, JPG o PNG · Máx. 5 MB</span>
+                        </label>
+                    </div>
                 </div>
             </section>
             }
 
             @case ('contact') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Medios de contacto</h3>
-                    <p>Captura teléfonos y correos para notificaciones institucionales.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">phone</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Medio de Contacto</h3>
+                        <p>Información de comunicación del usuario en el sistema</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        </span>
+                    </div>
                 </div>
 
-                <div class="registration-wizard__grid">
-                    <siau-input label="Teléfono de oficina" type="tel" placeholder="Ingresa el teléfono de oficina"
-                        [value]="form().officePhone" (valueChange)="updateForm('officePhone', $event)" />
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
+                </div>
 
-                    <siau-input label="Teléfono móvil" type="tel" placeholder="Ingresa el teléfono móvil"
-                        [value]="form().mobilePhone" (valueChange)="updateForm('mobilePhone', $event)" />
+                <div class="registration-wizard__grid registration-wizard__grid--contact">
+                    <siau-input label="Correo Electrónico" placeholder="correo@ejemplo.gob.mx" [required]="true"
+                        [value]="form().email" (valueChange)="updateForm('email', $event)" />
 
-                    <siau-input label="Correo institucional" type="email" placeholder="nombre@dominio.gob.mx"
-                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)" />
-
-                    <siau-input label="Correo alternativo" type="email" placeholder="correo alternativo"
-                        [value]="form().alternativeEmail" (valueChange)="updateForm('alternativeEmail', $event)" />
+                    <siau-input label="Número de Celular" placeholder="10 dígitos sin espacios" [required]="true"
+                        [value]="form().phone" (valueChange)="updateForm('phone', $event)" />
                 </div>
             </section>
             }
 
             @case ('profiles') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Perfiles</h3>
-                    <p>Asigna el sistema y perfil con el que operará la persona usuaria.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">shield</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Perfiles</h3>
+                        <p>Nivel de acceso y sistema asignado al usuario</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        </span>
+                    </div>
                 </div>
 
-                <div class="registration-wizard__grid">
-                    <siau-select label="Sistema" placeholder="Selecciona el sistema" [required]="true"
-                        [options]="systemOptions" [value]="form().system"
-                        (valueChange)="updateForm('system', $event)" />
-
-                    <siau-select label="Perfil" placeholder="Selecciona el perfil" [required]="true"
-                        [options]="profileOptions" [value]="form().profile"
-                        (valueChange)="updateForm('profile', $event)" />
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
                 </div>
 
-                <siau-divider label="Resumen de permisos" />
+                <div class="registration-wizard__profiles-panel">
+                    <div class="registration-wizard__profiles-field-title">
+                        Sistemas y perfiles asignados <span>*</span>
+                    </div>
 
-                <div class="registration-wizard__permission-card">
-                    <strong>Permisos base</strong>
-                    <span>Consulta, registro, edición y administración según el perfil seleccionado.</span>
+                    <p class="registration-wizard__profiles-field-help">
+                        Cada usuario puede tener múltiples sistemas con su respectivo perfil de acceso.
+                    </p>
+
+                    @if (assignedSystemProfiles().length === 0) {
+                    <div class="registration-wizard__profiles-empty">
+                        Sin sistemas asignados. Agrega uno desde el formulario de abajo.
+                    </div>
+                    } @else {
+                    <div class="registration-wizard__profiles-list">
+                        @for (item of assignedSystemProfiles(); track item.id) {
+                        <div class="registration-wizard__profiles-item">
+                            <div class="registration-wizard__profiles-item-content">
+                                <span class="registration-wizard__profiles-item-system">{{ item.systemLabel }}</span>
+                                <span class="registration-wizard__profiles-item-separator">•</span>
+                                <span class="registration-wizard__profiles-item-role">{{ item.roleLabel }}</span>
+                            </div>
+
+                            <button type="button" class="registration-wizard__profiles-remove"
+                                (click)="removeAssignedProfile(item.id)" aria-label="Eliminar sistema asignado">
+                                <mat-icon aria-hidden="true">close</mat-icon>
+                            </button>
+                        </div>
+                        }
+                    </div>
+                    }
+
+                    <div class="registration-wizard__profiles-add-card">
+                        <div class="registration-wizard__profiles-add-title">Agregar sistema</div>
+
+                        <div class="registration-wizard__profiles-add-grid">
+                            <siau-select label="Sistema" placeholder="" [options]="systemOptions"
+                                [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)" />
+
+                            <siau-select label="Perfil / Rol" placeholder="" [options]="roleOptions"
+                                [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" />
+
+                            <div class="registration-wizard__profiles-add-action">
+                                <button type="button"
+                                    class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
+                                    [disabled]="!selectedSystem() || !selectedRole()" (click)="addAssignedProfile()">
+                                    <mat-icon aria-hidden="true">add</mat-icon>
+                                    Agregar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
             }
 
             @case ('account') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__heading">
-                    <h3>Cuenta</h3>
-                    <p>Define los datos iniciales de acceso para la cuenta del sistema.</p>
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <mat-icon aria-hidden="true">key</mat-icon>
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Cuenta</h3>
+                        <p>Credenciales y estado de la cuenta de acceso</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        </span>
+                    </div>
                 </div>
 
-                <div class="registration-wizard__grid">
-                    <siau-input label="Nombre de usuario" placeholder="usuario.apellido" [required]="true"
-                        [value]="form().username" (valueChange)="updateForm('username', $event)" />
-
-                    <siau-input label="Contraseña temporal" type="password"
-                        placeholder="Ingresa una contraseña temporal" [required]="true"
-                        [value]="form().temporaryPassword" (valueChange)="updateForm('temporaryPassword', $event)" />
+                <div class="registration-wizard__progress-strip" aria-hidden="true">
+                    @for (segment of stepProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                    }
                 </div>
 
-                <div class="registration-wizard__notice">
-                    La persona usuaria deberá cambiar su contraseña en el primer inicio de sesión.
+                <div class="registration-wizard__account-panel">
+                    <div class="registration-wizard__account-grid">
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">
+                                Nombre de usuario <span>*</span>
+                            </label>
+
+                            <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
+                                [value]="form().username" (input)="updateForm('username', $any($event.target).value)" />
+                        </div>
+
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">
+                                Contraseña <span>*</span>
+                            </label>
+
+                            <div class="registration-wizard__password-wrapper">
+                                <input [type]="showPassword() ? 'text' : 'password'"
+                                    class="registration-wizard__text-input registration-wizard__text-input--with-icon"
+                                    placeholder="Mínimo 8 caracteres" [value]="form().password"
+                                    (input)="updateForm('password', $any($event.target).value)" />
+
+                                <button type="button" class="registration-wizard__input-icon-button"
+                                    (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
+                                    <mat-icon aria-hidden="true">
+                                        {{ showPassword() ? 'visibility_off' : 'visibility' }}
+                                    </mat-icon>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">
+                                Confirmar contraseña <span>*</span>
+                            </label>
+
+                            <div class="registration-wizard__password-wrapper">
+                                <input [type]="showConfirmPassword() ? 'text' : 'password'"
+                                    class="registration-wizard__text-input registration-wizard__text-input--with-icon"
+                                    placeholder="Repite la contraseña" [value]="form().confirmPassword"
+                                    (input)="updateForm('confirmPassword', $any($event.target).value)" />
+
+                                <button type="button" class="registration-wizard__input-icon-button"
+                                    (click)="toggleConfirmPasswordVisibility()"
+                                    aria-label="Mostrar u ocultar confirmación de contraseña">
+                                    <mat-icon aria-hidden="true">
+                                        {{ showConfirmPassword() ? 'visibility_off' : 'visibility' }}
+                                    </mat-icon>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="registration-wizard__account-status-block">
+                        <div class="registration-wizard__field-label">
+                            Estatus inicial de la cuenta <span>*</span>
+                        </div>
+
+                        <p class="registration-wizard__account-status-help">
+                            Define el estado operativo con el que se creará la cuenta.
+                        </p>
+
+                        <div class="registration-wizard__account-status-grid">
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
+                                (click)="setAccountStatus('active')">
+                                <div class="registration-wizard__status-card-title">
+                                    <mat-icon aria-hidden="true">check</mat-icon>
+                                    Activo
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    El usuario puede ingresar al sistema desde el primer día
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
+                                (click)="setAccountStatus('disabled')">
+                                <div class="registration-wizard__status-card-title">
+                                    Inhabilitado
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    La cuenta se crea bloqueada de forma permanente
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'suspended'"
+                                (click)="setAccountStatus('suspended')">
+                                <div class="registration-wizard__status-card-title">
+                                    Suspendido
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Acceso bloqueado temporalmente hasta resolución
+                                </div>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
             }
             }
 
             <footer class="registration-wizard__footer">
-                <siau-button label="Cancelar" variant="secondary" (clicked)="closeWizard()" />
+                <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
+                    [disabled]="activeIndex() === 0" (click)="previousStep()">
+                    <mat-icon aria-hidden="true">chevron_left</mat-icon>
+                    Anterior
+                </button>
 
-                <div class="registration-wizard__footer-actions">
-                    <siau-button label="Anterior" variant="tertiary" [disabled]="isFirstStep()"
-                        (clicked)="previousStep()" />
-
-                    @if (isLastStep()) {
-                    <siau-button label="Guardar usuario" icon="save" (clicked)="nextStep()" />
-                    } @else {
-                    <siau-button label="Continuar" trailingIcon="arrow_forward" (clicked)="nextStep()" />
+                <div class="registration-wizard__dots" aria-hidden="true">
+                    @for (step of stepOrder; track step; let index = $index) {
+                    <span [class.registration-wizard__dot--active]="index === activeIndex()"></span>
                     }
+                </div>
+
+                <div class="registration-wizard__actions">
+                    <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
+                        [disabled]="activeIndex() === stepOrder.length - 1" (click)="nextStep()">
+                        Siguiente
+                        <mat-icon aria-hidden="true">chevron_right</mat-icon>
+                    </button>
+
+                    <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
+                        (click)="closeWizard()">
+                        Cancelar
+                    </button>
+
+                    <button type="button" class="registration-wizard__button registration-wizard__button--primary"
+                        (click)="submit()">
+                        <mat-icon aria-hidden="true">person_add</mat-icon>
+                        Registrar Usuario
+                    </button>
                 </div>
             </footer>
         </form>

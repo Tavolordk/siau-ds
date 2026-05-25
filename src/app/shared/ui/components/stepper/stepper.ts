@@ -24,7 +24,13 @@ export class SiauStepper {
   readonly stepClick = output<string>();
 
   protected readonly completedCount = computed(() => {
-    return this.steps().filter((step) => step.completed).length;
+    const total = this.steps().length;
+
+    if (total === 0) {
+      return 0;
+    }
+
+    return Math.min(this.activeIndex() + 1, total);
   });
 
   protected readonly progress = computed(() => {
