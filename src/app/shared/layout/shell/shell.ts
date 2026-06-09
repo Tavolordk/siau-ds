@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
+import { AuthFacade } from '../../../core/auth/application/auth.facade';
 import { SiauShellHeader } from '../shell-header/shell-header';
 import { SiauShellSidebar, SidebarItem } from '../shell-sidebar/shell-sidebar';
 
@@ -8,15 +9,17 @@ import { SiauShellSidebar, SidebarItem } from '../shell-sidebar/shell-sidebar';
   selector: 'siau-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SiauShellHeader, SiauShellSidebar],
+  imports: [RouterOutlet, SiauShellHeader, SiauShellSidebar],
   templateUrl: './shell.html',
   styleUrl: './shell.scss',
 })
 export class SiauShell {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthFacade);
   private readonly currentUrl = signal<string>(this.router.url);
 
   protected readonly sidebarCollapsed = signal<boolean>(false);
+  protected readonly userInitials = this.auth.userInitials;
 
   protected readonly navItems: SidebarItem[] = [
     { id: 'usuarios', label: 'Usuarios', icon: 'group', route: '/usuarios' },
@@ -53,5 +56,7 @@ export class SiauShell {
     this.sidebarCollapsed.update((value) => !value);
   }
 
-  protected onAvatarClick(): void {}
+  protected onAvatarClick(): void {
+    this.auth.logout();
+  }
 }

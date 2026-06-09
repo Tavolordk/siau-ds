@@ -1,17 +1,12 @@
 <div class="siau-shell">
-  <siau-shell-header userInitials="OO" (avatarClick)="onAvatarClick()" />
+  <siau-shell-header [userInitials]="userInitials()" (avatarClick)="onAvatarClick()" />
 
   <div class="siau-shell__body">
-    <siau-shell-sidebar
-      [items]="navItems"
-      [activeId]="activeItemId()"
-      [collapsed]="sidebarCollapsed()"
-      (itemClick)="onItemClick($event)"
-      (collapseToggle)="onCollapseToggle()"
-    />
+    <siau-shell-sidebar [items]="navItems" [activeId]="activeItemId()" [collapsed]="sidebarCollapsed()"
+      (itemClick)="onItemClick($event)" (collapseToggle)="onCollapseToggle()" />
 
     <main class="siau-shell__content" role="main">
-      <ng-content />
+      <router-outlet />
     </main>
   </div>
 </div>

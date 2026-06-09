@@ -1,43 +1,88 @@
 import { Routes } from '@angular/router';
-import { UserManagementPage } from './features/users/presentation/pages/user-management-page/user-management-page';
-import { RequestsPage } from './features/requests/presentation/pages/requests-page/requests-page';
-import { AdministrationPage } from './features/administration/presentation/pages/administration-page/administration-page';
-import { ReportsPage } from './features/reports/presentation/pages/reports-page/reports-page';
-import { AuditLogPage } from './features/audit-log/presentation/pages/audit-log-page/audit-log-page';
-import { ModalsPage } from './features/modals/presentation/pages/modals-page/modals-page';
+import { authGuard } from './core/auth/guards/auth.guard';
+import { publicGuard } from './core/auth/guards/public.guard';
+import { twoFactorGuard } from './core/auth/guards/two-factor.guard';
+import { SiauShell } from './shared/layout/shell/shell';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    canActivate: [publicGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () =>
+          import('./features/login/presentation/pages/login-page/login-page').then(
+            (m) => m.LoginPage,
+          ),
+      },
+    ],
+  },
+  {
+    path: 'login/verificacion',
+    canActivate: [twoFactorGuard],
+    loadComponent: () =>
+      import('./features/login/presentation/pages/two-factor-page/two-factor-page').then(
+        (m) => m.TwoFactorPage,
+      ),
+  },
+  {
     path: '',
-    pathMatch: 'full',
-    redirectTo: 'usuarios',
-  },
-  {
-    path: 'usuarios',
-    component: UserManagementPage,
-  },
-  {
-    path: 'solicitudes',
-    component: RequestsPage,
-  },
-  {
-    path: 'administracion',
-    component: AdministrationPage,
-  },
-  {
-    path: 'reportes',
-    component: ReportsPage,
-  },
-  {
-    path: 'bitacora',
-    component: AuditLogPage,
-  },
-  {
-    path: 'modals',
-    component: ModalsPage,
+    component: SiauShell,
+    canActivate: [authGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'usuarios',
+      },
+      {
+        path: 'usuarios',
+        loadComponent: () =>
+          import('./features/users/presentation/pages/user-management-page/user-management-page').then(
+            (m) => m.UserManagementPage,
+          ),
+      },
+      {
+        path: 'solicitudes',
+        loadComponent: () =>
+          import('./features/requests/presentation/pages/requests-page/requests-page').then(
+            (m) => m.RequestsPage,
+          ),
+      },
+      {
+        path: 'administracion',
+        loadComponent: () =>
+          import('./features/administration/presentation/pages/administration-page/administration-page').then(
+            (m) => m.AdministrationPage,
+          ),
+      },
+      {
+        path: 'reportes',
+        loadComponent: () =>
+          import('./features/reports/presentation/pages/reports-page/reports-page').then(
+            (m) => m.ReportsPage,
+          ),
+      },
+      {
+        path: 'bitacora',
+        loadComponent: () =>
+          import('./features/audit-log/presentation/pages/audit-log-page/audit-log-page').then(
+            (m) => m.AuditLogPage,
+          ),
+      },
+      {
+        path: 'modals',
+        loadComponent: () =>
+          import('./features/modals/presentation/pages/modals-page/modals-page').then(
+            (m) => m.ModalsPage,
+          ),
+      },
+    ],
   },
   {
     path: '**',
-    redirectTo: 'usuarios',
+    redirectTo: 'login',
   },
 ];
