@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatIconModule } from '@angular/material/icon';
+import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UserRecord } from '../../../domain/models/user-record.model';
 import { UserRegistrationWizard } from '../../components/user-registration-wizard/user-registration-wizard';
 
@@ -10,7 +10,7 @@ type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
     selector: 'app-user-management-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, MatIconModule, UserRegistrationWizard],
+    imports: [FormsModule, SiauLucideIcon, UserRegistrationWizard],
     templateUrl: './user-management-page.html',
     styleUrl: './user-management-page.scss',
 })

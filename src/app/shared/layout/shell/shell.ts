@@ -22,17 +22,16 @@ export class SiauShell {
   protected readonly userInitials = this.auth.userInitials;
 
   protected readonly navItems: SidebarItem[] = [
-    { id: 'usuarios', label: 'Usuarios', icon: 'groups', route: '/usuarios' },
-    { id: 'solicitudes', label: 'Solicitudes', icon: 'assignment', route: '/solicitudes' },
-    { id: 'administracion', label: 'Administración', icon: 'tune', route: '/administracion' },
-    { id: 'reportes', label: 'Reportes', icon: 'article', route: '/reportes' },
-    { id: 'bitacora', label: 'Bitácora', icon: 'monitoring', route: '/bitacora' },
+    { id: 'usuarios', label: 'Usuarios', icon: 'users', route: '/usuarios' },
+    { id: 'solicitudes', label: 'Solicitudes', icon: 'clipboard-list', route: '/solicitudes' },
+    { id: 'administracion', label: 'Administración', icon: 'settings-2', route: '/administracion' },
+    { id: 'reportes', label: 'Reportes', icon: 'file-text', route: '/reportes' },
+    { id: 'bitacora', label: 'Bitácora', icon: 'activity', route: '/bitacora' },
     { id: 'modals', label: 'Modals', icon: 'layers', route: '/modals' },
   ];
 
   protected readonly activeItemId = computed(() => {
     const url = this.currentUrl();
-
     return this.navItems.find((item) => url.startsWith(item.route))?.id ?? 'usuarios';
   });
 

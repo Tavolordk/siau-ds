@@ -1,118 +1,134 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { MatIconModule } from '@angular/material/icon';
-import {
-  AdminCatalog,
-  AdminModule,
-  CatalogStatus,
-} from '../../../domain/models/admin-catalog.model';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 
-type BadgeTone = 'success' | 'danger';
+interface SystemMetric {
+  readonly value: string;
+  readonly label: string;
+  readonly hint: string;
+  readonly tone: 'success' | 'primary' | 'info' | 'warning';
+}
+
+interface AdminSystemCard {
+  readonly id: string;
+  readonly category: string;
+  readonly title: string;
+  readonly description: string;
+  readonly icon: string;
+  readonly iconTone: 'primary' | 'info' | 'danger' | 'gold' | 'warning';
+  readonly status: 'Activo' | 'En revisión';
+  readonly statusIcon: 'circle-check' | 'clock';
+  readonly configurations: number;
+  readonly updatedAt: string;
+}
 
 @Component({
   selector: 'app-administration-page',
   standalone: true,
-  imports: [FormsModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SiauLucideIcon],
   templateUrl: './administration-page.html',
   styleUrl: './administration-page.scss',
 })
 export class AdministrationPage {
-  protected readonly searchTerm = signal<string>('');
+  protected readonly metrics = signal<readonly SystemMetric[]>([
+    {
+      value: '6',
+      label: 'Módulos activos',
+      hint: 'de 6 configurados',
+      tone: 'success',
+    },
+    {
+      value: '4',
+      label: 'Roles definidos',
+      hint: 'tipos de usuario',
+      tone: 'primary',
+    },
+    {
+      value: '8',
+      label: 'Catálogos',
+      hint: 'listas de referencia',
+      tone: 'info',
+    },
+    {
+      value: 'Hoy',
+      label: 'Última actualización',
+      hint: '09:45 hrs',
+      tone: 'warning',
+    },
+  ]);
 
-  protected readonly modules = signal<readonly AdminModule[]>([
+  protected readonly cards = signal<readonly AdminSystemCard[]>([
     {
-      id: 'institutional-structure',
-      title: 'Estructura institucional',
-      description: 'Instituciones, dependencias, corporaciones y áreas.',
-      icon: 'account_tree',
-      totalRecords: 128,
-    },
-    {
-      id: 'profiles',
-      title: 'Perfiles y permisos',
-      description: 'Roles, accesos, permisos y restricciones operativas.',
-      icon: 'admin_panel_settings',
-      totalRecords: 24,
-    },
-    {
-      id: 'security',
-      title: 'Configuración de seguridad',
-      description: 'Parámetros de acceso, bloqueo y políticas de cuenta.',
+      id: 'roles-permisos',
+      category: 'Seguridad',
+      title: 'Roles y Permisos',
+      description: 'Gestión de perfiles de acceso, privilegios y restricciones por tipo de usuario.',
       icon: 'shield',
-      totalRecords: 16,
+      iconTone: 'primary',
+      status: 'Activo',
+      statusIcon: 'circle-check',
+      configurations: 12,
+      updatedAt: 'Hoy, 09:45',
+    },
+    {
+      id: 'catalogos',
+      category: 'Datos',
+      title: 'Catálogos',
+      description: 'Administración de catálogos institucionales, listas de valores y tablas de referencia.',
+      icon: 'database',
+      iconTone: 'info',
+      status: 'Activo',
+      statusIcon: 'circle-check',
+      configurations: 8,
+      updatedAt: 'Hace 2 días',
+    },
+    {
+      id: 'configuracion-general',
+      category: 'Sistema',
+      title: 'Configuración General',
+      description: 'Parámetros globales del sistema, comportamiento institucional y preferencias de operación.',
+      icon: 'sliders-horizontal',
+      iconTone: 'primary',
+      status: 'Activo',
+      statusIcon: 'circle-check',
+      configurations: 24,
+      updatedAt: 'Hace 5 días',
+    },
+    {
+      id: 'seguridad',
+      category: 'Acceso',
+      title: 'Seguridad',
+      description: 'Políticas de contraseñas, gestión de sesiones activas, 2FA y auditoría de acceso.',
+      icon: 'lock',
+      iconTone: 'danger',
+      status: 'Activo',
+      statusIcon: 'circle-check',
+      configurations: 6,
+      updatedAt: 'Ayer, 14:20',
+    },
+    {
+      id: 'notificaciones',
+      category: 'Comunicaciones',
+      title: 'Notificaciones',
+      description: 'Configuración de alertas automáticas, plantillas de correo y canales de notificación.',
+      icon: 'bell',
+      iconTone: 'gold',
+      status: 'Activo',
+      statusIcon: 'circle-check',
+      configurations: 15,
+      updatedAt: 'Hace 3 días',
+    },
+    {
+      id: 'parametros',
+      category: 'Infraestructura',
+      title: 'Parámetros del Sistema',
+      description: 'Variables de entorno, integraciones externas y configuración técnica avanzada del sistema.',
+      icon: 'server',
+      iconTone: 'warning',
+      status: 'En revisión',
+      statusIcon: 'clock',
+      configurations: 32,
+      updatedAt: 'Hace 7 días',
     },
   ]);
-
-  protected readonly catalogs = signal<readonly AdminCatalog[]>([
-    {
-      id: 'cat-instituciones',
-      name: 'Instituciones',
-      description: 'Catálogo de instituciones registradas en el sistema.',
-      records: 32,
-      lastUpdate: '15/05/2026',
-      status: 'Activo',
-    },
-    {
-      id: 'cat-dependencias',
-      name: 'Dependencias',
-      description: 'Dependencias asociadas a instituciones.',
-      records: 54,
-      lastUpdate: '14/05/2026',
-      status: 'Activo',
-    },
-    {
-      id: 'cat-corporaciones',
-      name: 'Corporaciones',
-      description: 'Corporaciones operativas registradas.',
-      records: 21,
-      lastUpdate: '13/05/2026',
-      status: 'Activo',
-    },
-    {
-      id: 'cat-areas',
-      name: 'Áreas',
-      description: 'Áreas internas y unidades administrativas.',
-      records: 128,
-      lastUpdate: '10/05/2026',
-      status: 'Activo',
-    },
-    {
-      id: 'cat-perfiles',
-      name: 'Perfiles',
-      description: 'Perfiles de usuario disponibles para asignación.',
-      records: 12,
-      lastUpdate: '09/05/2026',
-      status: 'Activo',
-    },
-    {
-      id: 'cat-estatus',
-      name: 'Estatus de usuario',
-      description: 'Estatus permitidos para las cuentas del sistema.',
-      records: 6,
-      lastUpdate: '01/05/2026',
-      status: 'Inactivo',
-    },
-  ]);
-
-  protected readonly filteredCatalogs = computed(() => {
-    const term = this.searchTerm().trim().toLowerCase();
-
-    if (!term) {
-      return this.catalogs();
-    }
-
-    return this.catalogs().filter((catalog) => {
-      const value = `${catalog.name} ${catalog.description}`.toLowerCase();
-      return value.includes(term);
-    });
-  });
-
-  protected updateSearchTerm(value: string): void {
-    this.searchTerm.set(value);
-  }
-
-  protected getStatusTone(status: CatalogStatus): BadgeTone {
-    return status === 'Activo' ? 'success' : 'danger';
-  }
 }

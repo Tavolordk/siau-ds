@@ -11,14 +11,15 @@
 
     <div class="users-page__actions">
         <button type="button" class="users-page__new-button" (click)="openRegistration()">
-            <mat-icon aria-hidden="true">add</mat-icon>
+            <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
             <span>Nuevo Usuario</span>
         </button>
     </div>
 
     <article class="users-table-card">
         <label class="users-table-card__search">
-            <mat-icon aria-hidden="true">search</mat-icon>
+            <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
+
             <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
                 placeholder="Buscar por nombre, usuario o correo..." aria-label="Buscar usuario" />
         </label>
@@ -44,36 +45,45 @@
                         <td data-label="Usuario">{{ user.username }}</td>
                         <td data-label="Nombre">{{ user.fullName }}</td>
                         <td data-label="Correo">{{ user.email }}</td>
+
                         <td data-label="Rol">
                             <span class="badge" [class]="'badge badge--' + getRoleTone(user.role)">
                                 {{ user.role }}
                             </span>
                         </td>
+
                         <td data-label="Estatus">
                             <span class="badge" [class]="'badge badge--' + getStatusTone(user.status)">
                                 {{ user.status }}
                             </span>
                         </td>
+
                         <td data-label="RNPSP">
                             <span class="badge" [class]="'badge badge--' + getRegistryTone(user.rnpsp)">
                                 {{ user.rnpsp }}
                             </span>
                         </td>
+
                         <td data-label="C. confianza">
                             <span class="badge" [class]="'badge badge--' + getTrustTone(user.trust)">
                                 {{ user.trust }}
                             </span>
                         </td>
+
                         <td data-label="Acciones">
                             <div class="users-table__actions">
-                                <button type="button" aria-label="Editar usuario">
-                                    <mat-icon>edit</mat-icon>
+                                <button type="button" aria-label="Editar usuario" title="Editar">
+                                    <siau-lucide-icon name="pencil" size="16" strokeWidth="2" aria-hidden="true" />
                                 </button>
-                                <button type="button" aria-label="Suspender usuario">
-                                    <mat-icon>block</mat-icon>
+
+                                <button type="button"
+                                    [attr.aria-label]="user.status === 'Inhabilitado' ? 'Activar usuario' : 'Inhabilitar usuario'"
+                                    [attr.title]="user.status === 'Inhabilitado' ? 'Activar' : 'Inhabilitar'">
+                                    <siau-lucide-icon name="ban" size="16" strokeWidth="2" aria-hidden="true" />
                                 </button>
-                                <button type="button" aria-label="Eliminar usuario">
-                                    <mat-icon>delete</mat-icon>
+
+                                <button type="button" aria-label="Eliminar usuario" title="Eliminar">
+                                    <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
                                 </button>
                             </div>
                         </td>

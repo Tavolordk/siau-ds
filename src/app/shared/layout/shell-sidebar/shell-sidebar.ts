@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
+import { SiauLucideIcon } from '../../ui/components/lucide-icon/lucide-icon';
 
 export interface SidebarItem {
   readonly id: string;
@@ -13,7 +13,7 @@ export interface SidebarItem {
   selector: 'siau-shell-sidebar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatIconModule],
+  imports: [SiauLucideIcon],
   templateUrl: './shell-sidebar.html',
   styleUrl: './shell-sidebar.scss',
 })

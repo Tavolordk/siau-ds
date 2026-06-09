@@ -1,36 +1,29 @@
 <aside [class]="hostClasses()" aria-label="Navegación principal">
-  <button
-    type="button"
-    class="siau-shell-sidebar__collapse"
-    [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Colapsar menú'"
-    (click)="onCollapseClick()"
-  >
-    <mat-icon aria-hidden="true">{{ collapsed() ? 'chevron_right' : 'view_sidebar' }}</mat-icon>
+  <button type="button" class="siau-shell-sidebar__collapse"
+    [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Colapsar menú'" (click)="onCollapseClick()">
+    <siau-lucide-icon [name]="collapsed() ? 'panel-left-open' : 'panel-left-close'" size="20" strokeWidth="2"
+      aria-hidden="true" />
 
     @if (!collapsed()) {
-      <span class="siau-shell-sidebar__collapse-label">Colapsar</span>
+    <span class="siau-shell-sidebar__collapse-label">Colapsar</span>
     }
   </button>
 
   <nav class="siau-shell-sidebar__nav">
     <ul class="siau-shell-sidebar__list">
       @for (item of items(); track item.id) {
-        <li>
-          <button
-            type="button"
-            [class]="itemClasses(item.id)"
-            [disabled]="item.disabled ?? false"
-            [attr.aria-current]="item.id === activeId() ? 'page' : null"
-            [attr.title]="collapsed() ? item.label : null"
-            (click)="onItemClick(item)"
-          >
-            <mat-icon class="siau-shell-sidebar__item-icon" aria-hidden="true">{{ item.icon }}</mat-icon>
+      <li>
+        <button type="button" [class]="itemClasses(item.id)" [disabled]="item.disabled ?? false"
+          [attr.aria-current]="item.id === activeId() ? 'page' : null" [attr.title]="collapsed() ? item.label : null"
+          (click)="onItemClick(item)">
+          <siau-lucide-icon class="siau-shell-sidebar__item-icon" [name]="item.icon" size="22" strokeWidth="2"
+            aria-hidden="true" />
 
-            @if (!collapsed()) {
-              <span class="siau-shell-sidebar__item-label">{{ item.label }}</span>
-            }
-          </button>
-        </li>
+          @if (!collapsed()) {
+          <span class="siau-shell-sidebar__item-label">{{ item.label }}</span>
+          }
+        </button>
+      </li>
       }
     </ul>
   </nav>

@@ -12,7 +12,9 @@ export { SiauStepper } from './components/stepper/stepper';
 export type { SiauStep } from './components/stepper/stepper';
 export { SiauModal } from './components/modal/modal';
 export { SiauFileUpload } from './components/file-upload/file-upload';
+export { SiauLucideIcon } from './components/lucide-icon/lucide-icon';
 export type { UiVariant, UiSize, UiTone } from './types';
+
 export * from './components/button/button';
 export * from './components/divider/divider';
 export * from './components/file-upload/file-upload';
@@ -21,3 +23,4 @@ export * from './components/modal/modal';
 export * from './components/select/select';
 export * from './components/stepper/stepper';
 export * from './components/page-placeholder/page-placeholder';
+export * from './components/lucide-icon/lucide-icon';
