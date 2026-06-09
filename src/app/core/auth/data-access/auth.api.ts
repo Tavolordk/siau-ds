@@ -3,7 +3,7 @@ import { delay, Observable, of, throwError } from 'rxjs';
 import { AuthSession, AuthUser, PendingAuthChallenge } from '../domain/auth-session.model';
 import { LoginRequest } from '../domain/login-request.model';
 
-const MOCK_CAPTCHA = 'PZEJ5N';
+const MOCK_CAPTCHA = 'VT8KK5';
 const MOCK_CODE = '123456';
 
 interface MockUserRecord {

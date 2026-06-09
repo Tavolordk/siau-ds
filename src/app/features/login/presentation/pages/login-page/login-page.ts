@@ -2,20 +2,19 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
+import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
 
 @Component({
     selector: 'siau-login-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ReactiveFormsModule, RouterLink],
+    imports: [ReactiveFormsModule, RouterLink, AnimatedAuthBackground],
     templateUrl: './login-page.html',
     styleUrl: './login-page.scss',
 })
 export class LoginPage {
     private readonly formBuilder = inject(FormBuilder);
     protected readonly auth = inject(AuthFacade);
-
-    protected readonly captchaCode = 'PZEJ5N';
 
     protected readonly form = this.formBuilder.nonNullable.group({
         username: ['', [Validators.required, Validators.minLength(3)]],

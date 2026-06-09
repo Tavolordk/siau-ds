@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChildren } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
+import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
 
 @Component({
     selector: 'siau-two-factor-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [RouterLink],
+    imports: [RouterLink, AnimatedAuthBackground],
     templateUrl: './two-factor-page.html',
     styleUrl: './two-factor-page.scss',
 })

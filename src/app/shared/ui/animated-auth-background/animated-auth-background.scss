@@ -1,0 +1,74 @@
+:host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+  background: #080a23;
+}
+
+.auth-bg__gradient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 20% 18%, rgba(40, 46, 120, 0.45) 0%, transparent 70%),
+    radial-gradient(ellipse 55% 50% at 85% 88%, rgba(22, 84, 86, 0.26) 0%, transparent 70%);
+}
+
+.auth-bg__orb {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform;
+}
+
+.auth-bg__orb--left {
+  top: -20%;
+  left: -12%;
+  width: 55vw;
+  height: 55vw;
+  background: radial-gradient(circle, rgba(45, 50, 130, 0.28) 0%, transparent 65%);
+  animation: siau-orb-left 9s ease-in-out infinite alternate;
+}
+
+.auth-bg__orb--right {
+  right: -12%;
+  bottom: -20%;
+  width: 45vw;
+  height: 45vw;
+  background: radial-gradient(circle, rgba(24, 90, 92, 0.18) 0%, transparent 65%);
+  animation: siau-orb-right 11s ease-in-out infinite alternate;
+}
+
+.auth-bg__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes siau-orb-left {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.07);
+  }
+}
+
+@keyframes siau-orb-right {
+  from {
+    transform: scale(1.04);
+  }
+
+  to {
+    transform: scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-bg__orb {
+    animation: none;
+  }
+}
