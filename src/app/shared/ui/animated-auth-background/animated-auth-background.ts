@@ -45,8 +45,8 @@ interface ClusterZone {
 }
 
 const PARTICLE_COLOR = '255, 255, 255';
-const LINK_DISTANCE = 168;
-const MOUSE_DISTANCE = 200;
+const LINK_DISTANCE = 188;
+const MOUSE_DISTANCE = 210;
 const BASE_FRAME_MS = 1000 / 60;
 
 @Component({
@@ -60,10 +60,10 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     @Input() interactive = true;
 
     /**
-     * Multiplicador global de velocidad.
-     * 1.0 es el valor recomendado para parecerse al Figma.
+     * Déjalo en 1 si usas los valores de velocidad de abajo.
+     * Si aún quieres más rapidez, súbelo a 1.1 o 1.15.
      */
-    @Input() speed = 1;
+    @Input() speed = 5;
 
     @ViewChild('canvas', { static: true })
     private readonly canvasRef!: ElementRef<HTMLCanvasElement>;
@@ -193,28 +193,30 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     }
 
     /**
-     * Figura random en cada refresh, pero con distribución parecida al Figma:
-     * grupos grandes en bordes y zonas laterales, dejando más limpio el centro
-     * donde van el logo y el formulario.
+     * Random por refresh, pero parecido al Figma:
+     * - grupos grandes
+     * - lados más cargados
+     * - centro más limpio
+     * - figuras más grandes que antes
      */
     private createRandomFigmaLikeParticles(width: number, height: number): AuthParticle[] {
         const particles: AuthParticle[] = [];
         const minSide = Math.min(width, height);
 
         const zones: ClusterZone[] = [
-            { x: -0.02, y: 0.11, spreadX: 0.18, spreadY: 0.2, nodes: this.randomInt(5, 8) },
-            { x: 0.18, y: 0.58, spreadX: 0.18, spreadY: 0.28, nodes: this.randomInt(7, 11) },
-            { x: 0.28, y: 0.16, spreadX: 0.2, spreadY: 0.18, nodes: this.randomInt(5, 9) },
-            { x: 0.7, y: 0.22, spreadX: 0.2, spreadY: 0.22, nodes: this.randomInt(8, 13) },
-            { x: 0.9, y: 0.12, spreadX: 0.16, spreadY: 0.18, nodes: this.randomInt(5, 9) },
-            { x: 0.68, y: 0.72, spreadX: 0.25, spreadY: 0.22, nodes: this.randomInt(11, 17) },
-            { x: 0.88, y: 0.7, spreadX: 0.16, spreadY: 0.2, nodes: this.randomInt(7, 11) },
-            { x: 0.02, y: 0.84, spreadX: 0.18, spreadY: 0.22, nodes: this.randomInt(5, 9) },
+            { x: -0.02, y: 0.10, spreadX: 0.22, spreadY: 0.22, nodes: this.randomInt(6, 9) },
+            { x: 0.20, y: 0.52, spreadX: 0.24, spreadY: 0.34, nodes: this.randomInt(10, 15) },
+            { x: 0.28, y: 0.18, spreadX: 0.22, spreadY: 0.20, nodes: this.randomInt(7, 11) },
+            { x: 0.68, y: 0.20, spreadX: 0.24, spreadY: 0.22, nodes: this.randomInt(10, 15) },
+            { x: 0.90, y: 0.14, spreadX: 0.18, spreadY: 0.20, nodes: this.randomInt(6, 10) },
+            { x: 0.72, y: 0.70, spreadX: 0.30, spreadY: 0.24, nodes: this.randomInt(14, 20) },
+            { x: 0.90, y: 0.72, spreadX: 0.20, spreadY: 0.22, nodes: this.randomInt(8, 12) },
+            { x: 0.04, y: 0.84, spreadX: 0.20, spreadY: 0.22, nodes: this.randomInt(6, 10) },
         ];
 
         for (const zone of zones) {
-            const centerX = width * zone.x + this.random(-width * 0.035, width * 0.035);
-            const centerY = height * zone.y + this.random(-height * 0.035, height * 0.035);
+            const centerX = width * zone.x + this.random(-width * 0.03, width * 0.03);
+            const centerY = height * zone.y + this.random(-height * 0.03, height * 0.03);
             const spreadX = width * zone.spreadX;
             const spreadY = height * zone.spreadY;
 
@@ -228,11 +230,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             }
         }
 
-        /**
-         * Puntos sueltos para líneas largas y nodos aislados como en el video.
-         * Evitamos demasiado el centro para no ensuciar el formulario.
-         */
-        const looseCount = Math.min(34, Math.max(14, Math.floor(minSide / 24)));
+        const looseCount = Math.min(28, Math.max(12, Math.floor(minSide / 30)));
 
         for (let index = 0; index < looseCount; index += 1) {
             const { x, y } = this.randomLoosePoint(width, height);
@@ -248,19 +246,19 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             y,
             baseX: x,
             baseY: y,
-            radius: Math.random() > (loose ? 0.9 : 0.82) ? 2.05 : 1.22,
-            alpha: loose ? 0.32 + Math.random() * 0.22 : 0.42 + Math.random() * 0.34,
+            radius: Math.random() > (loose ? 0.92 : 0.8) ? 2.15 : 1.25,
+            alpha: loose ? 0.28 + Math.random() * 0.18 : 0.4 + Math.random() * 0.3,
             phase: index * 0.73 + Math.random() * Math.PI * 2,
         };
     }
 
     private randomLoosePoint(width: number, height: number): { x: number; y: number } {
-        for (let attempt = 0; attempt < 16; attempt += 1) {
+        for (let attempt = 0; attempt < 18; attempt += 1) {
             const x = Math.random() * width;
             const y = Math.random() * height;
 
-            const inCentralCardArea = x > width * 0.32 && x < width * 0.68 && y > height * 0.18 && y < height * 0.92;
-            const inLogoArea = x > width * 0.32 && x < width * 0.68 && y < height * 0.25;
+            const inCentralCardArea = x > width * 0.31 && x < width * 0.69 && y > height * 0.18 && y < height * 0.93;
+            const inLogoArea = x > width * 0.31 && x < width * 0.69 && y < height * 0.24;
 
             if (!inCentralCardArea && !inLogoArea) {
                 return { x, y };
@@ -268,14 +266,11 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
         }
 
         return {
-            x: Math.random() > 0.5 ? Math.random() * width * 0.25 : width * (0.75 + Math.random() * 0.25),
+            x: Math.random() > 0.5 ? Math.random() * width * 0.22 : width * (0.78 + Math.random() * 0.22),
             y: Math.random() * height,
         };
     }
 
-    /**
-     * Red fija calculada al cargar. Los runners viajan sobre estas líneas.
-     */
     private createEdges(particles: AuthParticle[]): AuthEdge[] {
         const edges: AuthEdge[] = [];
 
@@ -297,7 +292,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                     continue;
                 }
 
-                const keepProbability = distance < 78 ? 0.66 : 0.36;
+                const keepProbability = distance < 84 ? 0.68 : 0.34;
 
                 if (Math.random() > keepProbability) {
                     continue;
@@ -307,7 +302,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             }
         }
 
-        return edges.length < 32 ? this.createFallbackEdges(particles) : edges;
+        return edges.length < 34 ? this.createFallbackEdges(particles) : edges;
     }
 
     private createFallbackEdges(particles: AuthParticle[]): AuthEdge[] {
@@ -321,7 +316,10 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                     distance:
                         index === i
                             ? Number.POSITIVE_INFINITY
-                            : Math.hypot(particles[i].baseX - particle.baseX, particles[i].baseY - particle.baseY),
+                            : Math.hypot(
+                                particles[i].baseX - particle.baseX,
+                                particles[i].baseY - particle.baseY,
+                            ),
                 }))
                 .sort((a, b) => a.distance - b.distance)
                 .slice(0, 3);
@@ -343,21 +341,24 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
         return edges;
     }
 
+    /**
+     * Más rápidos que antes.
+     */
     private createRunners(edges: AuthEdge[]): AuthRunner[] {
         if (!edges.length) {
             return [];
         }
 
-        const runnerCount = Math.min(36, Math.max(16, Math.floor(edges.length / 7)));
+        const runnerCount = Math.min(38, Math.max(18, Math.floor(edges.length / 6.5)));
 
         return Array.from({ length: runnerCount }, () => ({
             edgeIndex: Math.floor(Math.random() * edges.length),
             progress: Math.random(),
-            speed: 0.0025 + Math.random() * 0.004,
+            speed: 0.0038 + Math.random() * 0.0048,
             direction: Math.random() > 0.5 ? 1 : -1,
-            radius: 1.25 + Math.random() * 0.55,
-            alpha: 0.64 + Math.random() * 0.26,
-            trail: 0.07 + Math.random() * 0.08,
+            radius: 1.3 + Math.random() * 0.6,
+            alpha: 0.76 + Math.random() * 0.2,
+            trail: 0.08 + Math.random() * 0.08,
         }));
     }
 
@@ -368,8 +369,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
     private stepBaseNodes(): void {
         for (const particle of this.particles) {
-            particle.x = particle.baseX + Math.sin(this.elapsed * 0.18 + particle.phase) * 1.35;
-            particle.y = particle.baseY + Math.cos(this.elapsed * 0.16 + particle.phase) * 1.35;
+            particle.x = particle.baseX + Math.sin(this.elapsed * 0.17 + particle.phase) * 1.15;
+            particle.y = particle.baseY + Math.cos(this.elapsed * 0.15 + particle.phase) * 1.15;
         }
     }
 
@@ -389,8 +390,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                 runner.edgeIndex = nextEdgeIndex;
                 runner.direction = this.edges[nextEdgeIndex].from === exitNode ? 1 : -1;
                 runner.progress = runner.direction === 1 ? 0 : 1;
-                runner.speed = 0.0025 + Math.random() * 0.004;
-                runner.trail = 0.07 + Math.random() * 0.08;
+                runner.speed = 0.0038 + Math.random() * 0.0048;
+                runner.trail = 0.08 + Math.random() * 0.08;
             }
         }
     }
@@ -436,7 +437,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             const first = this.particles[edge.from];
             const second = this.particles[edge.to];
             const distance = Math.hypot(first.x - second.x, first.y - second.y);
-            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.2);
+            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.18);
 
             context.beginPath();
             context.moveTo(first.x, first.y);
@@ -469,8 +470,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.beginPath();
             context.moveTo(trailStart.x, trailStart.y);
             context.lineTo(trailEnd.x, trailEnd.y);
-            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.5})`;
-            context.lineWidth = 1.6;
+            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.56})`;
+            context.lineWidth = 1.75;
             context.stroke();
 
             context.beginPath();
@@ -479,8 +480,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.fill();
 
             context.beginPath();
-            context.arc(head.x, head.y, runner.radius * 3.8, 0, Math.PI * 2);
-            context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.045)`;
+            context.arc(head.x, head.y, runner.radius * 4.2, 0, Math.PI * 2);
+            context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.05)`;
             context.fill();
         }
 
@@ -516,7 +517,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                 continue;
             }
 
-            const opacity = (1 - distance / MOUSE_DISTANCE) * 0.28;
+            const opacity = (1 - distance / MOUSE_DISTANCE) * 0.26;
 
             context.beginPath();
             context.moveTo(particle.x, particle.y);
@@ -528,7 +529,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
     private drawParticles(context: CanvasRenderingContext2D): void {
         for (const particle of this.particles) {
-            const pulse = 0.84 + Math.sin(this.elapsed * 0.75 + particle.phase) * 0.07;
+            const pulse = 0.86 + Math.sin(this.elapsed * 0.72 + particle.phase) * 0.06;
             const alpha = particle.alpha * pulse;
 
             context.beginPath();

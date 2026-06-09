@@ -11,14 +11,42 @@
 .auth-bg__gradient {
   position: absolute;
   inset: 0;
-  opacity: 0.6;
+  opacity: 0.72;
   mix-blend-mode: screen;
-  background: radial-gradient(
-    circle,
-    rgba(30, 91, 79, 0.2) 0%,
-    rgba(27, 31, 74, 0.4) 50%,
-    rgb(5, 8, 24) 100%
-  );
+  background:
+    radial-gradient(
+      ellipse 76% 86% at 15% 15%,
+      rgba(38, 47, 124, 0.22) 0%,
+      rgba(24, 30, 82, 0.12) 34%,
+      rgba(8, 13, 40, 0.04) 58%,
+      rgba(5, 8, 24, 0) 76%
+    ),
+    radial-gradient(
+      ellipse 72% 84% at 82% 76%,
+      rgba(22, 70, 84, 0.12) 0%,
+      rgba(12, 35, 58, 0.06) 42%,
+      rgba(5, 8, 24, 0) 72%
+    ),
+    linear-gradient(180deg, rgba(5, 8, 24, 0.06) 0%, rgba(5, 8, 24, 0.38) 100%);
+}
+
+.auth-bg__gradient::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(5, 8, 24, 0.22) 0%,
+      rgba(5, 8, 24, 0.06) 24%,
+      rgba(5, 8, 24, 0) 52%
+    ),
+    radial-gradient(
+      ellipse 52% 42% at 45% 8%,
+      rgba(255, 255, 255, 0.035) 0%,
+      rgba(255, 255, 255, 0.015) 28%,
+      rgba(255, 255, 255, 0) 62%
+    );
 }
 
 .auth-bg__orb {
@@ -30,22 +58,22 @@
 
 .auth-bg__orb--left {
   top: -20%;
-  left: -10%;
-  width: 50vw;
-  height: 50vw;
-  background: #1b1f4a;
-  filter: blur(120px);
-  animation: siau-orb-left 8s ease-in-out infinite alternate;
+  left: -14%;
+  width: 48vw;
+  height: 48vw;
+  background: rgba(43, 53, 136, 0.16);
+  filter: blur(145px);
+  animation: siau-orb-left 10s ease-in-out infinite alternate;
 }
 
 .auth-bg__orb--right {
-  right: -10%;
-  bottom: -20%;
-  width: 40vw;
-  height: 40vw;
-  background: #1e5b4f;
-  filter: blur(100px);
-  animation: siau-orb-right 9s ease-in-out infinite alternate;
+  right: -12%;
+  bottom: -18%;
+  width: 42vw;
+  height: 42vw;
+  background: rgba(21, 74, 86, 0.1);
+  filter: blur(125px);
+  animation: siau-orb-right 11s ease-in-out infinite alternate;
 }
 
 .auth-bg__canvas {
@@ -53,26 +81,26 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.92;
+  opacity: 0.86;
 }
 
 @keyframes siau-orb-left {
   from {
-    transform: scale(1.02);
+    transform: scale(1.01) translate3d(0, 0, 0);
   }
 
   to {
-    transform: scale(1.08);
+    transform: scale(1.07) translate3d(14px, -6px, 0);
   }
 }
 
 @keyframes siau-orb-right {
   from {
-    transform: scale(1.06);
+    transform: scale(1.03) translate3d(0, 0, 0);
   }
 
   to {
-    transform: scale(1.17);
+    transform: scale(1.1) translate3d(-16px, 12px, 0);
   }
 }
 
