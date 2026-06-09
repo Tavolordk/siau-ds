@@ -2,6 +2,7 @@
     <header class="users-page__header">
         <div class="users-page__heading">
             <span class="users-page__accent"></span>
+
             <div>
                 <h1>Gestión de Usuarios</h1>
                 <p>Administra los accesos y roles del personal</p>
@@ -9,94 +10,108 @@
         </div>
     </header>
 
-    <div class="users-page__actions">
-        <button type="button" class="users-page__new-button" (click)="openRegistration()">
-            <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
-            <span>Nuevo Usuario</span>
-        </button>
-    </div>
-
-    <article class="users-table-card">
-        <label class="users-table-card__search">
-            <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
-
-            <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
-                placeholder="Buscar por nombre, usuario o correo..." aria-label="Buscar usuario" />
-        </label>
-
-        <div class="users-table-card__scroll">
-            <table class="users-table">
-                <thead>
-                    <tr>
-                        <th>Nombre de usuario</th>
-                        <th>Nombre completo</th>
-                        <th>Correo</th>
-                        <th>Rol</th>
-                        <th>Estatus</th>
-                        <th>RNPSP</th>
-                        <th>C. confianza</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    @for (user of filteredUsers(); track user.username) {
-                    <tr>
-                        <td data-label="Usuario">{{ user.username }}</td>
-                        <td data-label="Nombre">{{ user.fullName }}</td>
-                        <td data-label="Correo">{{ user.email }}</td>
-
-                        <td data-label="Rol">
-                            <span class="badge" [class]="'badge badge--' + getRoleTone(user.role)">
-                                {{ user.role }}
-                            </span>
-                        </td>
-
-                        <td data-label="Estatus">
-                            <span class="badge" [class]="'badge badge--' + getStatusTone(user.status)">
-                                {{ user.status }}
-                            </span>
-                        </td>
-
-                        <td data-label="RNPSP">
-                            <span class="badge" [class]="'badge badge--' + getRegistryTone(user.rnpsp)">
-                                {{ user.rnpsp }}
-                            </span>
-                        </td>
-
-                        <td data-label="C. confianza">
-                            <span class="badge" [class]="'badge badge--' + getTrustTone(user.trust)">
-                                {{ user.trust }}
-                            </span>
-                        </td>
-
-                        <td data-label="Acciones">
-                            <div class="users-table__actions">
-                                <button type="button" aria-label="Editar usuario" title="Editar">
-                                    <siau-lucide-icon name="pencil" size="16" strokeWidth="2" aria-hidden="true" />
-                                </button>
-
-                                <button type="button"
-                                    [attr.aria-label]="user.status === 'Inhabilitado' ? 'Activar usuario' : 'Inhabilitar usuario'"
-                                    [attr.title]="user.status === 'Inhabilitado' ? 'Activar' : 'Inhabilitar'">
-                                    <siau-lucide-icon name="ban" size="16" strokeWidth="2" aria-hidden="true" />
-                                </button>
-
-                                <button type="button" aria-label="Eliminar usuario" title="Eliminar">
-                                    <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    }
-                </tbody>
-            </table>
+    <main class="users-page__content">
+        <div class="users-page__actions">
+            <button type="button" class="users-page__new-button" (click)="openRegistration()">
+                <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
+                <span>Nuevo Usuario</span>
+            </button>
         </div>
 
-        <footer class="users-table-card__footer">
-            Mostrando {{ filteredUsers().length }} de {{ users().length }} usuarios
-        </footer>
-    </article>
+        <article class="users-table-card">
+            <div class="users-table-card__search-row">
+                <label class="users-table-card__search">
+                    <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
+
+                    <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
+                        placeholder="Buscar por nombre, usuario o correo..." aria-label="Buscar usuario" />
+                </label>
+            </div>
+
+            <div class="users-table-card__scroll">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre de usuario</th>
+                            <th>Nombre completo</th>
+                            <th>Correo</th>
+                            <th>Rol</th>
+                            <th>Estatus</th>
+                            <th>RNPSP</th>
+                            <th>C. Confianza</th>
+                            <th class="users-table__center">Acciones</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @for (user of filteredUsers(); track user.username) {
+                        <tr>
+                            <td data-label="Usuario">
+                                <span class="users-table__username">{{ user.username }}</span>
+                            </td>
+
+                            <td data-label="Nombre">
+                                <span>{{ user.fullName }}</span>
+                            </td>
+
+                            <td data-label="Correo">
+                                <span>{{ user.email }}</span>
+                            </td>
+
+                            <td data-label="Rol">
+                                <span class="badge" [class]="'badge badge--' + getRoleTone(user.role)">
+                                    {{ user.role }}
+                                </span>
+                            </td>
+
+                            <td data-label="Estatus">
+                                <span class="badge" [class]="'badge badge--' + getStatusTone(user.status)">
+                                    {{ user.status }}
+                                </span>
+                            </td>
+
+                            <td data-label="RNPSP">
+                                <span class="badge" [class]="'badge badge--' + getRegistryTone(user.rnpsp)">
+                                    {{ user.rnpsp }}
+                                </span>
+                            </td>
+
+                            <td data-label="C. Confianza">
+                                <span class="badge" [class]="'badge badge--' + getTrustTone(user.trust)">
+                                    {{ user.trust }}
+                                </span>
+                            </td>
+
+                            <td data-label="Acciones">
+                                <div class="users-table__actions">
+                                    <button type="button" class="users-table__action users-table__action--edit"
+                                        title="Editar" aria-label="Editar usuario">
+                                        <siau-lucide-icon name="pencil" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+
+                                    <button type="button" class="users-table__action users-table__action--ban"
+                                        [attr.title]="getToggleTitle(user.status)"
+                                        [attr.aria-label]="getToggleTitle(user.status) + ' usuario'">
+                                        <siau-lucide-icon name="ban" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+
+                                    <button type="button" class="users-table__action users-table__action--delete"
+                                        title="Eliminar" aria-label="Eliminar usuario">
+                                        <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="users-table-card__footer">
+                <p>Mostrando {{ filteredUsers().length }} de {{ users().length }} usuarios</p>
+            </footer>
+        </article>
+    </main>
 </section>
 
 <app-user-registration-wizard [open]="isRegistrationOpen()" (closed)="closeRegistration()" />

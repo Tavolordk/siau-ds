@@ -4,7 +4,7 @@ import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/
 import { UserRecord } from '../../../domain/models/user-record.model';
 import { UserRegistrationWizard } from '../../components/user-registration-wizard/user-registration-wizard';
 
-type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'dark' | 'light';
 
 @Component({
     selector: 'app-user-management-page',
@@ -92,11 +92,19 @@ export class UserManagementPage {
     }
 
     protected getRoleTone(role: UserRecord['role']): BadgeTone {
-        if (role === 'Usuario') {
+        if (role === 'Administrador') {
+            return 'neutral';
+        }
+
+        if (role === 'Enlace Institucional') {
             return 'info';
         }
 
-        return 'neutral';
+        if (role === 'Supervisor Estatal') {
+            return 'dark';
+        }
+
+        return 'light';
     }
 
     protected getStatusTone(status: UserRecord['status']): BadgeTone {
@@ -117,5 +125,9 @@ export class UserManagementPage {
 
     protected getTrustTone(status: UserRecord['trust']): BadgeTone {
         return status === 'Vigente' ? 'success' : 'warning';
+    }
+
+    protected getToggleTitle(status: UserRecord['status']): string {
+        return status === 'Inhabilitado' ? 'Activar' : 'Inhabilitar';
     }
 }
