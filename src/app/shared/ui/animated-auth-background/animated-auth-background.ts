@@ -36,8 +36,16 @@ interface AuthRunner {
     trail: number;
 }
 
+interface ClusterZone {
+    x: number;
+    y: number;
+    spreadX: number;
+    spreadY: number;
+    nodes: number;
+}
+
 const PARTICLE_COLOR = '255, 255, 255';
-const LINK_DISTANCE = 155;
+const LINK_DISTANCE = 168;
 const MOUSE_DISTANCE = 200;
 const BASE_FRAME_MS = 1000 / 60;
 
@@ -50,6 +58,11 @@ const BASE_FRAME_MS = 1000 / 60;
 })
 export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     @Input() interactive = true;
+
+    /**
+     * Multiplicador global de velocidad.
+     * 1.0 es el valor recomendado para parecerse al Figma.
+     */
     @Input() speed = 1;
 
     @ViewChild('canvas', { static: true })
@@ -172,7 +185,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
         context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-        this.particles = this.createRandomClusteredParticles(width, height);
+        this.particles = this.createRandomFigmaLikeParticles(width, height);
         this.edges = this.createEdges(this.particles);
         this.runners = this.createRunners(this.edges);
 
@@ -180,69 +193,88 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     }
 
     /**
-     * Figura random en cada refresh.
-     * No es una nube uniforme; son clusters aleatorios para que se parezca más
-     * al fondo de Figma: grupos de nodos conectados en distintas zonas.
+     * Figura random en cada refresh, pero con distribución parecida al Figma:
+     * grupos grandes en bordes y zonas laterales, dejando más limpio el centro
+     * donde van el logo y el formulario.
      */
-    private createRandomClusteredParticles(width: number, height: number): AuthParticle[] {
+    private createRandomFigmaLikeParticles(width: number, height: number): AuthParticle[] {
         const particles: AuthParticle[] = [];
-
-        const clusterCount = width < 720 ? 7 : 11;
         const minSide = Math.min(width, height);
 
-        for (let clusterIndex = 0; clusterIndex < clusterCount; clusterIndex += 1) {
-            const centerX = Math.random() * width;
-            const centerY = Math.random() * height;
+        const zones: ClusterZone[] = [
+            { x: -0.02, y: 0.11, spreadX: 0.18, spreadY: 0.2, nodes: this.randomInt(5, 8) },
+            { x: 0.18, y: 0.58, spreadX: 0.18, spreadY: 0.28, nodes: this.randomInt(7, 11) },
+            { x: 0.28, y: 0.16, spreadX: 0.2, spreadY: 0.18, nodes: this.randomInt(5, 9) },
+            { x: 0.7, y: 0.22, spreadX: 0.2, spreadY: 0.22, nodes: this.randomInt(8, 13) },
+            { x: 0.9, y: 0.12, spreadX: 0.16, spreadY: 0.18, nodes: this.randomInt(5, 9) },
+            { x: 0.68, y: 0.72, spreadX: 0.25, spreadY: 0.22, nodes: this.randomInt(11, 17) },
+            { x: 0.88, y: 0.7, spreadX: 0.16, spreadY: 0.2, nodes: this.randomInt(7, 11) },
+            { x: 0.02, y: 0.84, spreadX: 0.18, spreadY: 0.22, nodes: this.randomInt(5, 9) },
+        ];
 
-            const clusterRadius = minSide * (0.12 + Math.random() * 0.13);
-            const nodeCount = 8 + Math.floor(Math.random() * 9);
+        for (const zone of zones) {
+            const centerX = width * zone.x + this.random(-width * 0.035, width * 0.035);
+            const centerY = height * zone.y + this.random(-height * 0.035, height * 0.035);
+            const spreadX = width * zone.spreadX;
+            const spreadY = height * zone.spreadY;
 
-            for (let nodeIndex = 0; nodeIndex < nodeCount; nodeIndex += 1) {
+            for (let index = 0; index < zone.nodes; index += 1) {
                 const angle = Math.random() * Math.PI * 2;
-                const distance = clusterRadius * Math.sqrt(Math.random());
+                const distance = Math.sqrt(Math.random());
+                const x = centerX + Math.cos(angle) * spreadX * distance;
+                const y = centerY + Math.sin(angle) * spreadY * distance;
 
-                const x = centerX + Math.cos(angle) * distance;
-                const y = centerY + Math.sin(angle) * distance;
-
-                particles.push({
-                    x,
-                    y,
-                    baseX: x,
-                    baseY: y,
-                    radius: Math.random() > 0.82 ? 2.15 : 1.35,
-                    alpha: 0.48 + Math.random() * 0.32,
-                    phase: Math.random() * Math.PI * 2,
-                });
+                particles.push(this.createParticle(x, y, index));
             }
         }
 
         /**
-         * Nodos sueltos para que la red no se vea como “bolitas separadas”;
-         * estos ayudan a formar líneas largas y cruces como en el video.
+         * Puntos sueltos para líneas largas y nodos aislados como en el video.
+         * Evitamos demasiado el centro para no ensuciar el formulario.
          */
-        const looseCount = Math.min(42, Math.max(18, Math.floor(width / 38)));
+        const looseCount = Math.min(34, Math.max(14, Math.floor(minSide / 24)));
 
         for (let index = 0; index < looseCount; index += 1) {
-            const x = Math.random() * width;
-            const y = Math.random() * height;
-
-            particles.push({
-                x,
-                y,
-                baseX: x,
-                baseY: y,
-                radius: Math.random() > 0.88 ? 2 : 1.15,
-                alpha: 0.38 + Math.random() * 0.24,
-                phase: Math.random() * Math.PI * 2,
-            });
+            const { x, y } = this.randomLoosePoint(width, height);
+            particles.push(this.createParticle(x, y, index, true));
         }
 
         return particles;
     }
 
+    private createParticle(x: number, y: number, index: number, loose = false): AuthParticle {
+        return {
+            x,
+            y,
+            baseX: x,
+            baseY: y,
+            radius: Math.random() > (loose ? 0.9 : 0.82) ? 2.05 : 1.22,
+            alpha: loose ? 0.32 + Math.random() * 0.22 : 0.42 + Math.random() * 0.34,
+            phase: index * 0.73 + Math.random() * Math.PI * 2,
+        };
+    }
+
+    private randomLoosePoint(width: number, height: number): { x: number; y: number } {
+        for (let attempt = 0; attempt < 16; attempt += 1) {
+            const x = Math.random() * width;
+            const y = Math.random() * height;
+
+            const inCentralCardArea = x > width * 0.32 && x < width * 0.68 && y > height * 0.18 && y < height * 0.92;
+            const inLogoArea = x > width * 0.32 && x < width * 0.68 && y < height * 0.25;
+
+            if (!inCentralCardArea && !inLogoArea) {
+                return { x, y };
+            }
+        }
+
+        return {
+            x: Math.random() > 0.5 ? Math.random() * width * 0.25 : width * (0.75 + Math.random() * 0.25),
+            y: Math.random() * height,
+        };
+    }
+
     /**
-     * Red fija calculada al cargar.
-     * Los runners viajan sobre estas líneas.
+     * Red fija calculada al cargar. Los runners viajan sobre estas líneas.
      */
     private createEdges(particles: AuthParticle[]): AuthEdge[] {
         const edges: AuthEdge[] = [];
@@ -252,7 +284,6 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
             for (let j = i + 1; j < particles.length; j += 1) {
                 const second = particles[j];
-
                 const dx = first.baseX - second.baseX;
                 const dy = first.baseY - second.baseY;
 
@@ -266,58 +297,46 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                     continue;
                 }
 
-                /**
-                 * Reduce conexiones excesivas para que no se vea como telaraña sólida.
-                 */
-                const keepProbability = distance < 80 ? 0.68 : 0.42;
+                const keepProbability = distance < 78 ? 0.66 : 0.36;
 
                 if (Math.random() > keepProbability) {
                     continue;
                 }
 
-                edges.push({
-                    from: i,
-                    to: j,
-                    distance,
-                });
+                edges.push({ from: i, to: j, distance });
             }
         }
 
-        /**
-         * Si por azar queda con pocas líneas, abre un poco la red.
-         */
-        if (edges.length < 40) {
-            return this.createFallbackEdges(particles);
-        }
-
-        return edges;
+        return edges.length < 32 ? this.createFallbackEdges(particles) : edges;
     }
 
     private createFallbackEdges(particles: AuthParticle[]): AuthEdge[] {
+        const edgeKeys = new Set<string>();
         const edges: AuthEdge[] = [];
 
         for (let i = 0; i < particles.length; i += 1) {
-            const distances = particles
+            const nearest = particles
                 .map((particle, index) => ({
                     index,
-                    distance: index === i ? Number.POSITIVE_INFINITY : Math.hypot(
-                        particles[i].baseX - particle.baseX,
-                        particles[i].baseY - particle.baseY,
-                    ),
+                    distance:
+                        index === i
+                            ? Number.POSITIVE_INFINITY
+                            : Math.hypot(particles[i].baseX - particle.baseX, particles[i].baseY - particle.baseY),
                 }))
                 .sort((a, b) => a.distance - b.distance)
                 .slice(0, 3);
 
-            for (const candidate of distances) {
-                if (candidate.index <= i) {
+            for (const candidate of nearest) {
+                const from = Math.min(i, candidate.index);
+                const to = Math.max(i, candidate.index);
+                const key = `${from}-${to}`;
+
+                if (edgeKeys.has(key)) {
                     continue;
                 }
 
-                edges.push({
-                    from: i,
-                    to: candidate.index,
-                    distance: candidate.distance,
-                });
+                edgeKeys.add(key);
+                edges.push({ from, to, distance: candidate.distance });
             }
         }
 
@@ -329,16 +348,16 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             return [];
         }
 
-        const runnerCount = Math.min(46, Math.max(20, Math.floor(edges.length / 8)));
+        const runnerCount = Math.min(36, Math.max(16, Math.floor(edges.length / 7)));
 
         return Array.from({ length: runnerCount }, () => ({
             edgeIndex: Math.floor(Math.random() * edges.length),
             progress: Math.random(),
-            speed: 0.0026 + Math.random() * 0.0042,
+            speed: 0.0025 + Math.random() * 0.004,
             direction: Math.random() > 0.5 ? 1 : -1,
-            radius: 1.45 + Math.random() * 0.7,
-            alpha: 0.72 + Math.random() * 0.25,
-            trail: 0.08 + Math.random() * 0.08,
+            radius: 1.25 + Math.random() * 0.55,
+            alpha: 0.64 + Math.random() * 0.26,
+            trail: 0.07 + Math.random() * 0.08,
         }));
     }
 
@@ -349,8 +368,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
     private stepBaseNodes(): void {
         for (const particle of this.particles) {
-            particle.x = particle.baseX + Math.sin(this.elapsed * 0.22 + particle.phase) * 1.8;
-            particle.y = particle.baseY + Math.cos(this.elapsed * 0.2 + particle.phase) * 1.8;
+            particle.x = particle.baseX + Math.sin(this.elapsed * 0.18 + particle.phase) * 1.35;
+            particle.y = particle.baseY + Math.cos(this.elapsed * 0.16 + particle.phase) * 1.35;
         }
     }
 
@@ -370,8 +389,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                 runner.edgeIndex = nextEdgeIndex;
                 runner.direction = this.edges[nextEdgeIndex].from === exitNode ? 1 : -1;
                 runner.progress = runner.direction === 1 ? 0 : 1;
-                runner.speed = 0.0026 + Math.random() * 0.0042;
-                runner.trail = 0.08 + Math.random() * 0.08;
+                runner.speed = 0.0025 + Math.random() * 0.004;
+                runner.trail = 0.07 + Math.random() * 0.08;
             }
         }
     }
@@ -391,11 +410,9 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             }
         }
 
-        if (!candidates.length) {
-            return Math.floor(Math.random() * this.edges.length);
-        }
-
-        return candidates[Math.floor(Math.random() * candidates.length)];
+        return candidates.length
+            ? candidates[Math.floor(Math.random() * candidates.length)]
+            : Math.floor(Math.random() * this.edges.length);
     }
 
     private drawFrame(): void {
@@ -406,7 +423,6 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
         }
 
         context.clearRect(0, 0, this.width, this.height);
-
         this.drawConnections(context);
         this.drawMouseConnections(context);
         this.drawRunners(context);
@@ -419,12 +435,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
         for (const edge of this.edges) {
             const first = this.particles[edge.from];
             const second = this.particles[edge.to];
-
-            const dx = first.x - second.x;
-            const dy = first.y - second.y;
-            const distance = Math.hypot(dx, dy);
-
-            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.23);
+            const distance = Math.hypot(first.x - second.x, first.y - second.y);
+            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.2);
 
             context.beginPath();
             context.moveTo(first.x, first.y);
@@ -457,8 +469,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.beginPath();
             context.moveTo(trailStart.x, trailStart.y);
             context.lineTo(trailEnd.x, trailEnd.y);
-            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.58})`;
-            context.lineWidth = 1.7;
+            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.5})`;
+            context.lineWidth = 1.6;
             context.stroke();
 
             context.beginPath();
@@ -467,8 +479,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.fill();
 
             context.beginPath();
-            context.arc(head.x, head.y, runner.radius * 4.2, 0, Math.PI * 2);
-            context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.055)`;
+            context.arc(head.x, head.y, runner.radius * 3.8, 0, Math.PI * 2);
+            context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.045)`;
             context.fill();
         }
 
@@ -504,7 +516,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                 continue;
             }
 
-            const opacity = (1 - distance / MOUSE_DISTANCE) * 0.3;
+            const opacity = (1 - distance / MOUSE_DISTANCE) * 0.28;
 
             context.beginPath();
             context.moveTo(particle.x, particle.y);
@@ -516,7 +528,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
     private drawParticles(context: CanvasRenderingContext2D): void {
         for (const particle of this.particles) {
-            const pulse = 0.82 + Math.sin(this.elapsed * 0.9 + particle.phase) * 0.08;
+            const pulse = 0.84 + Math.sin(this.elapsed * 0.75 + particle.phase) * 0.07;
             const alpha = particle.alpha * pulse;
 
             context.beginPath();
@@ -524,5 +536,13 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.fillStyle = `rgba(${PARTICLE_COLOR}, ${alpha})`;
             context.fill();
         }
+    }
+
+    private random(min: number, max: number): number {
+        return min + Math.random() * (max - min);
+    }
+
+    private randomInt(min: number, max: number): number {
+        return Math.floor(this.random(min, max + 1));
     }
 }
