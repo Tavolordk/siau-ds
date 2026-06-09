@@ -37,7 +37,7 @@ interface AuthRunner {
 }
 
 const PARTICLE_COLOR = '255, 255, 255';
-const LINK_DISTANCE = 160;
+const LINK_DISTANCE = 155;
 const MOUSE_DISTANCE = 200;
 const BASE_FRAME_MS = 1000 / 60;
 
@@ -50,12 +50,6 @@ const BASE_FRAME_MS = 1000 / 60;
 })
 export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     @Input() interactive = true;
-
-    /**
-     * Multiplicador global.
-     * Recomendado: 1.
-     * Si quieres que los puntos corran más rápido: 1.3 o 1.5.
-     */
     @Input() speed = 1;
 
     @ViewChild('canvas', { static: true })
@@ -178,36 +172,77 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
         context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-        this.particles = this.createParticles(width, height);
+        this.particles = this.createRandomClusteredParticles(width, height);
         this.edges = this.createEdges(this.particles);
         this.runners = this.createRunners(this.edges);
 
         this.drawFrame();
     }
 
-    private createParticles(width: number, height: number): AuthParticle[] {
-        const count = Math.min(170, Math.max(72, Math.floor(width / 11.5)));
+    /**
+     * Figura random en cada refresh.
+     * No es una nube uniforme; son clusters aleatorios para que se parezca más
+     * al fondo de Figma: grupos de nodos conectados en distintas zonas.
+     */
+    private createRandomClusteredParticles(width: number, height: number): AuthParticle[] {
+        const particles: AuthParticle[] = [];
 
-        return Array.from({ length: count }, (_, index) => {
+        const clusterCount = width < 720 ? 7 : 11;
+        const minSide = Math.min(width, height);
+
+        for (let clusterIndex = 0; clusterIndex < clusterCount; clusterIndex += 1) {
+            const centerX = Math.random() * width;
+            const centerY = Math.random() * height;
+
+            const clusterRadius = minSide * (0.12 + Math.random() * 0.13);
+            const nodeCount = 8 + Math.floor(Math.random() * 9);
+
+            for (let nodeIndex = 0; nodeIndex < nodeCount; nodeIndex += 1) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = clusterRadius * Math.sqrt(Math.random());
+
+                const x = centerX + Math.cos(angle) * distance;
+                const y = centerY + Math.sin(angle) * distance;
+
+                particles.push({
+                    x,
+                    y,
+                    baseX: x,
+                    baseY: y,
+                    radius: Math.random() > 0.82 ? 2.15 : 1.35,
+                    alpha: 0.48 + Math.random() * 0.32,
+                    phase: Math.random() * Math.PI * 2,
+                });
+            }
+        }
+
+        /**
+         * Nodos sueltos para que la red no se vea como “bolitas separadas”;
+         * estos ayudan a formar líneas largas y cruces como en el video.
+         */
+        const looseCount = Math.min(42, Math.max(18, Math.floor(width / 38)));
+
+        for (let index = 0; index < looseCount; index += 1) {
             const x = Math.random() * width;
             const y = Math.random() * height;
 
-            return {
+            particles.push({
                 x,
                 y,
                 baseX: x,
                 baseY: y,
-                radius: Math.random() > 0.82 ? 2.15 : 1.35,
-                alpha: 0.55 + Math.random() * 0.28,
-                phase: index * 0.73 + Math.random() * Math.PI * 2,
-            };
-        });
+                radius: Math.random() > 0.88 ? 2 : 1.15,
+                alpha: 0.38 + Math.random() * 0.24,
+                phase: Math.random() * Math.PI * 2,
+            });
+        }
+
+        return particles;
     }
 
     /**
-     * Aquí se fija la red.
-     * La red NO cambia de forma en cada frame.
-     * Esto permite que los runners viajen sobre líneas reales.
+     * Red fija calculada al cargar.
+     * Los runners viajan sobre estas líneas.
      */
     private createEdges(particles: AuthParticle[]): AuthEdge[] {
         const edges: AuthEdge[] = [];
@@ -231,6 +266,15 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                     continue;
                 }
 
+                /**
+                 * Reduce conexiones excesivas para que no se vea como telaraña sólida.
+                 */
+                const keepProbability = distance < 80 ? 0.68 : 0.42;
+
+                if (Math.random() > keepProbability) {
+                    continue;
+                }
+
                 edges.push({
                     from: i,
                     to: j,
@@ -239,25 +283,62 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             }
         }
 
+        /**
+         * Si por azar queda con pocas líneas, abre un poco la red.
+         */
+        if (edges.length < 40) {
+            return this.createFallbackEdges(particles);
+        }
+
+        return edges;
+    }
+
+    private createFallbackEdges(particles: AuthParticle[]): AuthEdge[] {
+        const edges: AuthEdge[] = [];
+
+        for (let i = 0; i < particles.length; i += 1) {
+            const distances = particles
+                .map((particle, index) => ({
+                    index,
+                    distance: index === i ? Number.POSITIVE_INFINITY : Math.hypot(
+                        particles[i].baseX - particle.baseX,
+                        particles[i].baseY - particle.baseY,
+                    ),
+                }))
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 3);
+
+            for (const candidate of distances) {
+                if (candidate.index <= i) {
+                    continue;
+                }
+
+                edges.push({
+                    from: i,
+                    to: candidate.index,
+                    distance: candidate.distance,
+                });
+            }
+        }
+
         return edges;
     }
 
     private createRunners(edges: AuthEdge[]): AuthRunner[] {
-        const runnerCount = Math.min(42, Math.max(18, Math.floor(edges.length / 22)));
+        if (!edges.length) {
+            return [];
+        }
+
+        const runnerCount = Math.min(46, Math.max(20, Math.floor(edges.length / 8)));
 
         return Array.from({ length: runnerCount }, () => ({
             edgeIndex: Math.floor(Math.random() * edges.length),
             progress: Math.random(),
-            /**
-             * Este es el movimiento que faltaba:
-             * progreso sobre la línea.
-             * Más alto = corre más rápido.
-             */
-            speed: 0.0024 + Math.random() * 0.0038,
+            speed: 0.0026 + Math.random() * 0.0042,
             direction: Math.random() > 0.5 ? 1 : -1,
-            radius: 1.55 + Math.random() * 0.75,
+            radius: 1.45 + Math.random() * 0.7,
             alpha: 0.72 + Math.random() * 0.25,
-            trail: 0.07 + Math.random() * 0.07,
+            trail: 0.08 + Math.random() * 0.08,
         }));
     }
 
@@ -266,22 +347,13 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
         this.stepRunners(deltaFactor);
     }
 
-    /**
-     * Los nodos de la figura casi no se desplazan.
-     * Solo respiran muy poco.
-     * La figura se conserva.
-     */
     private stepBaseNodes(): void {
         for (const particle of this.particles) {
-            particle.x = particle.baseX + Math.sin(this.elapsed * 0.28 + particle.phase) * 2.4;
-            particle.y = particle.baseY + Math.cos(this.elapsed * 0.24 + particle.phase) * 2.4;
+            particle.x = particle.baseX + Math.sin(this.elapsed * 0.22 + particle.phase) * 1.8;
+            particle.y = particle.baseY + Math.cos(this.elapsed * 0.2 + particle.phase) * 1.8;
         }
     }
 
-    /**
-     * Aquí sí se crea el efecto del video:
-     * los puntos viajan SOBRE las líneas, no libres por el canvas.
-     */
     private stepRunners(deltaFactor: number): void {
         if (!this.edges.length) {
             return;
@@ -292,16 +364,14 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
             if (runner.progress > 1 || runner.progress < 0) {
                 const currentEdge = this.edges[runner.edgeIndex];
-                const exitNode =
-                    runner.direction === 1 ? currentEdge.to : currentEdge.from;
-
+                const exitNode = runner.direction === 1 ? currentEdge.to : currentEdge.from;
                 const nextEdgeIndex = this.pickNextEdgeIndex(exitNode, runner.edgeIndex);
 
                 runner.edgeIndex = nextEdgeIndex;
                 runner.direction = this.edges[nextEdgeIndex].from === exitNode ? 1 : -1;
                 runner.progress = runner.direction === 1 ? 0 : 1;
-                runner.speed = 0.0024 + Math.random() * 0.0038;
-                runner.trail = 0.07 + Math.random() * 0.07;
+                runner.speed = 0.0026 + Math.random() * 0.0042;
+                runner.trail = 0.08 + Math.random() * 0.08;
             }
         }
     }
@@ -354,7 +424,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             const dy = first.y - second.y;
             const distance = Math.hypot(dx, dy);
 
-            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.22);
+            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.23);
 
             context.beginPath();
             context.moveTo(first.x, first.y);
@@ -380,34 +450,22 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                     ? Math.max(0, runner.progress - runner.trail)
                     : Math.min(1, runner.progress + runner.trail);
 
-            const endProgress = runner.progress;
-
             const trailStart = this.interpolatePoint(from, to, startProgress);
-            const trailEnd = this.interpolatePoint(from, to, endProgress);
-
+            const trailEnd = this.interpolatePoint(from, to, runner.progress);
             const head = this.interpolatePoint(from, to, runner.progress);
 
-            /**
-             * Estela corta sobre la línea.
-             */
             context.beginPath();
             context.moveTo(trailStart.x, trailStart.y);
             context.lineTo(trailEnd.x, trailEnd.y);
-            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.55})`;
+            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.58})`;
             context.lineWidth = 1.7;
             context.stroke();
 
-            /**
-             * Cabeza luminosa del punto viajero.
-             */
             context.beginPath();
             context.arc(head.x, head.y, runner.radius, 0, Math.PI * 2);
             context.fillStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha})`;
             context.fill();
 
-            /**
-             * Glow suave alrededor del punto viajero.
-             */
             context.beginPath();
             context.arc(head.x, head.y, runner.radius * 4.2, 0, Math.PI * 2);
             context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.055)`;
