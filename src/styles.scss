@@ -1,16 +1,25 @@
-@use './app/shared/ui/tokens/tokens';
-
 html,
 body {
+  width: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
-  height: 100%;
-  overflow: hidden;
-  font-family: var(--siau-font-body);
-  background-color: var(--siau-surface-app);
-  color: var(--siau-color-neutral-900);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+app-root {
+  display: block;
+  min-height: 100dvh;
 }
 
 *,
