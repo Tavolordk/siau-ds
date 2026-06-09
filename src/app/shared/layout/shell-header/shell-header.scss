@@ -1,160 +1,143 @@
 :host {
   display: block;
+  flex: none;
 }
 
 .siau-shell-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--siau-space-6);
-  height: 5rem;
-  padding: 0 var(--siau-space-6);
-  background-color: var(--siau-surface-header);
-  color: var(--siau-color-neutral-0);
-  box-shadow: var(--siau-shadow-md);
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 50;
+  width: 100%;
+  height: 5rem;
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(13rem, auto) minmax(0, 1fr) minmax(3rem, auto);
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  background: #1b1f4a;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
 
   &__brand {
     display: flex;
     align-items: center;
-    flex: none;
-    min-width: 14rem;
+    min-width: 0;
   }
 
-  &__seal-img {
-    display: block;
+  &__brand-logo {
     height: 3.5rem;
     width: auto;
-    max-width: 100%;
+    max-width: 19rem;
     object-fit: contain;
+    object-position: left center;
+  }
+
+  &__title-wrap {
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    padding: 0 0.5rem;
   }
 
   &__title {
-    flex: 1;
     margin: 0;
+    max-width: 100%;
+    color: #ffffff;
+    font-family: Inter, 'Noto Sans', system-ui, sans-serif;
+    font-size: clamp(1.05rem, 1.5vw, 1.5rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: 0.015em;
     text-align: center;
-    font-family: var(--siau-font-display);
-    font-size: var(--siau-text-2xl);
-    font-weight: var(--siau-font-weight-bold);
-    line-height: 1.1;
-    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
   }
 
   &__avatar {
     appearance: none;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background-color: rgba(255, 255, 255, 0.08);
-    color: var(--siau-color-neutral-0);
     width: 3rem;
     height: 3rem;
-    border-radius: 50%;
-    cursor: pointer;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: none;
-    transition: background-color var(--siau-duration-base) var(--siau-ease-out);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transition:
+      background-color 160ms ease,
+      transform 160ms ease;
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
     }
 
     &:focus-visible {
       outline: none;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+      box-shadow:
+        0 0 0 3px rgba(255, 255, 255, 0.35),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    mat-icon {
+      font-size: 1.35rem;
+      width: 1.35rem;
+      height: 1.35rem;
     }
   }
 
   &__avatar-initials {
-    font-size: var(--siau-text-sm);
-    font-weight: var(--siau-font-weight-semibold);
+    font-size: 0.85rem;
+    font-weight: 700;
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .siau-shell-header {
-    gap: var(--siau-space-4);
-    padding: 0 var(--siau-space-5);
+    grid-template-columns: minmax(9rem, auto) 1fr auto;
+    padding: 0 1rem;
 
-    &__brand {
-      min-width: 11rem;
+    &__brand-logo {
+      height: 3rem;
+      max-width: 14rem;
     }
 
     &__title {
-      font-size: var(--siau-text-xl);
+      font-size: 1.05rem;
     }
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .siau-shell-header {
-    height: auto;
-    min-height: 4.5rem;
-    padding: var(--siau-space-3) var(--siau-space-4);
-    gap: var(--siau-space-3);
+    height: 4.5rem;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.65rem;
+    padding: 0 0.75rem;
 
-    &__brand {
-      min-width: auto;
-      max-width: 8.5rem;
-    }
-
-    &__seal-img {
-      height: 2.75rem;
+    &__brand-logo {
+      height: 2.5rem;
+      max-width: 8rem;
     }
 
     &__title {
-      font-size: var(--siau-text-lg);
-      line-height: 1.15;
+      font-size: 0.95rem;
     }
 
     &__avatar {
       width: 2.6rem;
       height: 2.6rem;
-    }
-  }
-}
-
-@media (max-width: 576px) {
-  .siau-shell-header {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    padding: var(--siau-space-3);
-    gap: var(--siau-space-2);
-
-    &__brand {
-      max-width: 5.5rem;
-    }
-
-    &__seal-img {
-      height: 2.25rem;
-    }
-
-    &__title {
-      font-size: 0.95rem;
-      text-align: center;
-    }
-
-    &__avatar {
-      width: 2.35rem;
-      height: 2.35rem;
-    }
-
-    &__avatar-initials {
-      font-size: 0.72rem;
-    }
-  }
-}
-
-@media (max-width: 380px) {
-  .siau-shell-header {
-    &__brand {
-      max-width: 4.5rem;
-    }
-
-    &__title {
-      font-size: 0.82rem;
     }
   }
 }

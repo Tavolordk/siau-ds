@@ -22,11 +22,11 @@ export class SiauShell {
   protected readonly userInitials = this.auth.userInitials;
 
   protected readonly navItems: SidebarItem[] = [
-    { id: 'usuarios', label: 'Usuarios', icon: 'group', route: '/usuarios' },
-    { id: 'solicitudes', label: 'Solicitudes', icon: 'description', route: '/solicitudes' },
+    { id: 'usuarios', label: 'Usuarios', icon: 'groups', route: '/usuarios' },
+    { id: 'solicitudes', label: 'Solicitudes', icon: 'assignment', route: '/solicitudes' },
     { id: 'administracion', label: 'Administración', icon: 'tune', route: '/administracion' },
-    { id: 'reportes', label: 'Reportes', icon: 'insert_chart', route: '/reportes' },
-    { id: 'bitacora', label: 'Bitácora', icon: 'timeline', route: '/bitacora' },
+    { id: 'reportes', label: 'Reportes', icon: 'article', route: '/reportes' },
+    { id: 'bitacora', label: 'Bitácora', icon: 'monitoring', route: '/bitacora' },
     { id: 'modals', label: 'Modals', icon: 'layers', route: '/modals' },
   ];
 

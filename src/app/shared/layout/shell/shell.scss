@@ -8,10 +8,14 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--siau-surface-header);
   overflow: hidden;
+  color: #1b1f4a;
+  background:
+    radial-gradient(circle, rgb(218, 233, 237) 0%, rgb(153, 168, 190) 65%, rgb(98, 116, 142) 100%),
+    #dae9ed;
 
   &__body {
+    position: relative;
     display: flex;
     align-items: stretch;
     flex: 1 1 auto;
@@ -23,22 +27,9 @@
     flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
-    overflow: auto;
-    background: linear-gradient(
-      135deg,
-      var(--siau-surface-app-gradient-start) 0%,
-      var(--siau-surface-app) 48%,
-      var(--siau-surface-app-gradient-end) 100%
-    );
-    padding: var(--siau-space-8) var(--siau-space-10);
-  }
-}
-
-@media (max-width: 1200px) {
-  .siau-shell {
-    &__content {
-      padding: var(--siau-space-6) var(--siau-space-8);
-    }
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
   }
 }
 
@@ -46,18 +37,6 @@
   .siau-shell {
     &__body {
       flex-direction: column;
-    }
-
-    &__content {
-      padding: var(--siau-space-5);
-    }
-  }
-}
-
-@media (max-width: 576px) {
-  .siau-shell {
-    &__content {
-      padding: var(--siau-space-4);
     }
   }
 }

@@ -1,15 +1,20 @@
 <header class="siau-shell-header" role="banner">
     <div class="siau-shell-header__brand">
-        <img src="sspc.png" alt="Escudo SSPC" class="siau-shell-header__seal-img" />
+        <img src="logotipo-institucional-blanco.png" alt="Logo SSPC" class="siau-shell-header__brand-logo" />
     </div>
 
-    <h2 class="siau-shell-header__title">{{ title() }}</h2>
+    <div class="siau-shell-header__title-wrap">
+        <h1 class="siau-shell-header__title">{{ title() }}</h1>
+    </div>
 
-    <button type="button" class="siau-shell-header__avatar" aria-label="Menú de usuario" (click)="onAvatarClick()">
-        @if (userInitials(); as initials) {
-        <span class="siau-shell-header__avatar-initials">{{ initials }}</span>
-        } @else {
-        <mat-icon aria-hidden="true">person</mat-icon>
-        }
-    </button>
+    <div class="siau-shell-header__actions">
+        <button type="button" class="siau-shell-header__avatar" aria-label="Menú de usuario" title="Cerrar sesión"
+            (click)="onAvatarClick()">
+            @if (userInitials(); as initials) {
+            <span class="siau-shell-header__avatar-initials">{{ initials }}</span>
+            } @else {
+            <mat-icon aria-hidden="true">person</mat-icon>
+            }
+        </button>
+    </div>
 </header>
