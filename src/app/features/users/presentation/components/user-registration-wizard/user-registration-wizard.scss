@@ -615,7 +615,7 @@
   }
 }
 /* =========================================================
-   RESPONSIVE FIX: wizard ocupa toda la altura del modal
+   RESPONSIVE FIX SEGURO: altura + scroll sin romper estilos
 ========================================================= */
 
 @media (max-width: 920px) {
@@ -632,8 +632,8 @@
   .registration-wizard__sidebar {
     width: 100% !important;
     flex: none !important;
-    max-height: none !important;
     min-height: 82px !important;
+    max-height: 92px !important;
     padding: 10px 8px !important;
     border-right: 0 !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
@@ -757,6 +757,7 @@
 @media (max-width: 480px) {
   .registration-wizard__sidebar {
     min-height: 74px !important;
+    max-height: 82px !important;
     padding: 8px !important;
   }
 
@@ -789,5 +790,266 @@
   .registration-wizard__info-box {
     width: calc(100% - 24px) !important;
     margin: 12px 12px 0 !important;
+  }
+}
+
+/* =========================================================
+   RESTORE: estilos de Subir Archivos
+========================================================= */
+
+.registration-wizard__documents-grid {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+@media (min-width: 769px) {
+  .registration-wizard__documents-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.registration-wizard__document-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.registration-wizard__document-label {
+  margin: 0 0 6px;
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.registration-wizard__document-label span {
+  color: rgb(155, 34, 71);
+}
+
+.registration-wizard__file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.registration-wizard__upload-box {
+  min-height: 118px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed rgba(160, 178, 187, 0.7);
+  background: rgba(255, 255, 255, 0.55);
+  color: rgb(98, 116, 142);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.registration-wizard__upload-box:hover {
+  border-color: rgba(27, 31, 74, 0.35);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 10px 22px rgba(27, 31, 74, 0.08);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__upload-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: rgba(160, 178, 187, 0.18);
+  color: rgb(98, 116, 142);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-wizard__upload-title {
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.registration-wizard__upload-text {
+  color: rgba(27, 31, 74, 0.32);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+/* =========================================================
+   RESTORE: sección Cuenta y cards de Activo/Inhabilitado/Suspendido
+========================================================= */
+
+.registration-wizard__account-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.registration-wizard__account-grid {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 769px) {
+  .registration-wizard__account-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.registration-wizard__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.registration-wizard__field-label {
+  margin: 0 0 6px;
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.registration-wizard__field-label span {
+  color: rgb(155, 34, 71);
+}
+
+.registration-wizard__password-wrapper {
+  position: relative;
+}
+
+.registration-wizard__text-input {
+  width: 100%;
+  height: 41px;
+  min-height: 41px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(160, 178, 187);
+  background: #ffffff;
+  color: rgb(27, 31, 74);
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  box-shadow: none;
+}
+
+.registration-wizard__text-input--with-icon {
+  padding-right: 42px;
+}
+
+.registration-wizard__input-icon-button {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(27, 31, 74, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.registration-wizard__input-icon-button:hover {
+  background: rgba(27, 31, 74, 0.06);
+  color: #1b1f4a;
+}
+
+.registration-wizard__account-status-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.registration-wizard__account-status-help {
+  margin: -2px 0 10px;
+  color: rgba(27, 31, 74, 0.38);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.registration-wizard__account-status-grid {
+  display: grid;
+  gap: 11px;
+}
+
+@media (min-width: 769px) {
+  .registration-wizard__account-status-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.registration-wizard__status-card {
+  min-height: 92px;
+  padding: 13px 12px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(160, 178, 187, 0.55);
+  background: rgba(255, 255, 255, 0.75);
+  color: rgb(98, 116, 142);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.registration-wizard__status-card:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(27, 31, 74, 0.28);
+  box-shadow: 0 10px 22px rgba(27, 31, 74, 0.08);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__status-card--selected {
+  background: rgba(27, 31, 74, 0.06);
+  border-color: rgba(27, 31, 74, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(27, 31, 74, 0.08);
+}
+
+.registration-wizard__status-card-title {
+  margin-bottom: 5px;
+  color: rgb(98, 116, 142);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.registration-wizard__status-card--selected .registration-wizard__status-card-title {
+  color: rgb(27, 31, 74);
+}
+
+.registration-wizard__status-card-text {
+  color: rgba(27, 31, 74, 0.3);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* En móvil las cards no deben parecer botones planos gigantes */
+@media (max-width: 768px) {
+  .registration-wizard__status-card {
+    min-height: auto;
+    text-align: left;
+  }
+
+  .registration-wizard__status-card-title {
+    justify-content: flex-start;
   }
 }
