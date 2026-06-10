@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
 import {
     SiauInput,
     SiauModal,
     SiauSelect,
     SiauSelectOption,
     SiauStep,
-    SiauStepper,
 } from '../../../../../shared/ui';
+import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
+
 type AccountStatus = 'active' | 'disabled' | 'suspended';
+
 type WizardStepId =
     | 'personal-data'
     | 'assignment'
@@ -63,6 +64,7 @@ interface UserProfileOption {
     readonly label: string;
     readonly description: string;
 }
+
 interface AssignedSystemProfile {
     readonly id: string;
     readonly system: string;
@@ -70,6 +72,7 @@ interface AssignedSystemProfile {
     readonly role: string;
     readonly roleLabel: string;
 }
+
 const INITIAL_FORM: UserRegistrationForm = {
     firstName: '',
     lastName: '',
@@ -116,10 +119,9 @@ const INITIAL_FORM: UserRegistrationForm = {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         SiauModal,
-        SiauStepper,
         SiauInput,
         SiauSelect,
-        MatIconModule,
+        SiauLucideIcon,
     ],
     templateUrl: './user-registration-wizard.html',
     styleUrl: './user-registration-wizard.scss',
@@ -131,16 +133,20 @@ export class UserRegistrationWizard {
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
+
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
     protected readonly assignedSystemProfiles = signal<AssignedSystemProfile[]>([]);
+
     protected readonly showPassword = signal<boolean>(false);
     protected readonly showConfirmPassword = signal<boolean>(false);
+
     protected readonly genderOptions: readonly SiauSelectOption[] = [
         { value: 'M', label: 'Mujer' },
         { value: 'H', label: 'Hombre' },
         { value: 'N', label: 'No especificado' },
     ];
+
     protected readonly systemOptions: readonly SiauSelectOption[] = [
         { value: 'siau', label: 'SIAU' },
         { value: 'rnpsp', label: 'RNPSP' },
@@ -154,6 +160,7 @@ export class UserRegistrationWizard {
         { value: 'usuario', label: 'Usuario' },
         { value: 'supervisor-estatal', label: 'Supervisor Estatal' },
     ];
+
     protected readonly institutionTypeOptions: readonly SiauSelectOption[] = [
         { value: 'federal', label: 'Federal' },
         { value: 'estatal', label: 'Estatal' },
@@ -199,21 +206,6 @@ export class UserRegistrationWizard {
         'account',
     ];
 
-    protected readonly activeIndex = computed(() => {
-        return this.stepOrder.indexOf(this.activeStepId());
-    });
-
-    protected readonly activeStepNumber = computed(() => this.activeIndex() + 1);
-
-    protected readonly stepProgressSegments = computed(() => {
-        const activeNumber = this.activeStepNumber();
-
-        return this.stepOrder.map((_, index) => ({
-            id: `segment-${index + 1}`,
-            active: index < activeNumber,
-        }));
-    });
-
     protected readonly steps = computed<readonly SiauStep[]>(() => {
         const completed = this.completedSteps();
 
@@ -221,25 +213,25 @@ export class UserRegistrationWizard {
             {
                 id: 'personal-data',
                 label: 'Datos Personales',
-                icon: 'person',
+                icon: 'user',
                 completed: completed.includes('personal-data'),
             },
             {
                 id: 'assignment',
                 label: 'Adscripción',
-                icon: 'account_tree',
+                icon: 'building-2',
                 completed: completed.includes('assignment'),
             },
             {
                 id: 'commission',
                 label: 'Comisión',
-                icon: 'business_center',
+                icon: 'briefcase',
                 completed: completed.includes('commission'),
             },
             {
                 id: 'documents',
                 label: 'Archivos',
-                icon: 'description',
+                icon: 'file-text',
                 completed: completed.includes('documents'),
             },
             {
@@ -257,10 +249,25 @@ export class UserRegistrationWizard {
             {
                 id: 'account',
                 label: 'Cuenta',
-                icon: 'vpn_key',
+                icon: 'key-round',
                 completed: completed.includes('account'),
             },
         ];
+    });
+
+    protected readonly activeIndex = computed(() => {
+        return this.stepOrder.indexOf(this.activeStepId());
+    });
+
+    protected readonly activeStepNumber = computed(() => this.activeIndex() + 1);
+
+    protected readonly stepProgressSegments = computed(() => {
+        const activeNumber = this.activeStepNumber();
+
+        return this.stepOrder.map((_, index) => ({
+            id: `segment-${index + 1}`,
+            active: index < activeNumber,
+        }));
     });
 
     protected readonly headerBadge = computed(() => {
@@ -305,7 +312,7 @@ export class UserRegistrationWizard {
 
     protected updateForm<K extends keyof UserRegistrationForm>(
         key: K,
-        value: UserRegistrationForm[K] | string | null
+        value: UserRegistrationForm[K] | string | null,
     ): void {
         this.form.update((current) => ({
             ...current,
@@ -334,30 +341,6 @@ export class UserRegistrationWizard {
         return this.activeIndex() === this.stepOrder.length - 1;
     }
 
-    private markCompleted(stepId: WizardStepId): void {
-        this.completedSteps.update((current) => {
-            if (current.includes(stepId)) {
-                return current;
-            }
-
-            return [...current, stepId];
-        });
-    }
-
-    private resetWizard(): void {
-        this.activeStepId.set('personal-data');
-        this.completedSteps.set([]);
-        this.form.set({ ...INITIAL_FORM, profiles: [] });
-        this.selectedSystem.set('');
-        this.selectedRole.set('');
-        this.assignedSystemProfiles.set([]);
-        this.showPassword.set(false);
-        this.showConfirmPassword.set(false);
-    }
-
-    private isWizardStep(value: string): value is WizardStepId {
-        return this.stepOrder.includes(value as WizardStepId);
-    }
     protected updateSelectedSystem(value: string | null): void {
         this.selectedSystem.set(value ?? '');
     }
@@ -396,9 +379,10 @@ export class UserRegistrationWizard {
 
     protected removeAssignedProfile(id: string): void {
         this.assignedSystemProfiles.update((current) =>
-            current.filter((item) => item.id !== id)
+            current.filter((item) => item.id !== id),
         );
     }
+
     protected togglePasswordVisibility(): void {
         this.showPassword.update((value) => !value);
     }
@@ -412,5 +396,46 @@ export class UserRegistrationWizard {
             ...current,
             accountStatus: status,
         }));
+    }
+
+    protected getStepIcon(step: SiauStep): string {
+        return step.completed ? 'check' : step.icon;
+    }
+
+    protected getStepClass(step: SiauStep, index: number): string {
+        const isActive = index === this.activeIndex();
+
+        return [
+            'registration-wizard__step',
+            isActive ? 'registration-wizard__step--active' : '',
+            step.completed ? 'registration-wizard__step--completed' : '',
+        ]
+            .join(' ')
+            .trim();
+    }
+
+    private markCompleted(stepId: WizardStepId): void {
+        this.completedSteps.update((current) => {
+            if (current.includes(stepId)) {
+                return current;
+            }
+
+            return [...current, stepId];
+        });
+    }
+
+    private resetWizard(): void {
+        this.activeStepId.set('personal-data');
+        this.completedSteps.set([]);
+        this.form.set({ ...INITIAL_FORM, profiles: [] });
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+        this.assignedSystemProfiles.set([]);
+        this.showPassword.set(false);
+        this.showConfirmPassword.set(false);
+    }
+
+    private isWizardStep(value: string): value is WizardStepId {
+        return this.stepOrder.includes(value as WizardStepId);
     }
 }

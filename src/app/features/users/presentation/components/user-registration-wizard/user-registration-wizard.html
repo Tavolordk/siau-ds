@@ -1,9 +1,32 @@
 <siau-modal [open]="open()" title="Registrar Nuevo Usuario"
-    subtitle="Complete todas las secciones requeridas para crear el acceso" icon="person_add" size="xl"
+    subtitle="Complete todas las secciones requeridas para crear el acceso" icon="user-plus" size="xl"
     [headerBadge]="headerBadge()" (close)="closeWizard()">
     <section class="registration-wizard">
         <aside class="registration-wizard__sidebar">
-            <siau-stepper [steps]="steps()" [activeIndex]="activeIndex()" (stepClick)="goToStep($event)" />
+            <div class="registration-wizard__sidebar-title">Secciones</div>
+
+            <div class="registration-wizard__steps">
+                @for (step of steps(); track step.id; let index = $index) {
+                <button type="button" [class]="getStepClass(step, index)" (click)="goToStep(step.id)">
+                    <span class="registration-wizard__step-icon">
+                        <siau-lucide-icon [name]="getStepIcon(step)" size="13" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <span class="registration-wizard__step-label">{{ step.label }}</span>
+                </button>
+                }
+            </div>
+
+            <div class="registration-wizard__sidebar-progress">
+                <div class="registration-wizard__sidebar-progress-text">
+                    <span>Progreso</span>
+                    <strong>{{ activeStepNumber() }}/{{ stepOrder.length }}</strong>
+                </div>
+
+                <div class="registration-wizard__sidebar-progress-track">
+                    <span [style.width.%]="(activeStepNumber() / stepOrder.length) * 100"></span>
+                </div>
+            </div>
         </aside>
 
         <form class="registration-wizard__content">
@@ -12,7 +35,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">person</mat-icon>
+                        <siau-lucide-icon name="user" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -20,8 +43,9 @@
                         <p>Captura la información de identificación de la persona usuaria.</p>
                     </div>
 
-                    <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
-                        }}</span>
+                    <span class="registration-wizard__section-count">
+                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                    </span>
                 </div>
 
                 <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -59,7 +83,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">business</mat-icon>
+                        <siau-lucide-icon name="building-2" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -69,8 +93,9 @@
 
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">* Campos obligatorios</span>
-                        <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
-                            }}</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        </span>
                     </div>
                 </div>
 
@@ -119,7 +144,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">business_center</mat-icon>
+                        <siau-lucide-icon name="briefcase" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -127,8 +152,9 @@
                         <p>Datos de comisión interinstitucional (si aplica)</p>
                     </div>
 
-                    <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
-                        }}</span>
+                    <span class="registration-wizard__section-count">
+                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                    </span>
                 </div>
 
                 <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -138,9 +164,11 @@
                 </div>
 
                 <div class="registration-wizard__info-box">
-                    <mat-icon aria-hidden="true">info</mat-icon>
-                    <span>Esta sección es <strong>opcional.</strong> Complétala únicamente si el usuario estará
-                        comisionado en una institución distinta a su adscripción.</span>
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>
+                        Esta sección es <strong>opcional.</strong> Complétala únicamente si el usuario estará
+                        comisionado en una institución distinta a su adscripción.
+                    </span>
                 </div>
 
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
@@ -177,7 +205,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">description</mat-icon>
+                        <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -185,8 +213,9 @@
                         <p>Carga de documentos de identidad y laborales</p>
                     </div>
 
-                    <span class="registration-wizard__section-count">{{ activeStepNumber() }} / {{ stepOrder.length
-                        }}</span>
+                    <span class="registration-wizard__section-count">
+                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                    </span>
                 </div>
 
                 <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -196,7 +225,7 @@
                 </div>
 
                 <div class="registration-wizard__info-box registration-wizard__info-box--documents">
-                    <mat-icon aria-hidden="true">info</mat-icon>
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>
                         Carga los documentos de identidad del nuevo usuario. Formatos aceptados:
                         PDF, JPG y PNG con un tamaño máximo de 5 MB por archivo.
@@ -214,7 +243,7 @@
 
                         <label for="document-ine" class="registration-wizard__upload-box">
                             <span class="registration-wizard__upload-icon">
-                                <mat-icon aria-hidden="true">upload</mat-icon>
+                                <siau-lucide-icon name="upload" size="18" strokeWidth="2" aria-hidden="true" />
                             </span>
 
                             <span class="registration-wizard__upload-title">Haz clic para cargar</span>
@@ -232,7 +261,7 @@
 
                         <label for="document-laboral" class="registration-wizard__upload-box">
                             <span class="registration-wizard__upload-icon">
-                                <mat-icon aria-hidden="true">upload</mat-icon>
+                                <siau-lucide-icon name="upload" size="18" strokeWidth="2" aria-hidden="true" />
                             </span>
 
                             <span class="registration-wizard__upload-title">Haz clic para cargar</span>
@@ -247,7 +276,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">phone</mat-icon>
+                        <siau-lucide-icon name="phone" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -283,7 +312,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">shield</mat-icon>
+                        <siau-lucide-icon name="shield" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -323,14 +352,18 @@
                         @for (item of assignedSystemProfiles(); track item.id) {
                         <div class="registration-wizard__profiles-item">
                             <div class="registration-wizard__profiles-item-content">
-                                <span class="registration-wizard__profiles-item-system">{{ item.systemLabel }}</span>
+                                <span class="registration-wizard__profiles-item-system">
+                                    {{ item.systemLabel }}
+                                </span>
                                 <span class="registration-wizard__profiles-item-separator">•</span>
-                                <span class="registration-wizard__profiles-item-role">{{ item.roleLabel }}</span>
+                                <span class="registration-wizard__profiles-item-role">
+                                    {{ item.roleLabel }}
+                                </span>
                             </div>
 
                             <button type="button" class="registration-wizard__profiles-remove"
                                 (click)="removeAssignedProfile(item.id)" aria-label="Eliminar sistema asignado">
-                                <mat-icon aria-hidden="true">close</mat-icon>
+                                <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                             </button>
                         </div>
                         }
@@ -351,7 +384,7 @@
                                 <button type="button"
                                     class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
                                     [disabled]="!selectedSystem() || !selectedRole()" (click)="addAssignedProfile()">
-                                    <mat-icon aria-hidden="true">add</mat-icon>
+                                    <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
                                     Agregar
                                 </button>
                             </div>
@@ -365,7 +398,7 @@
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <mat-icon aria-hidden="true">key</mat-icon>
+                        <siau-lucide-icon name="key-round" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
@@ -411,9 +444,8 @@
 
                                 <button type="button" class="registration-wizard__input-icon-button"
                                     (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
-                                    <mat-icon aria-hidden="true">
-                                        {{ showPassword() ? 'visibility_off' : 'visibility' }}
-                                    </mat-icon>
+                                    <siau-lucide-icon [name]="showPassword() ? 'eye-off' : 'eye'" size="16"
+                                        strokeWidth="2" aria-hidden="true" />
                                 </button>
                             </div>
                         </div>
@@ -432,9 +464,8 @@
                                 <button type="button" class="registration-wizard__input-icon-button"
                                     (click)="toggleConfirmPasswordVisibility()"
                                     aria-label="Mostrar u ocultar confirmación de contraseña">
-                                    <mat-icon aria-hidden="true">
-                                        {{ showConfirmPassword() ? 'visibility_off' : 'visibility' }}
-                                    </mat-icon>
+                                    <siau-lucide-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" size="16"
+                                        strokeWidth="2" aria-hidden="true" />
                                 </button>
                             </div>
                         </div>
@@ -454,7 +485,7 @@
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
                                 (click)="setAccountStatus('active')">
                                 <div class="registration-wizard__status-card-title">
-                                    <mat-icon aria-hidden="true">check</mat-icon>
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
                                     Activo
                                 </div>
                                 <div class="registration-wizard__status-card-text">
@@ -493,7 +524,7 @@
             <footer class="registration-wizard__footer">
                 <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
                     [disabled]="activeIndex() === 0" (click)="previousStep()">
-                    <mat-icon aria-hidden="true">chevron_left</mat-icon>
+                    <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
                     Anterior
                 </button>
 
@@ -507,7 +538,7 @@
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
                         [disabled]="activeIndex() === stepOrder.length - 1" (click)="nextStep()">
                         Siguiente
-                        <mat-icon aria-hidden="true">chevron_right</mat-icon>
+                        <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
@@ -517,7 +548,7 @@
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--primary"
                         (click)="submit()">
-                        <mat-icon aria-hidden="true">person_add</mat-icon>
+                        <siau-lucide-icon name="user-plus" size="14" strokeWidth="2" aria-hidden="true" />
                         Registrar Usuario
                     </button>
                 </div>
