@@ -39,42 +39,52 @@
                     </span>
 
                     <div class="registration-wizard__section-title">
-                        <h3>Datos personales</h3>
-                        <p>Captura la información de identificación de la persona usuaria.</p>
+                        <h3>Datos Personales</h3>
+                        <p>Información de identidad oficial del nuevo usuario</p>
                     </div>
 
-                    <span class="registration-wizard__section-count">
-                        {{ activeStepNumber() }} / {{ stepOrder.length }}
-                    </span>
-                </div>
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        </span>
+                    </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__grid">
-                    <siau-input label="Nombre" placeholder="Ingresa el nombre" [required]="true"
-                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)" />
+                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [required]="true" [value]="form().cuip"
+                        (valueChange)="updateForm('cuip', $event)" />
 
-                    <siau-input label="Primer apellido" placeholder="Ingresa el primer apellido" [required]="true"
-                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)" />
+                    <siau-input label="Clave Única de Identificación Policial" placeholder=""
+                        [value]="form().policeIdentificationKey"
+                        (valueChange)="updateForm('policeIdentificationKey', $event)" />
 
-                    <siau-input label="Segundo apellido" placeholder="Ingresa el segundo apellido"
-                        [value]="form().secondLastName" (valueChange)="updateForm('secondLastName', $event)" />
-
-                    <siau-input label="CURP" placeholder="Ingresa la CURP" [required]="true" [maxLength]="18"
+                    <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="true" [maxLength]="18"
                         [value]="form().curp" (valueChange)="updateForm('curp', $event)" />
 
-                    <siau-input label="RFC" placeholder="Ingresa el RFC" [maxLength]="13" [value]="form().rfc"
-                        (valueChange)="updateForm('rfc', $event)" />
+                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="true" [maxLength]="13"
+                        [value]="form().rfc" (valueChange)="updateForm('rfc', $event)" />
 
-                    <siau-input label="Fecha de nacimiento" type="date" [value]="form().birthDate"
-                        (valueChange)="updateForm('birthDate', $event)" />
+                    <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
+                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)" />
 
-                    <siau-select label="Sexo" placeholder="Selecciona una opción" [options]="genderOptions"
+                    <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
+                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)" />
+
+                    <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
+                        (valueChange)="updateForm('secondLastName', $event)" />
+
+                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions"
                         [value]="form().gender" (valueChange)="updateForm('gender', $event)" />
+
+                    <siau-input label="Fecha de Nacimiento" type="date" [required]="true" [value]="form().birthDate"
+                        (valueChange)="updateForm('birthDate', $event)" />
                 </div>
             </section>
             }
@@ -92,17 +102,17 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
                     </div>
-                </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__grid registration-wizard__grid--assignment">
@@ -155,12 +165,12 @@
                     <span class="registration-wizard__section-count">
                         {{ activeStepNumber() }} / {{ stepOrder.length }}
                     </span>
-                </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__info-box">
@@ -216,12 +226,12 @@
                     <span class="registration-wizard__section-count">
                         {{ activeStepNumber() }} / {{ stepOrder.length }}
                     </span>
-                </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__info-box registration-wizard__info-box--documents">
@@ -285,17 +295,17 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
                     </div>
-                </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__grid registration-wizard__grid--contact">
@@ -321,17 +331,17 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
                     </div>
-                </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__profiles-panel">
@@ -407,17 +417,17 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">* Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
                     </div>
-                </div>
 
-                <div class="registration-wizard__progress-strip" aria-hidden="true">
-                    @for (segment of stepProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
-                    }
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
                 </div>
 
                 <div class="registration-wizard__account-panel">

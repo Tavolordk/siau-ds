@@ -20,11 +20,13 @@ type WizardStepId =
     | 'account';
 
 interface UserRegistrationForm {
+    cuip: string;
+    policeIdentificationKey: string;
+    curp: string;
+    rfc: string;
     firstName: string;
     lastName: string;
     secondLastName: string;
-    curp: string;
-    rfc: string;
     birthDate: string;
     gender: string;
 
@@ -74,11 +76,13 @@ interface AssignedSystemProfile {
 }
 
 const INITIAL_FORM: UserRegistrationForm = {
+    cuip: '',
+    policeIdentificationKey: '',
+    curp: '',
+    rfc: '',
     firstName: '',
     lastName: '',
     secondLastName: '',
-    curp: '',
-    rfc: '',
     birthDate: '',
     gender: '',
 
