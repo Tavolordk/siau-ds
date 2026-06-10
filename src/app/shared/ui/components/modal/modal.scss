@@ -10,184 +10,177 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(5, 8, 24, 0.42);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(5, 8, 24, 0.48);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
   animation: siau-modal-backdrop-in 180ms ease-out;
+}
 
-  &__surface {
-    width: min(100%, 35rem);
-    max-width: 35rem;
-    max-height: calc(100vh - 3rem);
-    overflow: hidden;
-    border-radius: 1.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.38);
-    background: rgba(255, 255, 255, 0.62);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    box-shadow: 0 28px 70px rgba(5, 8, 24, 0.34);
-    animation: siau-modal-surface-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+.siau-modal__surface {
+  width: min(100%, 35rem);
+  max-width: 35rem;
+  max-height: calc(100vh - 3rem);
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  background: #f1f7fb;
+  box-shadow:
+    0 24px 64px rgba(5, 8, 24, 0.36),
+    0 4px 14px rgba(5, 8, 24, 0.16);
+  animation: siau-modal-surface-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-    &--sm {
-      width: min(92vw, 24rem);
-      max-width: 24rem;
-    }
+.siau-modal__surface--sm {
+  width: min(92vw, 24rem);
+  max-width: 24rem;
+}
 
-    &--md {
-      width: min(92vw, 35rem);
-      max-width: 35rem;
-    }
+.siau-modal__surface--md {
+  width: min(92vw, 35rem);
+  max-width: 35rem;
+}
 
-    &--lg {
-      width: min(92vw, 64rem);
-      max-width: 64rem;
-    }
+.siau-modal__surface--lg {
+  width: min(92vw, 52rem);
+  max-width: 52rem;
+}
 
-    &--xl {
-      width: min(92vw, 78rem);
-      max-width: 78rem;
-    }
+.siau-modal__surface--xl {
+  width: min(92vw, 60rem);
+  max-width: 60rem;
+}
 
-    /*
-      Fix específico para el wizard de nuevo usuario.
-      Aunque el modal venga como md/lg por error, si adentro tiene
-      .registration-wizard, el modal se expande al ancho correcto.
-    */
-    &:has(.registration-wizard) {
-      width: min(92vw, 78rem);
-      max-width: 78rem;
-    }
-  }
+.siau-modal__surface:has(.registration-wizard) {
+  width: min(92vw, 60rem);
+  max-width: 60rem;
+}
 
-  &__header {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 1.25rem;
-    background: #1b1f4a;
-    color: #ffffff;
-  }
+.siau-modal__header {
+  min-height: 4.25rem;
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  background: #1b1f4a;
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
 
-  &__icon-wrap {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.35rem;
-    height: 2.35rem;
-    border-radius: 0.75rem;
-    background: rgba(255, 255, 255, 0.12);
-    flex: none;
-  }
+.siau-modal__icon-wrap {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  &__icon {
-    font-size: 1.25rem;
-    width: 1.25rem;
-    height: 1.25rem;
-  }
+.siau-modal__heading {
+  flex: 1;
+  min-width: 0;
+}
 
-  &__heading {
-    flex: 1;
-    min-width: 0;
-  }
+.siau-modal__title {
+  margin: 0;
+  color: #ffffff;
+  font-family: Inter, 'Noto Sans', system-ui, sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
 
-  &__title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.2;
-  }
+.siau-modal__subtitle {
+  margin: 0.15rem 0 0;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
 
-  &__subtitle {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.74);
-    line-height: 1.35;
-  }
+.siau-modal__badge {
+  flex: none;
+  min-height: 1.65rem;
+  padding: 0 0.75rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.86);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
 
-  &__badge {
-    flex: none;
-    padding: 0.25rem 0.75rem;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 9999px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    align-self: center;
-  }
+.siau-modal__close {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
 
-  &__close {
-    appearance: none;
-    border: 0;
-    background: transparent;
-    color: #ffffff;
-    cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 0.5rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
+.siau-modal__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
 
-    &:hover {
-      background: rgba(255, 255, 255, 0.12);
-    }
-  }
+.siau-modal__content {
+  overflow: hidden;
+  background: transparent;
+}
 
-  &__content {
-    max-height: calc(100vh - 11rem);
-    overflow: auto;
-    background: rgba(255, 255, 255, 0.35);
-  }
-
-  /*
-    El wizard ya maneja su propio scroll vertical.
-    Aquí evitamos doble scroll y el scroll horizontal.
-  */
-  &__surface:has(.registration-wizard) &__content {
-    max-height: none;
-    overflow: hidden;
-    background: transparent;
-  }
+.siau-modal__surface:has(.registration-wizard) .siau-modal__content {
+  max-height: none;
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
   .siau-modal {
     padding: 0.75rem;
     align-items: stretch;
+  }
 
-    &__surface {
-      max-height: calc(100vh - 1.5rem);
-      border-radius: 1rem;
+  .siau-modal__surface {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 1.5rem);
+    border-radius: 1rem;
+  }
 
-      &:has(.registration-wizard) {
-        width: 100%;
-        max-width: none;
-      }
-    }
+  .siau-modal__surface:has(.registration-wizard) {
+    width: 100%;
+    max-width: none;
+  }
 
-    &__header {
-      padding: 1rem;
-    }
+  .siau-modal__header {
+    padding: 0.75rem 1rem;
+  }
 
-    &__badge {
-      display: none;
-    }
+  .siau-modal__badge {
+    display: none;
   }
 }
 
 @media (max-width: 480px) {
   .siau-modal {
     padding: 0;
+  }
 
-    &__surface {
-      min-height: 100vh;
-      max-height: 100vh;
-      border-radius: 0;
-
-      &:has(.registration-wizard) {
-        width: 100%;
-        max-width: none;
-      }
-    }
+  .siau-modal__surface {
+    min-height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
   }
 }
 
@@ -204,7 +197,7 @@
 @keyframes siau-modal-surface-in {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(8px);
+    transform: scale(0.965) translateY(8px);
   }
 
   to {

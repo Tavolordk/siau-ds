@@ -6,79 +6,64 @@
 .registration-wizard {
   width: 100%;
   max-width: none;
-  display: grid;
-  grid-template-columns: 13.1rem minmax(0, 1fr);
-  min-height: 38rem;
+  height: 31.75rem;
   max-height: calc(100vh - 10rem);
-  background: #e8f0f6;
+  display: grid;
+  grid-template-columns: 12.375rem minmax(0, 1fr);
   overflow: hidden;
+  background: #f1f7fb;
   color: #1b1f4a;
-  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-family: Inter, 'Noto Sans', system-ui, sans-serif;
 }
 
-/* =========================
-   SIDEBAR / STEPPER
-========================= */
+/* SIDEBAR */
 
 .registration-wizard__sidebar {
+  min-height: 0;
+  padding: 0.95rem 0.75rem 0.75rem;
+  background: #96a8bb;
+  border-right: 1px solid rgba(255, 255, 255, 0.34);
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  padding: 1rem 0.75rem;
-  background: #8ea1b5;
-  border-right: 1px solid rgba(255, 255, 255, 0.48);
   overflow: hidden;
 }
 
 .registration-wizard__sidebar-title {
-  padding: 0 0.35rem 0.75rem;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.68rem;
-  font-weight: 800;
+  padding: 0 0.25rem 0.75rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.66rem;
+  font-weight: 900;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .registration-wizard__steps {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  min-height: 0;
-  flex: 1;
+  gap: 0.32rem;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 0.15rem;
-}
-
-.registration-wizard__steps::-webkit-scrollbar {
-  width: 0.35rem;
-}
-
-.registration-wizard__steps::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.32);
 }
 
 .registration-wizard__step {
-  appearance: none;
   width: 100%;
-  min-height: 3.15rem;
-  padding: 0.55rem 0.65rem;
+  min-height: 3rem;
+  padding: 0.5rem 0.65rem;
   border: 1px solid transparent;
   border-radius: 0.75rem;
   background: transparent;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
   gap: 0.65rem;
   text-align: left;
-  cursor: pointer;
   transition:
     background-color 160ms ease,
-    border-color 160ms ease,
     color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .registration-wizard__step:hover {
@@ -87,11 +72,11 @@
 }
 
 .registration-wizard__step--active {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   color: #1b1f4a;
-  border-color: rgba(255, 255, 255, 0.78);
+  border-color: rgba(255, 255, 255, 0.82);
   box-shadow:
-    0 0.65rem 1.15rem rgba(27, 31, 74, 0.12),
+    0 6px 16px rgba(27, 31, 74, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
@@ -100,11 +85,11 @@
 }
 
 .registration-wizard__step-icon {
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.65rem;
+  height: 1.65rem;
   flex: none;
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.15);
   color: currentColor;
   display: inline-flex;
   align-items: center;
@@ -116,24 +101,19 @@
   color: #1b1f4a;
 }
 
-.registration-wizard__step--completed:not(.registration-wizard__step--active)
-  .registration-wizard__step-icon {
-  background: rgba(255, 255, 255, 0.24);
-}
-
 .registration-wizard__step-label {
   min-width: 0;
   color: currentColor;
   font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.25;
+  font-weight: 800;
+  line-height: 1.22;
 }
 
 .registration-wizard__sidebar-progress {
   flex: none;
-  margin-top: 1rem;
-  padding-top: 0.95rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
 }
 
 .registration-wizard__sidebar-progress-text {
@@ -142,17 +122,16 @@
   justify-content: space-between;
   gap: 0.75rem;
   color: rgba(255, 255, 255, 0.82);
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 800;
 }
 
 .registration-wizard__sidebar-progress-text strong {
   color: #ffffff;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 
 .registration-wizard__sidebar-progress-track {
-  position: relative;
   height: 0.28rem;
   margin-top: 0.65rem;
   border-radius: 999px;
@@ -161,73 +140,52 @@
 }
 
 .registration-wizard__sidebar-progress-track span {
-  position: absolute;
-  inset: 0 auto 0 0;
+  display: block;
+  height: 100%;
   border-radius: inherit;
   background: #ffffff;
   transition: width 180ms ease;
 }
 
-/* =========================
-   CONTENT
-========================= */
+/* CONTENT */
 
 .registration-wizard__content {
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: 38rem;
-  background: #e8f0f6;
   overflow: hidden;
+  background: #f1f7fb;
 }
 
 .registration-wizard__section {
   flex: 1;
   min-height: 0;
-  padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.registration-wizard__section::-webkit-scrollbar {
-  width: 0.45rem;
-}
-
-.registration-wizard__section::-webkit-scrollbar-track {
-  background: rgba(207, 216, 226, 0.35);
-}
-
-.registration-wizard__section::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(142, 161, 181, 0.55);
-}
-
 .registration-wizard__section-header {
+  min-height: 4.75rem;
+  padding: 1rem 1.55rem 0.8rem;
   display: flex;
   align-items: center;
-  gap: var(--siau-space-3);
-  padding: var(--siau-space-4) var(--siau-space-6) var(--siau-space-3);
-  background: rgba(234, 242, 248, 0.92);
-  border-bottom: 1px solid rgba(174, 190, 206, 0.32);
+  gap: 0.85rem;
+  background: #f1f7fb;
+  border-bottom: 1px solid rgba(174, 190, 206, 0.28);
 }
 
 .registration-wizard__section-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: none;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(147, 163, 185, 0.42);
+  background: rgba(214, 225, 235, 0.72);
+  color: #1b1f4a;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: none;
-  border: 1px solid rgba(147, 163, 185, 0.5);
-  border-radius: 0.75rem;
-  background: rgba(214, 225, 235, 0.78);
-  color: var(--siau-color-primary-500);
-  box-shadow: 0 8px 16px rgba(27, 31, 74, 0.08);
-}
-
-.registration-wizard__section-icon siau-lucide-icon {
-  width: 1.125rem;
-  height: 1.125rem;
 }
 
 .registration-wizard__section-title {
@@ -237,45 +195,44 @@
 
 .registration-wizard__section-title h3 {
   margin: 0;
-  color: var(--siau-color-primary-500);
-  font-family: var(--siau-font-display);
-  font-size: var(--siau-text-lg);
-  font-weight: var(--siau-font-weight-bold);
-  line-height: 1.1;
+  color: #1b1f4a;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.15;
 }
 
 .registration-wizard__section-title p {
   margin: 0.25rem 0 0;
-  color: #5f7795;
-  font-size: var(--siau-text-sm);
-  line-height: var(--siau-line-normal);
+  color: #62748e;
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .registration-wizard__section-meta {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: var(--siau-space-3);
-  flex: none;
+  gap: 0.65rem;
 }
 
 .registration-wizard__required-pill {
+  min-height: 1.65rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 62, 103, 0.16);
+  background: rgba(223, 207, 218, 0.48);
+  color: #a8335d;
   display: inline-flex;
   align-items: center;
-  min-height: 1.75rem;
-  padding: 0 var(--siau-space-3);
-  border-radius: var(--siau-radius-pill);
-  border: 1px solid rgba(180, 62, 103, 0.16);
-  background: rgba(223, 207, 218, 0.55);
-  color: #a8335d;
-  font-size: var(--siau-text-xs);
-  font-weight: var(--siau-font-weight-semibold);
+  font-size: 0.7rem;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .registration-wizard__section-count {
-  color: #a4b3c5;
-  font-size: var(--siau-text-xs);
-  font-weight: var(--siau-font-weight-semibold);
+  color: #9aa8ba;
+  font-size: 0.72rem;
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -283,75 +240,64 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 0.25rem;
-  padding: 0.7rem var(--siau-space-6) 0.85rem;
-  background: rgba(234, 242, 248, 0.92);
-  border-bottom: 1px solid rgba(174, 190, 206, 0.3);
+  padding: 0.65rem 1.55rem 0.8rem;
+  background: #f1f7fb;
+  border-bottom: 1px solid rgba(174, 190, 206, 0.22);
 }
 
 .registration-wizard__progress-strip span {
-  display: block;
-  height: 0.32rem;
-  border-radius: var(--siau-radius-pill);
-  background: rgba(207, 216, 226, 0.65);
+  height: 0.26rem;
+  border-radius: 999px;
+  background: rgba(207, 216, 226, 0.75);
 }
 
 .registration-wizard__progress-strip .registration-wizard__progress-segment--active {
-  background: var(--siau-color-primary-500);
+  background: #1b1f4a;
 }
-
-/* =========================
-   FORM GRID
-========================= */
 
 .registration-wizard__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--siau-space-4) var(--siau-space-5);
-  padding: var(--siau-space-5) var(--siau-space-6) var(--siau-space-6);
-}
-
-.registration-wizard__grid--assignment {
-  gap: var(--siau-space-4) var(--siau-space-5);
+  gap: 0.9rem 1rem;
+  padding: 1.25rem 1.55rem 1.5rem;
 }
 
 .registration-wizard__grid--commission {
-  padding-top: var(--siau-space-4);
+  padding-top: 1rem;
 }
 
 .registration-wizard__grid--contact {
   align-items: start;
 }
 
+/* INFO BOX */
+
 .registration-wizard__info-box {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--siau-space-3);
-  margin: var(--siau-space-5) var(--siau-space-6) 0;
-  padding: var(--siau-space-3) var(--siau-space-4);
+  margin: 1rem 1.55rem 0;
+  padding: 0.85rem 1rem;
   border: 1px solid rgba(147, 163, 185, 0.32);
-  border-radius: var(--siau-radius-lg);
+  border-radius: 0.85rem;
   background: rgba(235, 241, 247, 0.75);
   color: #5f7795;
-  font-size: var(--siau-text-sm);
-  line-height: var(--siau-line-normal);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .registration-wizard__info-box siau-lucide-icon {
   flex: none;
-  color: var(--siau-color-primary-500);
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.12rem;
+  color: #1b1f4a;
+  margin-top: 0.1rem;
 }
 
 .registration-wizard__info-box strong {
-  color: var(--siau-color-primary-500);
-  font-weight: var(--siau-font-weight-bold);
+  color: #1b1f4a;
+  font-weight: 900;
 }
 
-/* =========================
-   DOCUMENTS
-========================= */
+/* DOCUMENTS */
 
 .registration-wizard__info-box--documents {
   margin-bottom: 0;
@@ -360,21 +306,20 @@
 .registration-wizard__documents-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--siau-space-5);
-  padding: var(--siau-space-5) var(--siau-space-6) var(--siau-space-6);
+  gap: 1rem;
+  padding: 1.25rem 1.55rem 1.5rem;
 }
 
 .registration-wizard__document-field {
   display: flex;
   flex-direction: column;
-  gap: var(--siau-space-2);
+  gap: 0.55rem;
 }
 
 .registration-wizard__document-label {
-  color: var(--siau-color-primary-500);
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-bold);
-  line-height: 1.2;
+  color: #1b1f4a;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .registration-wizard__document-label span {
@@ -390,79 +335,54 @@
 }
 
 .registration-wizard__upload-box {
-  min-height: 7.9rem;
-  border: 1px dashed #d2d9e3;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.42);
+  min-height: 7.1rem;
+  padding: 1rem;
+  border-radius: 0.95rem;
+  border: 1px dashed #c9d3df;
+  background: rgba(255, 255, 255, 0.44);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
-  padding: var(--siau-space-5);
+  gap: 0.4rem;
   text-align: center;
-  cursor: pointer;
-  transition:
-    border-color var(--siau-duration-base) var(--siau-ease-out),
-    background var(--siau-duration-base) var(--siau-ease-out),
-    box-shadow var(--siau-duration-base) var(--siau-ease-out),
-    transform var(--siau-duration-base) var(--siau-ease-out);
-}
-
-.registration-wizard__upload-box:hover {
-  border-color: #bfc9d8;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0.75rem 1.4rem rgba(27, 31, 74, 0.06);
-  transform: translateY(-1px);
-}
-
-.registration-wizard__file-input:focus + .registration-wizard__upload-box,
-.registration-wizard__upload-box:focus {
-  outline: 0;
-  border-color: var(--siau-color-primary-500);
-  box-shadow: 0 0 0 0.2rem rgba(27, 31, 74, 0.08);
 }
 
 .registration-wizard__upload-icon {
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #798aa3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  border-radius: 50%;
-  background: #eef2f7;
-  color: #798aa3;
 }
 
 .registration-wizard__upload-title {
   color: #5d708a;
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-bold);
-  line-height: 1.2;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .registration-wizard__upload-text {
   color: #9aa8bb;
-  font-size: 0.78rem;
-  line-height: 1.2;
+  font-size: 0.76rem;
 }
 
-/* =========================
-   PROFILES
-========================= */
+/* PROFILES */
 
 .registration-wizard__profiles-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--siau-space-3);
-  padding: var(--siau-space-5) var(--siau-space-6) var(--siau-space-6);
+  gap: 0.85rem;
+  padding: 1.25rem 1.55rem 1.5rem;
 }
 
 .registration-wizard__profiles-field-title {
   color: #5e7493;
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-bold);
-  line-height: 1.2;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .registration-wizard__profiles-field-title span {
@@ -472,102 +392,92 @@
 .registration-wizard__profiles-field-help {
   margin: 0;
   color: #a0adbd;
-  font-size: var(--siau-text-sm);
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .registration-wizard__profiles-empty {
+  min-height: 3.4rem;
+  padding: 1rem;
+  border-radius: 0.85rem;
+  border: 1px dashed #d9e0e8;
+  background: rgba(255, 255, 255, 0.35);
+  color: #b3bdca;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 3.6rem;
-  padding: var(--siau-space-4);
-  border: 1px dashed #d9e0e8;
-  border-radius: 0.85rem;
-  background: rgba(255, 255, 255, 0.35);
-  color: #b3bdca;
-  font-size: var(--siau-text-sm);
+  font-size: 0.82rem;
   text-align: center;
 }
 
 .registration-wizard__profiles-list {
   display: flex;
   flex-direction: column;
-  gap: var(--siau-space-2);
+  gap: 0.5rem;
 }
 
 .registration-wizard__profiles-item {
+  min-height: 2.85rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.8rem;
+  border: 1px solid #dde4eb;
+  background: rgba(255, 255, 255, 0.72);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--siau-space-3);
-  min-height: 3rem;
-  padding: 0.75rem 0.95rem;
-  border: 1px solid #dde4eb;
-  border-radius: 0.8rem;
-  background: rgba(255, 255, 255, 0.72);
+  gap: 0.75rem;
 }
 
 .registration-wizard__profiles-item-content {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  min-width: 0;
   flex-wrap: wrap;
 }
 
 .registration-wizard__profiles-item-system {
-  color: var(--siau-color-primary-500);
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-bold);
+  color: #1b1f4a;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
-.registration-wizard__profiles-item-separator {
-  color: #9bacbf;
-  font-size: var(--siau-text-sm);
-}
-
+.registration-wizard__profiles-item-separator,
 .registration-wizard__profiles-item-role {
   color: #5e7493;
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-medium);
+  font-size: 0.82rem;
 }
 
 .registration-wizard__profiles-remove {
-  appearance: none;
-  border: 0;
-  background: transparent;
   width: 2rem;
   height: 2rem;
+  border: 0;
   border-radius: 999px;
+  background: transparent;
+  color: #7e90a7;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  color: #7e90a7;
-  transition:
-    background var(--siau-duration-base) var(--siau-ease-out),
-    color var(--siau-duration-base) var(--siau-ease-out);
 }
 
 .registration-wizard__profiles-remove:hover {
   background: rgba(27, 31, 74, 0.06);
-  color: var(--siau-color-primary-500);
+  color: #1b1f4a;
 }
 
 .registration-wizard__profiles-add-card {
-  margin-top: var(--siau-space-2);
-  padding: var(--siau-space-4);
-  border: 1px solid #d8e0e8;
+  margin-top: 0.4rem;
+  padding: 1rem;
   border-radius: 0.95rem;
+  border: 1px solid #d8e0e8;
   background: rgba(34, 52, 88, 0.04);
 }
 
 .registration-wizard__profiles-add-title {
-  margin-bottom: var(--siau-space-4);
+  margin-bottom: 0.9rem;
   color: #8fa0b4;
-  font-size: 0.72rem;
-  font-weight: var(--siau-font-weight-bold);
+  font-size: 0.7rem;
+  font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -575,7 +485,7 @@
 .registration-wizard__profiles-add-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: var(--siau-space-3);
+  gap: 0.75rem;
   align-items: end;
 }
 
@@ -588,21 +498,19 @@
   min-width: 7rem;
 }
 
-/* =========================
-   ACCOUNT
-========================= */
+/* ACCOUNT */
 
 .registration-wizard__account-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--siau-space-5);
-  padding: var(--siau-space-5) var(--siau-space-6) var(--siau-space-6);
+  gap: 1rem;
+  padding: 1.25rem 1.55rem 1.5rem;
 }
 
 .registration-wizard__account-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--siau-space-4) var(--siau-space-5);
+  gap: 0.9rem 1rem;
   align-items: start;
 }
 
@@ -614,9 +522,8 @@
 
 .registration-wizard__field-label {
   color: #5e7493;
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-bold);
-  line-height: 1.2;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .registration-wizard__field-label span {
@@ -625,19 +532,14 @@
 
 .registration-wizard__text-input {
   width: 100%;
-  min-height: 2.85rem;
-  padding: 0.75rem 0.95rem;
+  min-height: 2.75rem;
+  padding: 0.7rem 0.9rem;
   border: 1px solid #bcc9d8;
   border-radius: 0.8rem;
   background: rgba(255, 255, 255, 0.72);
-  color: var(--siau-color-primary-500);
-  font-size: var(--siau-text-sm);
-  font-family: var(--siau-font-body);
+  color: #1b1f4a;
+  font-size: 0.86rem;
   outline: none;
-  transition:
-    border-color var(--siau-duration-base) var(--siau-ease-out),
-    box-shadow var(--siau-duration-base) var(--siau-ease-out),
-    background var(--siau-duration-base) var(--siau-ease-out);
 }
 
 .registration-wizard__text-input::placeholder {
@@ -645,7 +547,7 @@
 }
 
 .registration-wizard__text-input:focus {
-  border-color: var(--siau-color-primary-500);
+  border-color: #1b1f4a;
   background: #ffffff;
   box-shadow: 0 0 0 0.2rem rgba(27, 31, 74, 0.08);
 }
@@ -666,18 +568,17 @@
   width: 1.8rem;
   height: 1.8rem;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: #8192a9;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  cursor: pointer;
 }
 
 .registration-wizard__input-icon-button:hover {
   background: rgba(27, 31, 74, 0.06);
-  color: var(--siau-color-primary-500);
+  color: #1b1f4a;
 }
 
 .registration-wizard__account-status-block {
@@ -687,143 +588,111 @@
 }
 
 .registration-wizard__account-status-help {
-  margin: 0 0 var(--siau-space-2);
+  margin: 0 0 0.5rem;
   color: #a0adbd;
-  font-size: var(--siau-text-sm);
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .registration-wizard__account-status-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--siau-space-3);
+  gap: 0.75rem;
 }
 
 .registration-wizard__status-card {
-  appearance: none;
-  border: 1px solid #d6dee8;
+  padding: 0.95rem;
   border-radius: 0.9rem;
+  border: 1px solid #d6dee8;
   background: rgba(255, 255, 255, 0.52);
-  padding: 1rem 0.95rem;
   text-align: center;
-  cursor: pointer;
-  transition:
-    border-color var(--siau-duration-base) var(--siau-ease-out),
-    box-shadow var(--siau-duration-base) var(--siau-ease-out),
-    background var(--siau-duration-base) var(--siau-ease-out),
-    transform var(--siau-duration-base) var(--siau-ease-out);
-}
-
-.registration-wizard__status-card:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 0.75rem 1.4rem rgba(27, 31, 74, 0.06);
 }
 
 .registration-wizard__status-card--selected {
-  border-color: var(--siau-color-primary-500);
+  border-color: #1b1f4a;
   background: rgba(27, 31, 74, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(27, 31, 74, 0.08);
 }
 
 .registration-wizard__status-card-title {
+  margin-bottom: 0.45rem;
+  color: #1b1f4a;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  color: var(--siau-color-primary-500);
-  font-size: 1rem;
-  font-weight: var(--siau-font-weight-bold);
-  margin-bottom: 0.45rem;
+  font-size: 0.94rem;
+  font-weight: 900;
 }
 
 .registration-wizard__status-card-text {
   color: #8d9cb0;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   line-height: 1.35;
 }
 
-/* =========================
-   FOOTER
-========================= */
+/* FOOTER */
 
 .registration-wizard__footer {
   flex: none;
+  min-height: 3.45rem;
+  padding: 0.7rem 1.25rem;
+  background: #eaf1f8;
+  border-top: 1px solid rgba(174, 190, 206, 0.3);
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: var(--siau-space-4);
-  padding: 0.8rem var(--siau-space-5);
-  background: rgba(234, 242, 248, 0.94);
-  border-top: 1px solid rgba(174, 190, 206, 0.35);
+  gap: 1rem;
 }
 
 .registration-wizard__dots {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.32rem;
 }
 
 .registration-wizard__dots span {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: var(--siau-radius-pill);
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
   background: #c8d3dd;
-  transition:
-    width var(--siau-duration-base) var(--siau-ease-out),
-    background var(--siau-duration-base) var(--siau-ease-out);
 }
 
 .registration-wizard__dots .registration-wizard__dot--active {
-  width: 1.4rem;
-  background: var(--siau-color-primary-500);
+  width: 1.3rem;
+  background: #1b1f4a;
 }
 
 .registration-wizard__actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--siau-space-3);
+  gap: 0.65rem;
 }
 
 .registration-wizard__button {
-  appearance: none;
-  border: 0;
-  min-height: 2.35rem;
-  padding: 0 var(--siau-space-4);
+  min-height: 2.25rem;
+  padding: 0 0.95rem;
   border-radius: 0.55rem;
-  font-family: var(--siau-font-body);
-  font-size: var(--siau-text-sm);
-  font-weight: var(--siau-font-weight-semibold);
-  line-height: 1;
+  border: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 800;
   white-space: nowrap;
-  transition:
-    background var(--siau-duration-base) var(--siau-ease-out),
-    color var(--siau-duration-base) var(--siau-ease-out),
-    border-color var(--siau-duration-base) var(--siau-ease-out),
-    box-shadow var(--siau-duration-base) var(--siau-ease-out),
-    opacity var(--siau-duration-base) var(--siau-ease-out);
 }
 
 .registration-wizard__button:disabled {
-  opacity: 0.48;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .registration-wizard__button--primary {
-  background: var(--siau-color-primary-500);
-  color: var(--siau-color-neutral-0);
+  background: #1b1f4a;
+  color: #ffffff;
   box-shadow: 0 0.5rem 1rem rgba(27, 31, 74, 0.18);
-}
-
-.registration-wizard__button--primary:hover:not(:disabled) {
-  background: #10143d;
 }
 
 .registration-wizard__button--secondary {
@@ -832,65 +701,30 @@
   color: #536986;
 }
 
-.registration-wizard__button--secondary:hover:not(:disabled) {
-  background: #ffffff;
-  border-color: rgba(147, 163, 185, 0.72);
-}
-
 .registration-wizard__button--ghost {
   border: 1px solid rgba(147, 163, 185, 0.36);
   background: rgba(255, 255, 255, 0.34);
   color: #536986;
 }
 
-.registration-wizard__button--ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.72);
-}
-
-/* =========================
-   MODAL WIDTH OVERRIDES
-========================= */
-
-:host-context(.siau-modal__surface),
-:host-context(.siau-modal__surface--xl),
-:host-context(.siau-modal__surface--lg) {
-  width: min(92vw, 78rem);
-  max-width: 78rem;
-}
-
-:host ::ng-deep .siau-modal__surface,
-:host-context(.siau-modal) .siau-modal__surface {
-  width: min(92vw, 78rem);
-  max-width: 78rem;
-}
-
-/* =========================
-   RESPONSIVE
-========================= */
+/* RESPONSIVE */
 
 @media (max-width: 992px) {
-  :host {
-    width: 100%;
-  }
-
   .registration-wizard {
-    width: 100%;
-    max-width: none;
-    grid-template-columns: 1fr;
-    min-height: auto;
+    height: auto;
     max-height: none;
+    grid-template-columns: 1fr;
   }
 
   .registration-wizard__sidebar {
     border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.44);
   }
 
   .registration-wizard__steps {
     flex-direction: row;
     overflow-x: auto;
     overflow-y: hidden;
-    padding-bottom: 0.15rem;
   }
 
   .registration-wizard__step {
@@ -899,25 +733,6 @@
 
   .registration-wizard__sidebar-progress {
     display: none;
-  }
-
-  .registration-wizard__content {
-    min-height: auto;
-  }
-
-  .registration-wizard__section-header,
-  .registration-wizard__progress-strip,
-  .registration-wizard__grid,
-  .registration-wizard__documents-grid,
-  .registration-wizard__profiles-panel,
-  .registration-wizard__account-panel {
-    padding-left: var(--siau-space-5);
-    padding-right: var(--siau-space-5);
-  }
-
-  .registration-wizard__info-box {
-    margin-left: var(--siau-space-5);
-    margin-right: var(--siau-space-5);
   }
 }
 
@@ -940,14 +755,9 @@
     grid-template-columns: 1fr;
   }
 
-  .registration-wizard__section-title h3 {
-    font-size: var(--siau-text-base);
-  }
-
   .registration-wizard__footer {
     grid-template-columns: 1fr;
     align-items: stretch;
-    padding: var(--siau-space-4);
   }
 
   .registration-wizard__actions {
@@ -956,8 +766,7 @@
   }
 
   .registration-wizard__button,
-  .registration-wizard__button--add,
-  .registration-wizard__profiles-add-action {
+  .registration-wizard__button--add {
     width: 100%;
   }
 }
@@ -969,26 +778,16 @@
   .registration-wizard__documents-grid,
   .registration-wizard__profiles-panel,
   .registration-wizard__account-panel {
-    padding-left: var(--siau-space-4);
-    padding-right: var(--siau-space-4);
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   .registration-wizard__info-box {
-    margin-left: var(--siau-space-4);
-    margin-right: var(--siau-space-4);
+    margin-left: 1rem;
+    margin-right: 1rem;
   }
 
   .registration-wizard__step {
     min-width: 9.5rem;
-  }
-
-  .registration-wizard__upload-box {
-    min-height: 7.2rem;
-    padding: var(--siau-space-4);
-  }
-
-  .registration-wizard__grid--contact {
-    padding-top: var(--siau-space-5);
-    align-items: start;
   }
 }
