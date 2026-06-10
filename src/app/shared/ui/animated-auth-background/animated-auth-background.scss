@@ -155,22 +155,22 @@ canvas,
 :host::before {
   content: '';
   position: absolute;
-  inset: -4%;
+  inset: 0;
   z-index: -2;
   background:
     radial-gradient(
-      52% 68% at 21% 18%,
-      rgba(38, 47, 112, 0.54) 0%,
-      rgba(27, 31, 74, 0.34) 38%,
+      34% 48% at 19% 18%,
+      rgba(38, 47, 112, 0.42) 0%,
+      rgba(27, 31, 74, 0.25) 36%,
       rgba(5, 8, 24, 0) 72%
     ),
     radial-gradient(
-      54% 72% at 82% 82%,
-      rgba(30, 91, 79, 0.56) 0%,
-      rgba(18, 57, 68, 0.34) 38%,
+      36% 48% at 82% 84%,
+      rgba(30, 91, 79, 0.43) 0%,
+      rgba(18, 57, 68, 0.22) 38%,
       rgba(5, 8, 24, 0) 76%
     ),
-    linear-gradient(112deg, #131a45 0%, #080d27 38%, #050818 60%, #071623 100%);
+    linear-gradient(112deg, #111741 0%, #080d26 36%, #050818 62%, #07121d 100%);
 }
 
 /* Oscurece centro/superior para que no se vea lavado */
@@ -181,16 +181,16 @@ canvas,
   z-index: -1;
   background:
     radial-gradient(
-      70% 78% at 50% 46%,
-      rgba(255, 255, 255, 0.02) 0%,
-      rgba(5, 8, 24, 0.1) 42%,
-      rgba(5, 8, 24, 0.34) 100%
+      62% 70% at 50% 46%,
+      rgba(255, 255, 255, 0.012) 0%,
+      rgba(5, 8, 24, 0.08) 38%,
+      rgba(5, 8, 24, 0.38) 100%
     ),
     linear-gradient(
       90deg,
-      rgba(27, 31, 74, 0.08) 0%,
-      rgba(5, 8, 24, 0.12) 45%,
-      rgba(30, 91, 79, 0.12) 100%
+      rgba(27, 31, 74, 0.04) 0%,
+      rgba(5, 8, 24, 0.14) 48%,
+      rgba(30, 91, 79, 0.055) 100%
     );
   pointer-events: none;
 }
