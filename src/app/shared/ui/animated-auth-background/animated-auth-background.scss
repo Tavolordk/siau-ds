@@ -121,3 +121,76 @@
     animation: none;
   }
 }
+/* =========================================================
+   PATCH VISUAL LOGIN BACKGROUND
+   No cambia la animación, solo apariencia:
+   - partículas más presentes/blancas
+   - red visualmente más grande
+   - fondo inferior derecho más verdoso/azulado
+========================================================= */
+
+:host {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Canvas de partículas */
+canvas,
+.auth-particles-canvas,
+.animated-auth-background__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  filter: brightness(1.34) contrast(1.12) drop-shadow(0 0 3px rgba(255, 255, 255, 0.38));
+  transform: scale(1.08);
+  transform-origin: center center;
+}
+
+/* Capa base: más cercana al original */
+:host::before {
+  content: '';
+  position: absolute;
+  inset: -4%;
+  z-index: -2;
+  background:
+    radial-gradient(
+      52% 68% at 21% 18%,
+      rgba(38, 47, 112, 0.54) 0%,
+      rgba(27, 31, 74, 0.34) 38%,
+      rgba(5, 8, 24, 0) 72%
+    ),
+    radial-gradient(
+      54% 72% at 82% 82%,
+      rgba(30, 91, 79, 0.56) 0%,
+      rgba(18, 57, 68, 0.34) 38%,
+      rgba(5, 8, 24, 0) 76%
+    ),
+    linear-gradient(112deg, #131a45 0%, #080d27 38%, #050818 60%, #071623 100%);
+}
+
+/* Oscurece centro/superior para que no se vea lavado */
+:host::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      70% 78% at 50% 46%,
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(5, 8, 24, 0.1) 42%,
+      rgba(5, 8, 24, 0.34) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(27, 31, 74, 0.08) 0%,
+      rgba(5, 8, 24, 0.12) 45%,
+      rgba(30, 91, 79, 0.12) 100%
+    );
+  pointer-events: none;
+}

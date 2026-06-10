@@ -45,8 +45,14 @@ interface ClusterZone {
 }
 
 const PARTICLE_COLOR = '255, 255, 255';
-const LINK_DISTANCE = 188;
-const MOUSE_DISTANCE = 210;
+
+/**
+ * Distancias ajustadas para que la red se vea un poco más cercana,
+ * con conexiones más largas y más presentes visualmente.
+ */
+const LINK_DISTANCE = 185;
+const MOUSE_DISTANCE = 215;
+
 const BASE_FRAME_MS = 1000 / 60;
 
 @Component({
@@ -60,8 +66,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     @Input() interactive = true;
 
     /**
-     * Déjalo en 1 si usas los valores de velocidad de abajo.
-     * Si aún quieres más rapidez, súbelo a 1.1 o 1.15.
+     * Ya lo traías en 5 y comentaste que así la velocidad coincide mejor
+     * con el original. No se toca la animación.
      */
     @Input() speed = 5;
 
@@ -112,6 +118,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             if (this.interactive) {
                 onMove = (event: PointerEvent) => {
                     const rect = this.host.nativeElement.getBoundingClientRect();
+
                     this.mouse = {
                         x: event.clientX - rect.left,
                         y: event.clientY - rect.top,
@@ -128,8 +135,14 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
             this.removeListeners = () => {
                 window.removeEventListener('resize', onWindowResize);
-                if (onMove) window.removeEventListener('pointermove', onMove);
-                if (onLeave) window.removeEventListener('pointerleave', onLeave);
+
+                if (onMove) {
+                    window.removeEventListener('pointermove', onMove);
+                }
+
+                if (onLeave) {
+                    window.removeEventListener('pointerleave', onLeave);
+                }
             };
 
             this.resize();
@@ -197,7 +210,7 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
      * - grupos grandes
      * - lados más cargados
      * - centro más limpio
-     * - figuras más grandes que antes
+     * - figuras visualmente un poco más grandes
      */
     private createRandomFigmaLikeParticles(width: number, height: number): AuthParticle[] {
         const particles: AuthParticle[] = [];
@@ -241,13 +254,26 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     }
 
     private createParticle(x: number, y: number, index: number, loose = false): AuthParticle {
+        const isBig = Math.random() > (loose ? 0.92 : 0.8);
+
         return {
             x,
             y,
             baseX: x,
             baseY: y,
-            radius: Math.random() > (loose ? 0.92 : 0.8) ? 2.15 : 1.25,
-            alpha: loose ? 0.28 + Math.random() * 0.18 : 0.4 + Math.random() * 0.3,
+
+            /**
+             * Antes estaban más pequeños.
+             * Esto los vuelve más blancos y presentes como el original.
+             */
+            radius: loose ? (isBig ? 2.2 : 1.35) : (isBig ? 2.6 : 1.65),
+
+            /**
+             * Antes el alpha base era muy bajo y por eso se veía apagado.
+             * Se sube principalmente en nodos de cluster.
+             */
+            alpha: loose ? 0.42 + Math.random() * 0.22 : 0.82 + Math.random() * 0.18,
+
             phase: index * 0.73 + Math.random() * Math.PI * 2,
         };
     }
@@ -257,8 +283,16 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             const x = Math.random() * width;
             const y = Math.random() * height;
 
-            const inCentralCardArea = x > width * 0.31 && x < width * 0.69 && y > height * 0.18 && y < height * 0.93;
-            const inLogoArea = x > width * 0.31 && x < width * 0.69 && y < height * 0.24;
+            const inCentralCardArea =
+                x > width * 0.31 &&
+                x < width * 0.69 &&
+                y > height * 0.18 &&
+                y < height * 0.93;
+
+            const inLogoArea =
+                x > width * 0.31 &&
+                x < width * 0.69 &&
+                y < height * 0.24;
 
             if (!inCentralCardArea && !inLogoArea) {
                 return { x, y };
@@ -266,7 +300,9 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
         }
 
         return {
-            x: Math.random() > 0.5 ? Math.random() * width * 0.22 : width * (0.78 + Math.random() * 0.22),
+            x: Math.random() > 0.5
+                ? Math.random() * width * 0.22
+                : width * (0.78 + Math.random() * 0.22),
             y: Math.random() * height,
         };
     }
@@ -342,7 +378,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
     }
 
     /**
-     * Más rápidos que antes.
+     * Se mantiene la misma lógica de corredores.
+     * Solo se sube un poco el brillo del rastro y cabeza.
      */
     private createRunners(edges: AuthEdge[]): AuthRunner[] {
         if (!edges.length) {
@@ -356,8 +393,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             progress: Math.random(),
             speed: 0.0038 + Math.random() * 0.0048,
             direction: Math.random() > 0.5 ? 1 : -1,
-            radius: 1.3 + Math.random() * 0.6,
-            alpha: 0.76 + Math.random() * 0.2,
+            radius: 1.45 + Math.random() * 0.65,
+            alpha: 0.86 + Math.random() * 0.14,
             trail: 0.08 + Math.random() * 0.08,
         }));
     }
@@ -437,7 +474,12 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             const first = this.particles[edge.from];
             const second = this.particles[edge.to];
             const distance = Math.hypot(first.x - second.x, first.y - second.y);
-            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.18);
+
+            /**
+             * Antes: 0.18
+             * Ahora: más blanco/luminoso como el original.
+             */
+            const opacity = Math.max(0, (1 - distance / LINK_DISTANCE) * 0.34);
 
             context.beginPath();
             context.moveTo(first.x, first.y);
@@ -470,8 +512,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.beginPath();
             context.moveTo(trailStart.x, trailStart.y);
             context.lineTo(trailEnd.x, trailEnd.y);
-            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.56})`;
-            context.lineWidth = 1.75;
+            context.strokeStyle = `rgba(${PARTICLE_COLOR}, ${runner.alpha * 0.68})`;
+            context.lineWidth = 1.85;
             context.stroke();
 
             context.beginPath();
@@ -480,8 +522,8 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
             context.fill();
 
             context.beginPath();
-            context.arc(head.x, head.y, runner.radius * 4.2, 0, Math.PI * 2);
-            context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.05)`;
+            context.arc(head.x, head.y, runner.radius * 4.5, 0, Math.PI * 2);
+            context.fillStyle = `rgba(${PARTICLE_COLOR}, 0.075)`;
             context.fill();
         }
 
@@ -517,7 +559,11 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
                 continue;
             }
 
-            const opacity = (1 - distance / MOUSE_DISTANCE) * 0.26;
+            /**
+             * Antes: 0.26
+             * Ahora: más visible, sin alterar la interacción.
+             */
+            const opacity = (1 - distance / MOUSE_DISTANCE) * 0.42;
 
             context.beginPath();
             context.moveTo(particle.x, particle.y);
@@ -529,12 +575,20 @@ export class AnimatedAuthBackground implements AfterViewInit, OnDestroy {
 
     private drawParticles(context: CanvasRenderingContext2D): void {
         for (const particle of this.particles) {
-            const pulse = 0.86 + Math.sin(this.elapsed * 0.72 + particle.phase) * 0.06;
+            const pulse = 0.9 + Math.sin(this.elapsed * 0.72 + particle.phase) * 0.055;
             const alpha = particle.alpha * pulse;
 
             context.beginPath();
             context.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
             context.fillStyle = `rgba(${PARTICLE_COLOR}, ${alpha})`;
+            context.fill();
+
+            /**
+             * Glow sutil para que el punto se vea más blanco/luminoso.
+             */
+            context.beginPath();
+            context.arc(particle.x, particle.y, particle.radius * 3.4, 0, Math.PI * 2);
+            context.fillStyle = `rgba(${PARTICLE_COLOR}, ${alpha * 0.055})`;
             context.fill();
         }
     }
