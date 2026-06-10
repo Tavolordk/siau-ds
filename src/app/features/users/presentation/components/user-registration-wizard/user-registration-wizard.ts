@@ -1,4 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    DestroyRef,
+    inject,
+    input,
+    output,
+    signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { forkJoin } from 'rxjs';
+import { CatalogosFacade } from '../../../../../core/catalogos';
 import {
     SiauInput,
     SiauModal,
@@ -7,7 +19,6 @@ import {
     SiauStep,
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
-
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 
 type WizardStepId =
@@ -131,9 +142,13 @@ const INITIAL_FORM: UserRegistrationForm = {
     styleUrl: './user-registration-wizard.scss',
 })
 export class UserRegistrationWizard {
+    constructor() {
+        this.loadCatalogos();
+    }
     readonly open = input<boolean>(false);
     readonly closed = output<void>();
-
+    private readonly catalogosFacade = inject(CatalogosFacade);
+    private readonly destroyRef = inject(DestroyRef);
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
@@ -145,31 +160,10 @@ export class UserRegistrationWizard {
     protected readonly showPassword = signal<boolean>(false);
     protected readonly showConfirmPassword = signal<boolean>(false);
 
-    protected readonly genderOptions: readonly SiauSelectOption[] = [
-        { value: 'M', label: 'Mujer' },
-        { value: 'H', label: 'Hombre' },
-        { value: 'N', label: 'No especificado' },
-    ];
-
-    protected readonly systemOptions: readonly SiauSelectOption[] = [
-        { value: 'siau', label: 'SIAU' },
-        { value: 'rnpsp', label: 'RNPSP' },
-        { value: 'plataforma-mexico', label: 'Plataforma México' },
-        { value: 'control-confianza', label: 'Control de Confianza' },
-    ];
-
-    protected readonly roleOptions: readonly SiauSelectOption[] = [
-        { value: 'administrador', label: 'Administrador' },
-        { value: 'enlace-institucional', label: 'Enlace Institucional' },
-        { value: 'usuario', label: 'Usuario' },
-        { value: 'supervisor-estatal', label: 'Supervisor Estatal' },
-    ];
-
-    protected readonly institutionTypeOptions: readonly SiauSelectOption[] = [
-        { value: 'federal', label: 'Federal' },
-        { value: 'estatal', label: 'Estatal' },
-        { value: 'municipal', label: 'Municipal' },
-    ];
+    protected readonly genderOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly systemOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly roleOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly institutionTypeOptions = signal<readonly SiauSelectOption[]>([]);
 
     protected readonly trustLevelOptions: readonly SiauSelectOption[] = [
         { value: 'vigente', label: 'Vigente' },
@@ -361,8 +355,8 @@ export class UserRegistrationWizard {
             return;
         }
 
-        const systemOption = this.systemOptions.find((item) => item.value === system);
-        const roleOption = this.roleOptions.find((item) => item.value === role);
+        const systemOption = this.systemOptions().find((item) => item.value === system);
+        const roleOption = this.roleOptions().find((item) => item.value === role);
 
         if (!systemOption || !roleOption) {
             return;
@@ -441,5 +435,25 @@ export class UserRegistrationWizard {
 
     private isWizardStep(value: string): value is WizardStepId {
         return this.stepOrder.includes(value as WizardStepId);
+    }
+    private loadCatalogos(): void {
+        forkJoin({
+            sexos: this.catalogosFacade.obtenerSexoOptions(),
+            sistemas: this.catalogosFacade.obtenerSistemasOptions(),
+            roles: this.catalogosFacade.obtenerTipoUsuarioOptions(),
+            tiposInstitucion: this.catalogosFacade.obtenerTipoInstitucionOptions(),
+        })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (catalogos) => {
+                    this.genderOptions.set(catalogos.sexos);
+                    this.systemOptions.set(catalogos.sistemas);
+                    this.roleOptions.set(catalogos.roles);
+                    this.institutionTypeOptions.set(catalogos.tiposInstitucion);
+                },
+                error: (error: unknown) => {
+                    console.error('Error cargando catálogos del usuario.', error);
+                },
+            });
     }
 }

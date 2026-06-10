@@ -80,7 +80,7 @@
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)" />
 
-                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions"
+                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions()"
                         [value]="form().gender" (valueChange)="updateForm('gender', $event)" />
 
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="true" [value]="form().birthDate"
@@ -117,7 +117,7 @@
 
                 <div class="registration-wizard__grid registration-wizard__grid--assignment">
                     <siau-select label="Tipo de Institución" placeholder="" [required]="true"
-                        [options]="institutionTypeOptions" [value]="form().institutionType"
+                        [options]="institutionTypeOptions()" [value]="form().institutionType"
                         (valueChange)="updateForm('institutionType', $event)" />
 
                     <siau-input label="Entidad" placeholder="Ej. Ciudad de México" [required]="true"
@@ -183,7 +183,7 @@
 
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
                     <siau-select label="Tipo de Institución" placeholder="" [required]="true"
-                        [options]="institutionTypeOptions" [value]="form().commissionInstitutionType"
+                        [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
                         (valueChange)="updateForm('commissionInstitutionType', $event)" />
 
                     <siau-input label="Institución" placeholder="Nombre de la institución" [required]="true"
@@ -384,10 +384,10 @@
                         <div class="registration-wizard__profiles-add-title">Agregar sistema</div>
 
                         <div class="registration-wizard__profiles-add-grid">
-                            <siau-select label="Sistema" placeholder="" [options]="systemOptions"
+                            <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)" />
 
-                            <siau-select label="Perfil / Rol" placeholder="" [options]="roleOptions"
+                            <siau-select label="Perfil / Rol" placeholder="" [options]="roleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" />
 
                             <div class="registration-wizard__profiles-add-action">
