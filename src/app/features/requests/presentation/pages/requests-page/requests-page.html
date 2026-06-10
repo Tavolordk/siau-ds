@@ -2,108 +2,183 @@
     <header class="requests-page__header">
         <div class="requests-page__heading">
             <span class="requests-page__accent"></span>
+
             <div>
-                <h1>Solicitudes</h1>
-                <p>Consulta y administra las solicitudes de alta, modificación y baja de usuarios</p>
+                <h1>Gestión de Solicitudes</h1>
+                <p>Seguimiento y atención de solicitudes de usuarios</p>
             </div>
         </div>
     </header>
 
-    <section class="requests-page__summary" aria-label="Resumen de solicitudes">
-        <article class="summary-card">
-            <span class="summary-card__label">Pendientes</span>
-            <strong>{{ pendingRequests() }}</strong>
-        </article>
+    <main class="requests-page__content">
+        <section class="requests-summary" aria-label="Resumen de solicitudes">
+            <button type="button" class="summary-card summary-card--pending" (click)="setSelectedStatus('Pendiente')">
+                <span class="summary-card__icon">
+                    <siau-lucide-icon name="clock" size="20" strokeWidth="2" aria-hidden="true" />
+                </span>
 
-        <article class="summary-card">
-            <span class="summary-card__label">En revisión</span>
-            <strong>{{ reviewRequests() }}</strong>
-        </article>
-
-        <article class="summary-card">
-            <span class="summary-card__label">Aprobadas</span>
-            <strong>{{ approvedRequests() }}</strong>
-        </article>
-
-        <article class="summary-card">
-            <span class="summary-card__label">Rechazadas</span>
-            <strong>{{ rejectedRequests() }}</strong>
-        </article>
-    </section>
-
-    <article class="requests-table-card">
-        <div class="requests-table-card__toolbar">
-            <label class="requests-table-card__search">
-                <mat-icon aria-hidden="true">search</mat-icon>
-                <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
-                    placeholder="Buscar por folio, solicitante o institución..." aria-label="Buscar solicitud" />
-            </label>
-
-            <button type="button" class="requests-table-card__button">
-                <mat-icon aria-hidden="true">filter_list</mat-icon>
-                <span>Filtros</span>
+                <span>
+                    <strong>{{ pendingRequests() }}</strong>
+                    <small>Pendientes</small>
+                </span>
             </button>
-        </div>
 
-        <div class="requests-table-card__scroll">
-            <table class="requests-table">
-                <thead>
-                    <tr>
-                        <th>Folio</th>
-                        <th>Tipo</th>
-                        <th>Solicitante</th>
-                        <th>Institución</th>
-                        <th>Fecha</th>
-                        <th>Prioridad</th>
-                        <th>Estatus</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
+            <button type="button" class="summary-card summary-card--review" (click)="setSelectedStatus('En revisión')">
+                <span class="summary-card__icon">
+                    <siau-lucide-icon name="eye" size="20" strokeWidth="2" aria-hidden="true" />
+                </span>
 
-                <tbody>
-                    @for (request of filteredRequests(); track request.folio) {
-                    <tr>
-                        <td data-label="Folio">{{ request.folio }}</td>
-                        <td data-label="Tipo">{{ request.type }}</td>
-                        <td data-label="Solicitante">{{ request.applicant }}</td>
-                        <td data-label="Institución">{{ request.institution }}</td>
-                        <td data-label="Fecha">{{ request.createdAt }}</td>
-                        <td data-label="Prioridad">
-                            <span class="badge" [class]="'badge badge--' + getPriorityTone(request.priority)">
-                                {{ request.priority }}
-                            </span>
-                        </td>
-                        <td data-label="Estatus">
-                            <span class="badge" [class]="'badge badge--' + getStatusTone(request.status)">
-                                {{ request.status }}
-                            </span>
-                        </td>
-                        <td data-label="Acciones">
-                            <div class="requests-table__actions">
-                                <button type="button" aria-label="Ver detalle" (click)="openRequestDetail(request)">
-                                    <mat-icon>visibility</mat-icon>
-                                </button>
+                <span>
+                    <strong>{{ reviewRequests() }}</strong>
+                    <small>En revisión</small>
+                </span>
+            </button>
 
-                                <button type="button" aria-label="Aprobar solicitud" (click)="approveRequest(request)">
-                                    <mat-icon>check_circle</mat-icon>
-                                </button>
+            <button type="button" class="summary-card summary-card--approved" (click)="setSelectedStatus('Aprobada')">
+                <span class="summary-card__icon">
+                    <siau-lucide-icon name="circle-check" size="20" strokeWidth="2" aria-hidden="true" />
+                </span>
 
-                                <button type="button" aria-label="Rechazar solicitud" (click)="rejectRequest(request)">
-                                    <mat-icon>cancel</mat-icon>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                <span>
+                    <strong>{{ approvedRequests() }}</strong>
+                    <small>Aprobadas</small>
+                </span>
+            </button>
+
+            <button type="button" class="summary-card summary-card--rejected" (click)="setSelectedStatus('Rechazada')">
+                <span class="summary-card__icon">
+                    <siau-lucide-icon name="circle-x" size="20" strokeWidth="2" aria-hidden="true" />
+                </span>
+
+                <span>
+                    <strong>{{ rejectedRequests() }}</strong>
+                    <small>Rechazadas</small>
+                </span>
+            </button>
+        </section>
+
+        <article class="requests-table-card">
+            <div class="requests-table-card__toolbar">
+                <label class="requests-table-card__search">
+                    <siau-lucide-icon name="search" size="16" strokeWidth="2" aria-hidden="true" />
+
+                    <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
+                        placeholder="Buscar por ID, usuario, nombre o tipo..." aria-label="Buscar solicitud" />
+                </label>
+
+                <div class="requests-table-card__filter-wrap">
+                    <button type="button" class="requests-table-card__filter" [attr.aria-expanded]="statusFilterOpen()"
+                        aria-haspopup="listbox" (click)="toggleStatusFilter()">
+                        <siau-lucide-icon name="funnel" size="15" strokeWidth="2" aria-hidden="true" />
+                        <span>{{ selectedStatus() }}</span>
+                        <siau-lucide-icon name="chevron-down" size="14" strokeWidth="2" aria-hidden="true" />
+                    </button>
+
+                    @if (statusFilterOpen()) {
+                    <div class="requests-table-card__filter-menu" role="listbox">
+                        @for (option of statusOptions; track option) {
+                        <button type="button" class="requests-table-card__filter-option"
+                            [class.requests-table-card__filter-option--active]="selectedStatus() === option"
+                            role="option" [attr.aria-selected]="selectedStatus() === option"
+                            (click)="setSelectedStatus(option)">
+                            {{ option }}
+                        </button>
+                        }
+                    </div>
                     }
-                </tbody>
-            </table>
-        </div>
+                </div>
 
-        <footer class="requests-table-card__footer">
-            Mostrando {{ filteredRequests().length }} de {{ requests().length }} solicitudes
-        </footer>
-    </article>
+                <div class="requests-table-card__total">
+                    <siau-lucide-icon name="trending-up" size="13" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ requests().length }} solicitudes</span>
+                </div>
+            </div>
+
+            <div class="requests-table-card__scroll">
+                <table class="requests-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Tipo de Solicitud</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @for (request of filteredRequests(); track request.folio) {
+                        <tr>
+                            <td data-label="ID">
+                                <span class="requests-table__id">{{ request.folio }}</span>
+                            </td>
+
+                            <td data-label="Usuario">
+                                <div class="requests-table__user">
+                                    <span class="requests-table__avatar"
+                                        [style.background]="request.applicantAvatarColor">
+                                        {{ request.applicantInitials }}
+                                    </span>
+
+                                    <span class="requests-table__user-copy">
+                                        <strong>{{ request.applicant }}</strong>
+                                        <small>{{ request.applicantUsername }}</small>
+                                    </span>
+                                </div>
+                            </td>
+
+                            <td data-label="Tipo de Solicitud">
+                                <span class="requests-table__type"
+                                    [class]="'requests-table__type requests-table__type--' + getTypeTone(request.type)">
+                                    {{ request.type }}
+                                </span>
+                            </td>
+
+                            <td data-label="Fecha">
+                                <span class="requests-table__date">{{ request.createdAt }}</span>
+                            </td>
+
+                            <td data-label="Estado">
+                                <span class="request-status"
+                                    [class]="'request-status request-status--' + getStatusTone(request.status)">
+                                    {{ request.status }}
+                                </span>
+                            </td>
+
+                            <td data-label="Acciones">
+                                <div class="requests-table__actions">
+                                    <button type="button" class="requests-table__action requests-table__action--view"
+                                        title="Ver detalle" aria-label="Ver detalle"
+                                        (click)="openRequestDetail(request)">
+                                        <siau-lucide-icon name="eye" size="15" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+
+                                    @if (canResolveRequest(request)) {
+                                    <button type="button" class="requests-table__action requests-table__action--approve"
+                                        title="Aprobar" aria-label="Aprobar solicitud"
+                                        (click)="openApproveModal(request)">
+                                        <siau-lucide-icon name="circle-check" size="15" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+
+                                    <button type="button" class="requests-table__action requests-table__action--reject"
+                                        title="Rechazar" aria-label="Rechazar solicitud"
+                                        (click)="openRejectModal(request)">
+                                        <siau-lucide-icon name="circle-x" size="15" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </main>
 </section>
 
-<app-request-detail-modal [request]="selectedRequest()" (closed)="closeRequestDetail()"
+<app-request-detail-modal [request]="selectedRequest()" [mode]="selectedRequestMode()" (closed)="closeRequestDetail()"
     (approved)="approveRequest($event)" (rejected)="rejectRequest($event)" />

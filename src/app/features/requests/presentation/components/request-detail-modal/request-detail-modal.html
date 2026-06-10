@@ -1,92 +1,81 @@
-<siau-modal [open]="isOpen()" title="Detalle de solicitud" subtitle="Revisa la información antes de aprobar o rechazar"
-    icon="description" size="lg" [headerBadge]="request()?.folio ?? null" (close)="closeModal()">
-    @if (request(); as selectedRequest) {
-    <section class="request-detail">
-        <div class="request-detail__summary">
-            <div>
-                <span class="request-detail__label">Folio</span>
-                <strong>{{ selectedRequest.folio }}</strong>
+@if (open()) {
+<div class="request-modal" role="presentation">
+    <div class="request-modal__backdrop" (click)="close()"></div>
+
+    <section class="request-modal__card" [class.request-modal__card--info]="tone() === 'info'"
+        [class.request-modal__card--success]="tone() === 'success'"
+        [class.request-modal__card--warning]="tone() === 'warning'" role="dialog" aria-modal="true"
+        aria-labelledby="request-modal-title">
+        <div class="request-modal__body">
+            <div class="request-modal__halo">
+                <div class="request-modal__icon">
+                    <siau-lucide-icon [name]="iconName()" size="30" strokeWidth="1.8" aria-hidden="true" />
+                </div>
             </div>
 
-            <div>
-                <span class="request-detail__label">Tipo de solicitud</span>
-                <strong>{{ selectedRequest.type }}</strong>
+            <div class="request-modal__eyebrow">
+                {{ eyebrow() }}
             </div>
+
+            <h2 id="request-modal-title" class="request-modal__title">
+                {{ title() }}
+            </h2>
+
+            @if (mode() === 'detail' && request(); as currentRequest) {
+            <div class="request-modal__details">
+                <div class="request-modal__details-grid">
+                    <div class="request-modal__detail-item">
+                        <span>Usuario</span>
+                        <strong>{{ currentRequest.applicantUsername }}</strong>
+                    </div>
+
+                    <div class="request-modal__detail-item">
+                        <span>Nombre</span>
+                        <strong>{{ currentRequest.applicant }}</strong>
+                    </div>
+
+                    <div class="request-modal__detail-item">
+                        <span>Tipo</span>
+                        <strong>{{ currentRequest.type }}</strong>
+                    </div>
+
+                    <div class="request-modal__detail-item">
+                        <span>Fecha</span>
+                        <strong>{{ currentRequest.createdAt }}</strong>
+                    </div>
+
+                    <div class="request-modal__detail-item">
+                        <span>Estado</span>
+                        <strong>{{ currentRequest.status }}</strong>
+                    </div>
+                </div>
+            </div>
+            } @else {
+            <p class="request-modal__message">
+                {{ message() }}
+            </p>
+            }
         </div>
 
-        <div class="request-detail__grid">
-            <article class="request-detail__item">
-                <span class="request-detail__label">Solicitante</span>
-                <strong>{{ selectedRequest.applicant }}</strong>
-            </article>
+        <div class="request-modal__divider"></div>
 
-            <article class="request-detail__item">
-                <span class="request-detail__label">Institución</span>
-                <strong>{{ selectedRequest.institution }}</strong>
-            </article>
+        <footer class="request-modal__actions" [class.request-modal__actions--single]="mode() === 'detail'">
+            @if (mode() === 'detail') {
+            <button type="button" class="request-modal__button request-modal__button--info" (click)="close()">
+                Cerrar
+            </button>
+            } @else {
+            <button type="button" class="request-modal__button request-modal__button--secondary" (click)="close()">
+                Cancelar
+            </button>
 
-            <article class="request-detail__item">
-                <span class="request-detail__label">Fecha de creación</span>
-                <strong>{{ selectedRequest.createdAt }}</strong>
-            </article>
-
-            <article class="request-detail__item">
-                <span class="request-detail__label">Prioridad</span>
-                <span class="badge" [class]="'badge badge--' + getPriorityTone(selectedRequest.priority)">
-                    {{ selectedRequest.priority }}
-                </span>
-            </article>
-
-            <article class="request-detail__item">
-                <span class="request-detail__label">Estatus</span>
-                <span class="badge" [class]="'badge badge--' + getStatusTone(selectedRequest.status)">
-                    {{ selectedRequest.status }}
-                </span>
-            </article>
-        </div>
-
-        <article class="request-detail__timeline">
-            <header>
-                <mat-icon aria-hidden="true">timeline</mat-icon>
-                <strong>Seguimiento</strong>
-            </header>
-
-            <ol>
-                <li>
-                    <span></span>
-                    <div>
-                        <strong>Solicitud creada</strong>
-                        <p>La solicitud fue registrada por la institución solicitante.</p>
-                    </div>
-                </li>
-
-                <li>
-                    <span></span>
-                    <div>
-                        <strong>Validación documental</strong>
-                        <p>El área responsable debe validar la información capturada.</p>
-                    </div>
-                </li>
-
-                <li>
-                    <span></span>
-                    <div>
-                        <strong>Resolución</strong>
-                        <p>La solicitud puede aprobarse o rechazarse según el análisis.</p>
-                    </div>
-                </li>
-            </ol>
-        </article>
-
-        <footer class="request-detail__footer">
-            <siau-button label="Cerrar" variant="secondary" (clicked)="closeModal()" />
-
-            <div class="request-detail__actions">
-                <siau-button label="Rechazar" icon="cancel" variant="danger" (clicked)="reject()" />
-
-                <siau-button label="Aprobar" icon="check_circle" (clicked)="approve()" />
-            </div>
+            <button type="button" class="request-modal__button"
+                [class.request-modal__button--success]="mode() === 'approve'"
+                [class.request-modal__button--warning]="mode() === 'reject'" (click)="confirm()">
+                {{ mode() === 'approve' ? 'Sí, aprobar' : 'Sí, rechazar' }}
+            </button>
+            }
         </footer>
     </section>
-    }
-</siau-modal>
+</div>
+}

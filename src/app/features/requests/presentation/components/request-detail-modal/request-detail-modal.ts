@@ -1,73 +1,90 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
-import { SiauButton } from '../../../../../shared/ui/components/button/button';
-import { SiauModal } from '../../../../../shared/ui/components/modal/modal';
-import { RequestPriority, RequestRecord, RequestStatus } from '../../../domain/models/request-record.model';
+import { RequestRecord } from '../../../domain/models/request-record.model';
+import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 
-type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+export type RequestModalMode = 'detail' | 'approve' | 'reject';
 
 @Component({
     selector: 'app-request-detail-modal',
     standalone: true,
-    imports: [MatIconModule, SiauModal, SiauButton],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [SiauLucideIcon],
     templateUrl: './request-detail-modal.html',
     styleUrl: './request-detail-modal.scss',
 })
 export class RequestDetailModal {
     readonly request = input<RequestRecord | null>(null);
+    readonly mode = input<RequestModalMode>('detail');
 
     readonly closed = output<void>();
     readonly approved = output<RequestRecord>();
     readonly rejected = output<RequestRecord>();
 
-    protected readonly isOpen = computed(() => this.request() !== null);
+    protected readonly open = computed(() => this.request() !== null);
 
-    protected closeModal(): void {
+    protected readonly tone = computed<'info' | 'success' | 'warning'>(() => {
+        if (this.mode() === 'approve') return 'success';
+        if (this.mode() === 'reject') return 'warning';
+        return 'info';
+    });
+
+    protected readonly iconName = computed(() => {
+        if (this.mode() === 'approve') return 'circle-check';
+        if (this.mode() === 'reject') return 'triangle-alert';
+        return 'info';
+    });
+
+    protected readonly eyebrow = computed(() => {
+        if (this.mode() === 'approve') return 'Operación exitosa';
+        if (this.mode() === 'reject') return 'Advertencia';
+        return 'Información';
+    });
+
+    protected readonly title = computed(() => {
+        const current = this.request();
+
+        if (!current) return '';
+
+        if (this.mode() === 'approve') return 'Aprobar solicitud';
+        if (this.mode() === 'reject') return 'Rechazar solicitud';
+
+        return `Detalle — ${current.folio}`;
+    });
+
+    protected readonly message = computed(() => {
+        const current = this.request();
+
+        if (!current) return '';
+
+        if (this.mode() === 'approve') {
+            return `¿Está seguro de aprobar la solicitud ${current.folio} de ${current.applicant}? Esta acción notificará al usuario.`;
+        }
+
+        if (this.mode() === 'reject') {
+            return `¿Está seguro de rechazar la solicitud ${current.folio}? Esta acción notificará al usuario con el motivo de rechazo.`;
+        }
+
+        return '';
+    });
+
+    protected close(): void {
         this.closed.emit();
     }
 
-    protected approve(): void {
-        const request = this.request();
+    protected confirm(): void {
+        const current = this.request();
 
-        if (request) {
-            this.approved.emit(request);
-        }
-    }
-
-    protected reject(): void {
-        const request = this.request();
-
-        if (request) {
-            this.rejected.emit(request);
-        }
-    }
-
-    protected getPriorityTone(priority: RequestPriority): BadgeTone {
-        if (priority === 'Alta') {
-            return 'danger';
+        if (!current) {
+            return;
         }
 
-        if (priority === 'Media') {
-            return 'warning';
+        if (this.mode() === 'approve') {
+            this.approved.emit(current);
+            return;
         }
 
-        return 'neutral';
-    }
-
-    protected getStatusTone(status: RequestStatus): BadgeTone {
-        if (status === 'Aprobada') {
-            return 'success';
+        if (this.mode() === 'reject') {
+            this.rejected.emit(current);
         }
-
-        if (status === 'Pendiente') {
-            return 'warning';
-        }
-
-        if (status === 'En revisión') {
-            return 'info';
-        }
-
-        return 'danger';
     }
 }
