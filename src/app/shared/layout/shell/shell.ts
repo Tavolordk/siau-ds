@@ -55,7 +55,11 @@ export class SiauShell {
     this.sidebarCollapsed.update((value) => !value);
   }
 
-  protected onAvatarClick(): void {
+  protected onSettingsClick(): void {
+    void this.router.navigateByUrl('/administracion');
+  }
+
+  protected onLogoutClick(): void {
     this.auth.logout();
   }
 }

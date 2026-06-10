@@ -1,5 +1,6 @@
 <div class="siau-shell">
-  <siau-shell-header [userInitials]="userInitials()" (avatarClick)="onAvatarClick()" />
+  <siau-shell-header [userInitials]="userInitials()" (settingsClick)="onSettingsClick()"
+    (logoutClick)="onLogoutClick()" />
 
   <div class="siau-shell__body">
     <siau-shell-sidebar [items]="navItems" [activeId]="activeItemId()" [collapsed]="sidebarCollapsed()"

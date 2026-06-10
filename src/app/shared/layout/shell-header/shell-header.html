@@ -8,13 +8,41 @@
     </div>
 
     <div class="siau-shell-header__actions">
-        <button type="button" class="siau-shell-header__avatar" aria-label="Menú de usuario" title="Cerrar sesión"
-            (click)="onAvatarClick()">
-            @if (userInitials(); as initials) {
-            <span class="siau-shell-header__avatar-initials">{{ initials }}</span>
-            } @else {
-            <siau-lucide-icon name="user" size="24" strokeWidth="2" aria-hidden="true" />
+        <div class="siau-shell-header__user-menu">
+            <button type="button" class="siau-shell-header__avatar" aria-label="Abrir menú de usuario"
+                [attr.aria-expanded]="userMenuOpen()" (click)="toggleUserMenu($event)">
+                <siau-lucide-icon name="user" size="24" strokeWidth="2" aria-hidden="true" />
+            </button>
+
+            @if (userMenuOpen()) {
+            <section class="siau-shell-header__dropdown" role="menu" aria-label="Menú de usuario">
+                <div class="siau-shell-header__profile">
+                    <div class="siau-shell-header__profile-avatar">
+                        {{ userInitials() || 'JA' }}
+                    </div>
+
+                    <div class="siau-shell-header__profile-info">
+                        <strong>{{ userName() }}</strong>
+                        <span>{{ userRole() }}</span>
+                    </div>
+                </div>
+
+                <div class="siau-shell-header__dropdown-divider"></div>
+
+                <button type="button" class="siau-shell-header__dropdown-option" role="menuitem"
+                    (click)="onSettingsClick()">
+                    <siau-lucide-icon name="settings" size="17" strokeWidth="2" aria-hidden="true" />
+                    <span>Configuración</span>
+                </button>
+
+                <button type="button"
+                    class="siau-shell-header__dropdown-option siau-shell-header__dropdown-option--danger"
+                    role="menuitem" (click)="onLogoutClick()">
+                    <siau-lucide-icon name="log-out" size="17" strokeWidth="2" aria-hidden="true" />
+                    <span>Cerrar sesión</span>
+                </button>
+            </section>
             }
-        </button>
+        </div>
     </div>
 </header>
