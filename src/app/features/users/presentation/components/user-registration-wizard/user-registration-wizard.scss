@@ -1,12 +1,20 @@
 :host {
-  display: contents;
+  display: block;
+  width: 100%;
 }
 
+/*
+  El modal original necesita más aire en escritorio.
+  Este ancho evita que el formulario se vea comprimido.
+*/
 .registration-wizard {
+  width: 100%;
+  max-width: none;
   display: grid;
   grid-template-columns: 13.1rem minmax(0, 1fr);
   min-height: 38rem;
   background: #e8f0f6;
+  overflow: hidden;
 }
 
 .registration-wizard__sidebar {
@@ -52,7 +60,8 @@
   box-shadow: 0 8px 16px rgba(27, 31, 74, 0.08);
 }
 
-.registration-wizard__section-icon mat-icon {
+.registration-wizard__section-icon mat-icon,
+.registration-wizard__section-icon siau-lucide-icon {
   font-size: 1.2rem;
   width: 1.2rem;
   height: 1.2rem;
@@ -156,7 +165,8 @@
   line-height: var(--siau-line-normal);
 }
 
-.registration-wizard__info-box mat-icon {
+.registration-wizard__info-box mat-icon,
+.registration-wizard__info-box siau-lucide-icon {
   flex: none;
   color: var(--siau-color-primary-500);
   font-size: 1rem;
@@ -240,89 +250,6 @@
   gap: var(--siau-space-3);
 }
 
-@media (max-width: 992px) {
-  .registration-wizard {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .registration-wizard__sidebar {
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.62);
-  }
-
-  .registration-wizard__content {
-    min-height: auto;
-  }
-
-  .registration-wizard__section-header,
-  .registration-wizard__progress-strip,
-  .registration-wizard__grid,
-  .registration-wizard__documents {
-    padding-left: var(--siau-space-5);
-    padding-right: var(--siau-space-5);
-  }
-
-  .registration-wizard__info-box,
-  .registration-wizard__permission-card,
-  .registration-wizard__notice {
-    margin-left: var(--siau-space-5);
-    margin-right: var(--siau-space-5);
-  }
-}
-
-@media (max-width: 768px) {
-  .registration-wizard__section-header {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .registration-wizard__section-meta {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .registration-wizard__grid {
-    grid-template-columns: 1fr;
-    gap: var(--siau-space-4);
-  }
-
-  .registration-wizard__section-title h3 {
-    font-size: var(--siau-text-base);
-  }
-
-  .registration-wizard__footer {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-    padding: var(--siau-space-4);
-  }
-
-  .registration-wizard__actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .registration-wizard__button {
-    width: 100%;
-  }
-}
-
-@media (max-width: 576px) {
-  .registration-wizard__section-header,
-  .registration-wizard__progress-strip,
-  .registration-wizard__grid,
-  .registration-wizard__documents {
-    padding-left: var(--siau-space-4);
-    padding-right: var(--siau-space-4);
-  }
-
-  .registration-wizard__info-box,
-  .registration-wizard__permission-card,
-  .registration-wizard__notice {
-    margin-left: var(--siau-space-4);
-    margin-right: var(--siau-space-4);
-  }
-}
 .registration-wizard__button {
   appearance: none;
   border: 0;
@@ -347,7 +274,8 @@
     opacity var(--siau-duration-base) var(--siau-ease-out);
 }
 
-.registration-wizard__button mat-icon {
+.registration-wizard__button mat-icon,
+.registration-wizard__button siau-lucide-icon {
   font-size: 1rem;
   width: 1rem;
   height: 1rem;
@@ -388,6 +316,7 @@
 .registration-wizard__button--ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.72);
 }
+
 .registration-wizard__profiles-toolbar {
   display: flex;
   flex-direction: column;
@@ -410,7 +339,8 @@
   font-weight: var(--siau-font-weight-semibold);
 }
 
-.registration-wizard__profiles-badge mat-icon {
+.registration-wizard__profiles-badge mat-icon,
+.registration-wizard__profiles-badge siau-lucide-icon {
   font-size: 1rem;
   width: 1rem;
   height: 1rem;
@@ -482,7 +412,8 @@
   color: #ffffff;
 }
 
-.registration-wizard__profile-checkmark mat-icon {
+.registration-wizard__profile-checkmark mat-icon,
+.registration-wizard__profile-checkmark siau-lucide-icon {
   font-size: 1.1rem;
   width: 1.1rem;
   height: 1.1rem;
@@ -508,31 +439,6 @@
   line-height: 1.45;
 }
 
-@media (max-width: 992px) {
-  .registration-wizard__profiles-toolbar,
-  .registration-wizard__profile-list {
-    padding-left: var(--siau-space-5);
-    padding-right: var(--siau-space-5);
-  }
-}
-
-@media (max-width: 768px) {
-  .registration-wizard__profile-list {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 576px) {
-  .registration-wizard__profiles-toolbar,
-  .registration-wizard__profile-list {
-    padding-left: var(--siau-space-4);
-    padding-right: var(--siau-space-4);
-  }
-
-  .registration-wizard__profile-option {
-    padding: var(--siau-space-3);
-  }
-}
 .registration-wizard__info-box--documents {
   margin-bottom: 0;
 }
@@ -614,7 +520,8 @@
   color: #798aa3;
 }
 
-.registration-wizard__upload-icon mat-icon {
+.registration-wizard__upload-icon mat-icon,
+.registration-wizard__upload-icon siau-lucide-icon {
   font-size: 1.15rem;
   width: 1.15rem;
   height: 1.15rem;
@@ -633,34 +540,6 @@
   line-height: 1.2;
 }
 
-@media (max-width: 992px) {
-  .registration-wizard__documents-grid {
-    padding-left: var(--siau-space-5);
-    padding-right: var(--siau-space-5);
-  }
-}
-
-@media (max-width: 768px) {
-  .registration-wizard__documents-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 576px) {
-  .registration-wizard__documents-grid {
-    padding-left: var(--siau-space-4);
-    padding-right: var(--siau-space-4);
-  }
-
-  .registration-wizard__upload-box {
-    min-height: 7.2rem;
-    padding: var(--siau-space-4);
-  }
-  .registration-wizard__grid--contact {
-    padding-top: var(--siau-space-5);
-    align-items: start;
-  }
-}
 .registration-wizard__profiles-panel {
   display: flex;
   flex-direction: column;
@@ -765,7 +644,8 @@
   color: var(--siau-color-primary-500);
 }
 
-.registration-wizard__profiles-remove mat-icon {
+.registration-wizard__profiles-remove mat-icon,
+.registration-wizard__profiles-remove siau-lucide-icon {
   font-size: 1rem;
   width: 1rem;
   height: 1rem;
@@ -804,33 +684,6 @@
   min-width: 7rem;
 }
 
-@media (max-width: 992px) {
-  .registration-wizard__profiles-panel {
-    padding-left: var(--siau-space-5);
-    padding-right: var(--siau-space-5);
-  }
-}
-
-@media (max-width: 768px) {
-  .registration-wizard__profiles-add-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .registration-wizard__profiles-add-action {
-    width: 100%;
-  }
-
-  .registration-wizard__button--add {
-    width: 100%;
-  }
-}
-
-@media (max-width: 576px) {
-  .registration-wizard__profiles-panel {
-    padding-left: var(--siau-space-4);
-    padding-right: var(--siau-space-4);
-  }
-}
 .registration-wizard__account-panel {
   display: flex;
   flex-direction: column;
@@ -919,7 +772,8 @@
   color: var(--siau-color-primary-500);
 }
 
-.registration-wizard__input-icon-button mat-icon {
+.registration-wizard__input-icon-button mat-icon,
+.registration-wizard__input-icon-button siau-lucide-icon {
   font-size: 1rem;
   width: 1rem;
   height: 1rem;
@@ -982,7 +836,8 @@
   margin-bottom: 0.45rem;
 }
 
-.registration-wizard__status-card-title mat-icon {
+.registration-wizard__status-card-title mat-icon,
+.registration-wizard__status-card-title siau-lucide-icon {
   font-size: 1rem;
   width: 1rem;
   height: 1rem;
@@ -994,26 +849,139 @@
   line-height: 1.35;
 }
 
+/*
+  Overrides para cuando el wizard vive dentro del modal genérico.
+  Esto evita que el modal padre lo limite a lg/md.
+*/
+:host-context(.siau-modal__surface),
+:host-context(.siau-modal__surface--xl),
+:host-context(.siau-modal__surface--lg) {
+  width: min(92vw, 72rem);
+  max-width: 72rem;
+}
+
+:host ::ng-deep .siau-modal__surface,
+:host-context(.siau-modal) .siau-modal__surface {
+  width: min(92vw, 72rem);
+  max-width: 72rem;
+}
+
 @media (max-width: 992px) {
+  :host {
+    width: 100%;
+  }
+
+  .registration-wizard {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .registration-wizard__sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+  }
+
+  .registration-wizard__content {
+    min-height: auto;
+  }
+
+  .registration-wizard__section-header,
+  .registration-wizard__progress-strip,
+  .registration-wizard__grid,
+  .registration-wizard__documents,
+  .registration-wizard__profiles-toolbar,
+  .registration-wizard__profile-list,
+  .registration-wizard__documents-grid,
+  .registration-wizard__profiles-panel,
   .registration-wizard__account-panel {
     padding-left: var(--siau-space-5);
     padding-right: var(--siau-space-5);
   }
+
+  .registration-wizard__info-box,
+  .registration-wizard__permission-card,
+  .registration-wizard__notice {
+    margin-left: var(--siau-space-5);
+    margin-right: var(--siau-space-5);
+  }
 }
 
 @media (max-width: 768px) {
-  .registration-wizard__account-grid {
+  .registration-wizard__section-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .registration-wizard__section-meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .registration-wizard__grid,
+  .registration-wizard__profile-list,
+  .registration-wizard__documents-grid,
+  .registration-wizard__profiles-add-grid,
+  .registration-wizard__account-grid,
+  .registration-wizard__account-status-grid {
     grid-template-columns: 1fr;
   }
 
-  .registration-wizard__account-status-grid {
+  .registration-wizard__section-title h3 {
+    font-size: var(--siau-text-base);
+  }
+
+  .registration-wizard__footer {
     grid-template-columns: 1fr;
+    align-items: stretch;
+    padding: var(--siau-space-4);
+  }
+
+  .registration-wizard__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .registration-wizard__button,
+  .registration-wizard__button--add,
+  .registration-wizard__profiles-add-action {
+    width: 100%;
   }
 }
 
 @media (max-width: 576px) {
+  .registration-wizard__section-header,
+  .registration-wizard__progress-strip,
+  .registration-wizard__grid,
+  .registration-wizard__documents,
+  .registration-wizard__profiles-toolbar,
+  .registration-wizard__profile-list,
+  .registration-wizard__documents-grid,
+  .registration-wizard__profiles-panel,
   .registration-wizard__account-panel {
     padding-left: var(--siau-space-4);
     padding-right: var(--siau-space-4);
+  }
+
+  .registration-wizard__info-box,
+  .registration-wizard__permission-card,
+  .registration-wizard__notice {
+    margin-left: var(--siau-space-4);
+    margin-right: var(--siau-space-4);
+  }
+
+  .registration-wizard__profile-option {
+    padding: var(--siau-space-3);
+  }
+
+  .registration-wizard__upload-box {
+    min-height: 7.2rem;
+    padding: var(--siau-space-4);
+  }
+
+  .registration-wizard__grid--contact {
+    padding-top: var(--siau-space-5);
+    align-items: start;
   }
 }
