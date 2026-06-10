@@ -246,3 +246,60 @@
     max-height: calc(100dvh - 98px) !important;
   }
 }
+/* =========================================================
+   RESPONSIVE FIX: modal wizard full height + overflow vertical
+========================================================= */
+
+@media (max-width: 920px) {
+  .siau-modal {
+    padding: 12px !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+  }
+
+  .siau-modal__surface:has(.registration-wizard) {
+    width: 100% !important;
+    max-width: none !important;
+    height: calc(100dvh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .siau-modal__surface:has(.registration-wizard) .siau-modal__header {
+    flex: none !important;
+    min-height: 64px !important;
+    padding: 12px 14px !important;
+  }
+
+  .siau-modal__surface:has(.registration-wizard) .siau-modal__content {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .siau-modal {
+    padding: 0 !important;
+  }
+
+  .siau-modal__surface:has(.registration-wizard) {
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  .siau-modal__surface:has(.registration-wizard) .siau-modal__header {
+    min-height: 62px !important;
+    padding: 11px 14px !important;
+  }
+}
