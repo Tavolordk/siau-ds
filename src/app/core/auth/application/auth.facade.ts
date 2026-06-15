@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, switchMap } from 'rxjs';
+import { CaptchaFacade } from '../../captcha/application/captcha.facade';
 import { AuthApi } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
 import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model';
@@ -9,6 +10,7 @@ import { LoginRequest } from '../domain/login-request.model';
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
     private readonly api = inject(AuthApi);
+    private readonly captcha = inject(CaptchaFacade);
     private readonly storage = inject(AuthStorage);
     private readonly router = inject(Router);
 
@@ -25,13 +27,25 @@ export class AuthFacade {
     login(request: LoginRequest): void {
         this.loadingState.set(true);
         this.errorState.set(null);
+        this.captcha.clearError();
 
-        this.api
-            .login(request)
-            .pipe(finalize(() => this.loadingState.set(false)))
+        this.captcha
+            .verifyAnswer(request.captcha)
+            .pipe(
+                switchMap((verification) =>
+                    this.api.login({
+                        ...request,
+                        captchaToken: verification.token ?? undefined,
+                    }),
+                ),
+                finalize(() => this.loadingState.set(false)),
+            )
             .subscribe({
                 next: (result) => this.handleLoginResult(result),
-                error: (error: Error) => this.errorState.set(error.message),
+                error: (error: Error) => {
+                    this.errorState.set(error.message);
+                    this.captcha.refresh();
+                },
             });
     }
 

@@ -63,18 +63,20 @@
                             </label>
                         </div>
 
-                        <section class="overflow-hidden rounded-xl border border-white/30 bg-[#99A8BE]/35">
+                        <!-- Captcha dinámico con estilo Figma original -->
+                        <div class="overflow-hidden rounded-xl border border-white/30 bg-[rgba(153,168,190,0.35)]">
                             <div class="flex items-center justify-between px-3 pb-1 pt-2.5">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-white/80">
                                     Verificación de Seguridad
                                 </span>
 
-                                <button type="button"
-                                    class="rounded p-0.5 text-white/60 transition-colors hover:text-white"
-                                    aria-label="Actualizar captcha">
+                                <button type="button" aria-label="Actualizar captcha"
+                                    class="rounded p-0.5 text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                                    [disabled]="captcha.loading() || captcha.verifying() || auth.loading()"
+                                    (click)="refreshCaptcha()">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
                                         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
+                                        stroke-linejoin="round" [class.animate-spin]="captcha.loading()">
                                         <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
                                         <path d="M21 3v5h-5"></path>
                                         <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
@@ -83,11 +85,12 @@
                                 </button>
                             </div>
 
-                            <div
-                                class="mx-3 mb-2 overflow-hidden rounded-lg border border-white/20 bg-[linear-gradient(135deg,#DDE5EF_0%,#C5D3E2_50%,#D8E2EE_100%)]">
-                                <div class="relative flex select-none items-center justify-center gap-0.5 px-2 py-1">
-                                    <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-[0.18]"
-                                        xmlns="http://www.w3.org/2000/svg">
+                            <div class="mx-3 mb-2 overflow-hidden rounded-lg border border-white/20"
+                                style="background: linear-gradient(135deg, rgb(221, 229, 239) 0%, rgb(197, 211, 226) 50%, rgb(216, 226, 238) 100%);">
+                                <div
+                                    class="relative flex h-[39px] select-none items-center justify-center overflow-hidden px-0 py-0">
+                                    <svg class="pointer-events-none absolute inset-0 z-10 h-full w-full"
+                                        xmlns="http://www.w3.org/2000/svg" style="opacity: 0.18;">
                                         <line x1="0" y1="40%" x2="100%" y2="55%" stroke="#1B1F4A" stroke-width="1.5">
                                         </line>
                                         <line x1="0" y1="65%" x2="100%" y2="35%" stroke="#1E5B4F" stroke-width="1">
@@ -96,39 +99,44 @@
                                         </line>
                                     </svg>
 
-                                    <span
-                                        class="inline-block rotate-[-8deg] translate-y-[-1px] font-['Noto_Sans'] text-[1.15rem] font-bold tracking-[0.05em] text-[#1B1F4A] [text-shadow:0_1px_2px_rgba(0,0,0,0.15)]">V</span>
-                                    <span
-                                        class="inline-block rotate-[5deg] translate-y-[2px] font-['Noto_Sans'] text-[1.05rem] font-black tracking-[0.05em] text-[#1E5B4F] [text-shadow:0_1px_2px_rgba(0,0,0,0.15)]">T</span>
-                                    <span
-                                        class="inline-block rotate-[-4deg] translate-y-[-1px] font-['Noto_Sans'] text-[1.2rem] font-semibold tracking-[0.05em] text-[#2C3A8C] [text-shadow:0_1px_2px_rgba(0,0,0,0.15)]">8</span>
-                                    <span
-                                        class="inline-block rotate-[7deg] translate-y-[2px] font-['Noto_Sans'] text-[1rem] font-extrabold tracking-[0.05em] text-[#14453D] [text-shadow:0_1px_2px_rgba(0,0,0,0.15)]">K</span>
-                                    <span
-                                        class="inline-block rotate-[-6deg] translate-y-[-1px] font-['Noto_Sans'] text-[1.18rem] font-bold tracking-[0.05em] text-[#334180] [text-shadow:0_1px_2px_rgba(0,0,0,0.15)]">K</span>
-                                    <span
-                                        class="inline-block rotate-[3deg] translate-y-[2px] font-['Noto_Sans'] text-[1.08rem] font-black tracking-[0.05em] text-[#1B1F4A] [text-shadow:0_1px_2px_rgba(0,0,0,0.15)]">5</span>
+                                    @if (captcha.loading()) {
+                                    <span class="relative z-20 text-xs font-bold tracking-wide text-[#1B1F4A]">
+                                        Generando captcha...
+                                    </span>
+                                    } @else if (captcha.imageDataUrl()) {
+                                    <img class="relative z-0 h-[34px] w-full select-none object-contain"
+                                        [src]="captcha.imageDataUrl() ?? ''" alt="Imagen del captcha de seguridad"
+                                        draggable="false" />
+                                    } @else {
+                                    <span class="relative z-20 text-xs font-bold tracking-wide text-[#1B1F4A]">
+                                        No se pudo cargar el captcha
+                                    </span>
+                                    }
                                 </div>
                             </div>
 
                             <div class="px-3 pb-3">
-                                <input type="text" formControlName="captcha"
-                                    placeholder="Escribe los caracteres de arriba" maxlength="6" autocomplete="off"
+                                <input id="captcha" type="text" formControlName="captcha"
+                                    placeholder="Escribe los caracteres de arriba" maxlength="12" autocomplete="off"
+                                    inputmode="text"
+                                    class="w-full rounded-lg border border-white/30 bg-[#99A8BE] px-3 py-2 text-sm font-semibold tracking-widest text-[#1B1F4A] shadow-inner transition-all placeholder:font-normal placeholder:tracking-normal placeholder:text-[#E7F1F3] focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60"
                                     (input)="normalizeCaptcha()"
-                                    class="w-full rounded-lg border border-white/30 bg-[#99A8BE] px-3 py-2 text-sm font-semibold uppercase tracking-widest text-[#1B1F4A] shadow-inner transition-all placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-[#E7F1F3] focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60" />
+                                    [disabled]="captcha.loading() || captcha.verifying() || auth.loading()" />
                             </div>
-                        </section>
+                        </div>
 
-                        @if (auth.error()) {
+                        @if (auth.error() || captcha.error()) {
                         <p class="rounded-xl border border-red-200/30 bg-red-500/15 px-3 py-2 text-sm text-red-50"
                             role="alert">
-                            {{ auth.error() }}
+                            {{ auth.error() || captcha.error() }}
                         </p>
                         }
 
-                        <button type="submit" [disabled]="form.invalid || auth.loading()"
+                        <button type="submit"
+                            [disabled]="form.invalid || auth.loading() || captcha.loading() || captcha.verifying() || !captcha.challenge()"
                             class="group mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1B1F4A] py-3.5 font-bold text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70">
-                            {{ auth.loading() ? 'Validando...' : 'Ingresar' }}
+                            {{ auth.loading() || captcha.verifying() ? 'Validando...' : 'Ingresar' }}
+
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round" class="transition-transform group-hover:translate-x-1">
@@ -150,6 +158,7 @@
                                 <line x1="19" x2="19" y1="8" y2="14"></line>
                                 <line x1="22" x2="16" y1="11" y2="11"></line>
                             </svg>
+
                             Crear cuenta
                         </a>
                     </div>

@@ -3,7 +3,6 @@ import { delay, Observable, of, throwError } from 'rxjs';
 import { AuthSession, AuthUser, PendingAuthChallenge } from '../domain/auth-session.model';
 import { LoginRequest } from '../domain/login-request.model';
 
-const MOCK_CAPTCHA = 'VT8KK5';
 const MOCK_CODE = '123456';
 
 interface MockUserRecord {
@@ -43,14 +42,14 @@ const MOCK_USERS: MockUserRecord[] = [
 export class AuthApi {
     login(request: LoginRequest): Observable<AuthSession | PendingAuthChallenge> {
         const username = request.username.trim().toLowerCase();
-        const captcha = request.captcha.trim().toUpperCase();
+        const captchaToken = request.captchaToken?.trim();
 
-        if (!username || !request.password || !captcha) {
-            return throwError(() => new Error('Completa usuario, contraseña y captcha.')).pipe(delay(250));
+        if (!username || !request.password) {
+            return throwError(() => new Error('Completa usuario y contraseña.')).pipe(delay(250));
         }
 
-        if (captcha !== MOCK_CAPTCHA) {
-            return throwError(() => new Error('El captcha no coincide. Intenta nuevamente.')).pipe(delay(250));
+        if (!captchaToken) {
+            return throwError(() => new Error('Valida el captcha antes de iniciar sesión.')).pipe(delay(250));
         }
 
         const foundUser = MOCK_USERS.find(
