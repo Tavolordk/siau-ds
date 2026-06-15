@@ -1,15 +1,13 @@
 import { Injectable, signal } from '@angular/core';
 import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model';
 
-const SESSION_KEY = 'siau.mock.session';
-const CHALLENGE_KEY = 'siau.mock.challenge';
+const SESSION_KEY = 'siau.auth.session';
+const CHALLENGE_KEY = 'siau.auth.challenge';
 
 @Injectable({ providedIn: 'root' })
 export class AuthStorage {
     private readonly sessionState = signal<AuthSession | null>(this.readSessionFromStorage());
-    private readonly challengeState = signal<PendingAuthChallenge | null>(
-        this.readChallengeFromStorage(),
-    );
+    private readonly challengeState = signal<PendingAuthChallenge | null>(this.readChallengeFromStorage());
 
     readonly session = this.sessionState.asReadonly();
     readonly challenge = this.challengeState.asReadonly();
@@ -28,6 +26,10 @@ export class AuthStorage {
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         this.sessionState.set(session);
         this.clearChallenge();
+    }
+
+    updateSession(session: AuthSession): void {
+        this.saveSession(session);
     }
 
     clearSession(): void {

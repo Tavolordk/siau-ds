@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthFacade } from '../../../core/auth/application/auth.facade';
@@ -13,13 +13,16 @@ import { SiauShellSidebar, SidebarItem } from '../shell-sidebar/shell-sidebar';
   templateUrl: './shell.html',
   styleUrl: './shell.scss',
 })
-export class SiauShell {
+export class SiauShell implements OnDestroy {
+  protected readonly auth = inject(AuthFacade);
+
   private readonly router = inject(Router);
-  private readonly auth = inject(AuthFacade);
   private readonly currentUrl = signal<string>(this.router.url);
 
   protected readonly sidebarCollapsed = signal<boolean>(false);
   protected readonly userInitials = this.auth.userInitials;
+  protected readonly userName = this.auth.userName;
+  protected readonly userRole = this.auth.userRole;
 
   protected readonly navItems: SidebarItem[] = [
     { id: 'usuarios', label: 'Usuarios', icon: 'users', route: '/usuarios' },
@@ -36,11 +39,17 @@ export class SiauShell {
   });
 
   constructor() {
+    this.auth.startSessionMonitor();
+
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => {
         this.currentUrl.set(event.urlAfterRedirects);
       });
+  }
+
+  ngOnDestroy(): void {
+    this.auth.stopSessionMonitor();
   }
 
   protected onItemClick(item: SidebarItem): void {
@@ -61,5 +70,13 @@ export class SiauShell {
 
   protected onLogoutClick(): void {
     this.auth.logout();
+  }
+
+  protected onKeepSessionClick(): void {
+    this.auth.keepSession();
+  }
+
+  protected onCloseSessionClick(): void {
+    this.auth.closeSessionFromPrompt();
   }
 }

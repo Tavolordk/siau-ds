@@ -1,6 +1,6 @@
 <div class="siau-shell">
-  <siau-shell-header [userInitials]="userInitials()" (settingsClick)="onSettingsClick()"
-    (logoutClick)="onLogoutClick()" />
+  <siau-shell-header [userInitials]="userInitials()" [userName]="userName()" [userRole]="userRole()"
+    (settingsClick)="onSettingsClick()" (logoutClick)="onLogoutClick()" />
 
   <div class="siau-shell__body">
     <siau-shell-sidebar [items]="navItems" [activeId]="activeItemId()" [collapsed]="sidebarCollapsed()"
@@ -10,4 +10,44 @@
       <router-outlet />
     </main>
   </div>
+
+  @if (auth.sessionPromptVisible()) {
+  <section class="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm"
+    role="dialog" aria-modal="true" aria-labelledby="session-renewal-title">
+    <div class="w-full max-w-md rounded-2xl border border-white/20 bg-[#1B1F4A] p-6 text-white shadow-2xl">
+      <div class="mb-4 flex items-start gap-3">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
+          <span class="text-lg">⏱</span>
+        </div>
+
+        <div>
+          <h2 id="session-renewal-title" class="text-lg font-bold">¿Deseas mantener tu sesión?</h2>
+          <p class="mt-1 text-sm text-white/70">
+            Por seguridad, tu sesión se valida cada 15 minutos. Puedes renovarla o cerrarla ahora.
+          </p>
+        </div>
+      </div>
+
+      @if (auth.sessionPromptError()) {
+      <p class="mb-4 rounded-xl border border-red-200/30 bg-red-500/15 px-3 py-2 text-sm text-red-50">
+        {{ auth.sessionPromptError() }}
+      </p>
+      }
+
+      <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <button type="button"
+          class="rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          [disabled]="auth.sessionPromptLoading()" (click)="onCloseSessionClick()">
+          Cerrar sesión
+        </button>
+
+        <button type="button"
+          class="rounded-xl bg-white px-4 py-2 text-sm font-bold text-[#1B1F4A] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+          [disabled]="auth.sessionPromptLoading()" (click)="onKeepSessionClick()">
+          {{ auth.sessionPromptLoading() ? 'Renovando...' : 'Mantener sesión' }}
+        </button>
+      </div>
+    </div>
+  </section>
+  }
 </div>

@@ -11,7 +11,7 @@ import {
 import { CaptchaRepository } from '../domain/captcha.repository';
 
 const DEFAULT_CAPTCHA_OPTIONS: Required<CaptchaGenerationOptions> = {
-    colorFondoHex: '#DDE5EF',
+    colorFondoHex: '#D3DEEA',
     ttlSegundos: 120,
     longitud: 6,
 };
