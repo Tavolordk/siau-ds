@@ -10,7 +10,7 @@ import {
 } from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
 
-const CATALOGOS_PATH = '/api/catalogos';
+const CATALOGOS_PATH = '/api/v1/catalogos';
 
 @Injectable({ providedIn: 'root' })
 export class CatalogosApiRepository implements CatalogosRepository {
