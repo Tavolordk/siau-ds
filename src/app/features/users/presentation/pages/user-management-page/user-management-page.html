@@ -18,15 +18,29 @@
             </button>
         </div>
 
-        <article class="users-table-card">
+        <article class="users-table-card" [attr.aria-busy]="isLoading()">
             <div class="users-table-card__search-row">
                 <label class="users-table-card__search">
                     <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
 
                     <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
-                        placeholder="Buscar por nombre, usuario o correo..." aria-label="Buscar usuario" />
+                        (keyup.enter)="searchNow()" placeholder="Buscar por nombre, usuario o correo..."
+                        aria-label="Buscar usuario" />
                 </label>
+
+                <button type="button" class="users-table-card__reload" title="Recargar usuarios"
+                    aria-label="Recargar usuarios" [disabled]="isLoading()" (click)="reloadUsers()">
+                    <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>Recargar</span>
+                </button>
             </div>
+
+            @if (errorMessage(); as error) {
+            <div class="users-table-card__message users-table-card__message--error" role="alert">
+                <siau-lucide-icon name="circle-x" size="17" strokeWidth="2" aria-hidden="true" />
+                <span>{{ error }}</span>
+            </div>
+            }
 
             <div class="users-table-card__scroll">
                 <table class="users-table">
@@ -44,7 +58,28 @@
                     </thead>
 
                     <tbody>
-                        @for (user of filteredUsers(); track user.username) {
+                        @if (isLoading()) {
+                        <tr class="users-table__state-row">
+                            <td colspan="8">
+                                <div class="users-table__state">
+                                    <span class="users-table__loader" aria-hidden="true"></span>
+                                    <strong>Consultando usuarios...</strong>
+                                    <small>Conectando con el servicio de usuarios</small>
+                                </div>
+                            </td>
+                        </tr>
+                        } @else if (!filteredUsers().length) {
+                        <tr class="users-table__state-row">
+                            <td colspan="8">
+                                <div class="users-table__state">
+                                    <siau-lucide-icon name="users" size="24" strokeWidth="2" aria-hidden="true" />
+                                    <strong>No hay usuarios para mostrar</strong>
+                                    <small>Intenta con otra búsqueda o recarga la información.</small>
+                                </div>
+                            </td>
+                        </tr>
+                        } @else {
+                        @for (user of filteredUsers(); track user.userId) {
                         <tr>
                             <td data-label="Usuario">
                                 <span class="users-table__username">{{ user.username }}</span>
@@ -84,9 +119,10 @@
 
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
-                                    <button type="button" class="users-table__action users-table__action--edit"
-                                        title="Editar" aria-label="Editar usuario">
-                                        <siau-lucide-icon name="pencil" size="16" strokeWidth="2" aria-hidden="true" />
+                                    <button type="button" class="users-table__action users-table__action--detail"
+                                        title="Ver detalle" aria-label="Ver detalle de usuario"
+                                        (click)="openUserDetail(user)">
+                                        <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
                                     <button type="button" class="users-table__action users-table__action--ban"
@@ -103,15 +139,84 @@
                             </td>
                         </tr>
                         }
+                        }
                     </tbody>
                 </table>
             </div>
 
             <footer class="users-table-card__footer">
-                <p>Mostrando {{ filteredUsers().length }} de {{ users().length }} usuarios</p>
+                <p>
+                    Mostrando {{ filteredUsers().length }} de {{ pagination().totalRegistros }} usuarios · Página
+                    {{ pagination().paginaActual }} de {{ pagination().totalPaginas }}
+                </p>
+
+                <div class="users-table-card__pagination" aria-label="Paginación de usuarios">
+                    <button type="button" [disabled]="!canGoPrevious() || isLoading()" (click)="previousPage()">
+                        Anterior
+                    </button>
+
+                    <button type="button" [disabled]="!canGoNext() || isLoading()" (click)="nextPage()">
+                        Siguiente
+                    </button>
+                </div>
             </footer>
         </article>
     </main>
 </section>
+
+<siau-modal [open]="isDetailOpen()" [title]="detailTitle()" [subtitle]="detailSubtitle()" icon="eye" size="lg"
+    (close)="closeUserDetail()">
+    <section class="user-detail">
+        @if (isDetailLoading()) {
+        <div class="user-detail__state">
+            <span class="users-table__loader" aria-hidden="true"></span>
+            <strong>Consultando detalle...</strong>
+            <small>Obteniendo información completa del usuario.</small>
+        </div>
+        } @else if (detailErrorMessage(); as detailError) {
+        <div class="user-detail__state user-detail__state--error" role="alert">
+            <siau-lucide-icon name="circle-x" size="22" strokeWidth="2" aria-hidden="true" />
+            <strong>No fue posible consultar el detalle</strong>
+            <small>{{ detailError }}</small>
+        </div>
+        } @else {
+        @if (selectedUser(); as user) {
+        <div class="user-detail__summary">
+            <div>
+                <span>Usuario</span>
+                <strong>{{ user.username }}</strong>
+            </div>
+
+            <div>
+                <span>Correo</span>
+                <strong>{{ user.email }}</strong>
+            </div>
+
+            <div>
+                <span>Fecha alta</span>
+                <strong>{{ formatDate(user.createdAt) }}</strong>
+            </div>
+        </div>
+        }
+
+        @if (detailFields().length) {
+        <dl class="user-detail__grid">
+            @for (field of detailFields(); track field.key) {
+            <div class="user-detail__item">
+                <dt>{{ field.label }}</dt>
+                <dd>{{ field.value }}</dd>
+            </div>
+            }
+        </dl>
+        } @else {
+        <div class="user-detail__state">
+            <siau-lucide-icon name="info" size="22" strokeWidth="2" aria-hidden="true" />
+            <strong>Sin datos adicionales</strong>
+            <small>El servicio respondió correctamente, pero no regresó campos de detalle.</small>
+        </div>
+        }
+        }
+    </section>
+</siau-modal>
 
 <app-user-registration-wizard [open]="isRegistrationOpen()" (closed)="closeRegistration()" />

@@ -156,7 +156,6 @@
   box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.14);
 }
 
-/* Desktop table */
 .users-table-card__scroll {
   width: 100%;
   max-width: 100%;
@@ -360,6 +359,14 @@
   background: rgba(62, 92, 118, 0.15);
 }
 
+.users-table__action--detail {
+  color: #1b1f4a;
+}
+
+.users-table__action--detail:hover {
+  background: rgba(27, 31, 74, 0.12);
+}
+
 .users-table__action--ban {
   color: #c5651a;
 }
@@ -388,7 +395,238 @@
   font-size: 0.75rem;
 }
 
-/* Compact desktop / tablet landscape */
+.users-table-card__search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.users-table-card__reload {
+  flex: none;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(27, 31, 74, 0.16);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.56);
+  color: #1b1f4a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
+  cursor: pointer;
+}
+
+.users-table-card__reload:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.76);
+  border-color: rgba(27, 31, 74, 0.24);
+  transform: translateY(-1px);
+}
+
+.users-table-card__reload:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.users-table-card__message {
+  margin: 0.85rem 1rem 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.users-table-card__message--error {
+  border: 1px solid rgba(97, 18, 50, 0.22);
+  background: rgba(97, 18, 50, 0.08);
+  color: #611232;
+}
+
+.users-table__state-row td {
+  padding: 2.25rem 1rem;
+  text-align: center;
+}
+
+.users-table__state {
+  min-height: 8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  color: rgba(27, 31, 74, 0.62);
+}
+
+.users-table__state strong {
+  color: #1b1f4a;
+  font-size: 0.92rem;
+}
+
+.users-table__state small {
+  max-width: 24rem;
+  color: rgba(27, 31, 74, 0.55);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.users-table__loader {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 3px solid rgba(27, 31, 74, 0.16);
+  border-top-color: #1b1f4a;
+  border-radius: 9999px;
+  animation: users-loader-spin 700ms linear infinite;
+}
+
+.users-table-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.users-table-card__pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.users-table-card__pagination button {
+  min-height: 2rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(27, 31, 74, 0.14);
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.52);
+  color: #1b1f4a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.users-table-card__pagination button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.78);
+  transform: translateY(-1px);
+}
+
+.users-table-card__pagination button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.user-detail {
+  height: 100%;
+  max-height: 68vh;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.user-detail__summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.user-detail__summary > div {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(27, 31, 74, 0.12);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.user-detail__summary span,
+.user-detail__item dt {
+  display: block;
+  margin-bottom: 0.28rem;
+  color: rgba(27, 31, 74, 0.55);
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.user-detail__summary strong {
+  display: block;
+  overflow: hidden;
+  color: #1b1f4a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-detail__grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.user-detail__item {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: 0 8px 18px rgba(27, 31, 74, 0.06);
+}
+
+.user-detail__item dd {
+  margin: 0;
+  color: #1b1f4a;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.user-detail__state {
+  min-height: 15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  text-align: center;
+  color: rgba(27, 31, 74, 0.65);
+}
+
+.user-detail__state strong {
+  color: #1b1f4a;
+  font-size: 0.95rem;
+}
+
+.user-detail__state small {
+  max-width: 28rem;
+  color: rgba(27, 31, 74, 0.58);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.user-detail__state--error {
+  color: #611232;
+}
+
+@keyframes users-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 1180px) {
   .users-page__content {
     max-width: none;
@@ -420,10 +658,6 @@
   }
 }
 
-/*
-  Tablet/mobile:
-  Cambiamos la tabla a tarjetas para evitar overflow horizontal.
-*/
 @media (max-width: 900px) {
   .users-page__header {
     padding: 0.85rem 1rem;
@@ -449,6 +683,12 @@
 
   .users-table-card__search-row {
     padding: 0.9rem;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .users-table-card__reload {
+    width: 100%;
   }
 
   .users-table-card__scroll {
@@ -564,9 +804,40 @@
     min-height: 1.55rem;
     font-size: 0.68rem;
   }
+
+  .users-table__state-row {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .users-table__state-row td {
+    display: block !important;
+    padding: 2rem 1rem !important;
+  }
+
+  .users-table__state-row td::before {
+    display: none;
+  }
+
+  .users-table-card__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .users-table-card__pagination {
+    width: 100%;
+  }
+
+  .users-table-card__pagination button {
+    flex: 1;
+  }
+
+  .user-detail__summary,
+  .user-detail__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-/* Mobile */
 @media (max-width: 560px) {
   .users-page__header {
     padding: 0.8rem 0.85rem;
@@ -641,7 +912,6 @@
   }
 }
 
-/* Very small phones */
 @media (max-width: 380px) {
   .users-page__content {
     padding: 0.65rem;
