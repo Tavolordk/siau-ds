@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChildren } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChildren } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
 import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
@@ -13,8 +13,13 @@ import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-b
 })
 export class TwoFactorPage {
     protected readonly auth = inject(AuthFacade);
+    protected readonly challenge = this.auth.challenge;
     protected readonly digits = signal<string[]>(Array.from({ length: 6 }, () => ''));
     protected readonly digitInputs = viewChildren<ElementRef<HTMLInputElement>>('digitInput');
+
+    protected readonly channelLabel = computed(() => this.challenge()?.contactMethodLabel ?? 'tu medio de contacto');
+    protected readonly maskedContact = computed(() => this.challenge()?.maskedContact ?? this.challenge()?.contact ?? '');
+    protected readonly isTelegramContact = computed(() => this.challenge()?.contactMethod === 'telegram');
 
     protected onInput(event: Event, index: number): void {
         const input = event.target as HTMLInputElement;

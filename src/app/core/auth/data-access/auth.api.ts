@@ -1,12 +1,10 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, delay, map, Observable, of, throwError } from 'rxjs';
+import { catchError, map, Observable, of, throwError } from 'rxjs';
 import { AUTH_API_BASE_URL } from '../../http/auth-api-base-url.token';
 import { ADMIN_PROFILE_KEYWORD, AUTH_SYSTEM } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge, SessionValidation } from '../domain/auth-session.model';
-import { LoginRequest } from '../domain/login-request.model';
-
-const MOCK_TELEGRAM_CODE = '123456';
+import { LoginContactMethod, LoginRequest } from '../domain/login-request.model';
 
 interface ApiErrorDto {
     code?: string | null;
@@ -19,6 +17,17 @@ interface ApiResponseDto<T> {
     data: T | null;
     errors?: ApiErrorDto[] | null;
     traceId?: string | null;
+}
+
+interface LoginContactResponseDto {
+    cuenta: string | null;
+    medioContacto: string | null;
+    contactoEnmascarado: string | null;
+    sistema: string | null;
+    audience: string | null;
+    profileVersion: number;
+    perfiles: string[] | null;
+    idCodigo: string | null;
 }
 
 interface TokenResponseDto {
@@ -54,50 +63,50 @@ export class AuthApi {
     private readonly http = inject(HttpClient);
     private readonly baseUrl = inject(AUTH_API_BASE_URL).replace(/\/$/, '');
 
-    login(request: LoginRequest): Observable<AuthSession | PendingAuthChallenge> {
+    login(request: LoginRequest): Observable<PendingAuthChallenge> {
         const username = request.username.trim();
+        const contact = this.normalizeContact(request.contact, request.contactMethod);
 
-        if (!username || !request.password) {
-            return throwError(() => new Error('Completa usuario y contraseña.'));
+        if (!username || !contact) {
+            return throwError(() => new Error('Completa usuario y medio de contacto.'));
         }
 
         return this.http
-            .post<ApiResponseDto<TokenResponseDto>>(`${this.baseUrl}/api/v1/tokens`, {
+            .post<ApiResponseDto<LoginContactResponseDto>>(`${this.baseUrl}/api/v1/tokens/contacto`, {
                 cuenta: username,
-                password: request.password,
+                medioContacto: contact,
                 sistema: AUTH_SYSTEM,
             })
             .pipe(
-                map((response) => this.unwrapResponse(response, 'No se pudo iniciar sesión.')),
-                map((tokenResponse) => {
-                    const session = this.toSession(tokenResponse, username);
-
-                    if (this.hasAdminProfile(session.perfiles)) {
-                        return {
-                            username,
-                            issuedAt: new Date().toISOString(),
-                            session,
-                        } satisfies PendingAuthChallenge;
-                    }
-
-                    return session;
-                }),
-                catchError((error: unknown) => this.handleError(error, 'Usuario o contraseña incorrectos.')),
+                map((response) => this.unwrapResponse(response, 'No se pudo solicitar el código de acceso.')),
+                map((response) => this.toPendingChallenge(response, username, contact, request.contactMethod)),
+                catchError((error: unknown) => this.handleError(error, 'No se pudo solicitar el código de acceso.')),
             );
     }
 
     verifyCode(code: string, challenge: PendingAuthChallenge | null): Observable<AuthSession> {
+        const normalizedCode = code.replace(/\D/g, '').slice(0, 6);
+
         if (!challenge) {
-            return throwError(() => new Error('No hay una verificación pendiente. Inicia sesión otra vez.')).pipe(
-                delay(250),
+            return throwError(() => new Error('No hay una verificación pendiente. Inicia sesión otra vez.'));
+        }
+
+        if (normalizedCode.length !== 6) {
+            return throwError(() => new Error('Ingresa el código de 6 dígitos.'));
+        }
+
+        return this.http
+            .post<ApiResponseDto<TokenResponseDto>>(`${this.baseUrl}/api/v1/tokens/contacto/verificar`, {
+                cuenta: challenge.username,
+                medioContacto: challenge.contact,
+                sistema: AUTH_SYSTEM,
+                codigo: normalizedCode,
+            })
+            .pipe(
+                map((response) => this.unwrapResponse(response, 'No se pudo verificar el código.')),
+                map((tokenResponse) => this.toSession(tokenResponse, challenge.username)),
+                catchError((error: unknown) => this.handleError(error, 'El código de verificación es incorrecto.')),
             );
-        }
-
-        if (code !== MOCK_TELEGRAM_CODE) {
-            return throwError(() => new Error('El código de verificación es incorrecto.')).pipe(delay(250));
-        }
-
-        return of(challenge.session).pipe(delay(250));
     }
 
     validateSession(session: AuthSession): Observable<SessionValidation> {
@@ -167,6 +176,27 @@ export class AuthApi {
         throw new Error(apiMessage);
     }
 
+    private toPendingChallenge(
+        response: LoginContactResponseDto,
+        username: string,
+        contact: string,
+        requestedMethod: LoginContactMethod,
+    ): PendingAuthChallenge {
+        return {
+            username: response.cuenta?.trim() || username,
+            contact,
+            contactMethod: requestedMethod,
+            contactMethodLabel: this.createContactMethodLabel(response.medioContacto, requestedMethod),
+            maskedContact: response.contactoEnmascarado,
+            sistema: response.sistema ?? AUTH_SYSTEM,
+            audience: response.audience,
+            profileVersion: response.profileVersion,
+            perfiles: response.perfiles ?? [],
+            codeId: response.idCodigo,
+            issuedAt: new Date().toISOString(),
+        };
+    }
+
     private toSession(response: TokenResponseDto, username: string): AuthSession {
         if (!response.accessToken || !response.refreshToken || !response.sid || !response.jti) {
             throw new Error('La respuesta de autenticación no contiene tokens o datos de sesión completos.');
@@ -197,10 +227,30 @@ export class AuthApi {
                 username,
                 role,
                 initials: this.createInitials(displayName || username),
-                requiresTwoFactor: this.hasAdminProfile(perfiles),
+                requiresTwoFactor: false,
                 profiles: perfiles,
             },
         };
+    }
+
+    private normalizeContact(contact: string, method: LoginContactMethod): string {
+        const value = String(contact ?? '').trim();
+
+        if (method === 'telegram') {
+            return value.replace(/\D/g, '');
+        }
+
+        return value;
+    }
+
+    private createContactMethodLabel(value: string | null, fallback: LoginContactMethod): string {
+        const normalizedValue = value?.trim().toLowerCase();
+
+        if (normalizedValue === 'telegram' || fallback === 'telegram') {
+            return 'Telegram';
+        }
+
+        return 'correo electrónico';
     }
 
     private hasAdminProfile(perfiles: string[]): boolean {

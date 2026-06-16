@@ -1,3 +1,5 @@
+import { LoginContactMethod } from './login-request.model';
+
 export interface AuthUser {
     id: string;
     name: string;
@@ -26,8 +28,16 @@ export interface AuthSession {
 
 export interface PendingAuthChallenge {
     username: string;
+    contact: string;
+    contactMethod: LoginContactMethod;
+    contactMethodLabel: string;
+    maskedContact: string | null;
+    sistema: string;
+    audience: string | null;
+    profileVersion: number;
+    perfiles: string[];
+    codeId: string | null;
     issuedAt: string;
-    session: AuthSession;
 }
 
 export interface SessionValidation {
