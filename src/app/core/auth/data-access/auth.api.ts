@@ -65,7 +65,8 @@ export class AuthApi {
 
     login(request: LoginRequest): Observable<PendingAuthChallenge> {
         const username = request.username.trim();
-        const contact = this.normalizeContact(request.contact, request.contactMethod);
+        const contact = this.normalizeContact(request.contact);
+        const contactMethod = this.resolveContactMethod(contact);
 
         if (!username || !contact) {
             return throwError(() => new Error('Completa usuario y medio de contacto.'));
@@ -79,7 +80,7 @@ export class AuthApi {
             })
             .pipe(
                 map((response) => this.unwrapResponse(response, 'No se pudo solicitar el código de acceso.')),
-                map((response) => this.toPendingChallenge(response, username, contact, request.contactMethod)),
+                map((response) => this.toPendingChallenge(response, username, contact, contactMethod)),
                 catchError((error: unknown) => this.handleError(error, 'No se pudo solicitar el código de acceso.')),
             );
     }
@@ -180,13 +181,13 @@ export class AuthApi {
         response: LoginContactResponseDto,
         username: string,
         contact: string,
-        requestedMethod: LoginContactMethod,
+        contactMethod: LoginContactMethod,
     ): PendingAuthChallenge {
         return {
             username: response.cuenta?.trim() || username,
             contact,
-            contactMethod: requestedMethod,
-            contactMethodLabel: this.createContactMethodLabel(response.medioContacto, requestedMethod),
+            contactMethod,
+            contactMethodLabel: this.createContactMethodLabel(response.medioContacto, contactMethod),
             maskedContact: response.contactoEnmascarado,
             sistema: response.sistema ?? AUTH_SYSTEM,
             audience: response.audience,
@@ -233,14 +234,18 @@ export class AuthApi {
         };
     }
 
-    private normalizeContact(contact: string, method: LoginContactMethod): string {
+    private normalizeContact(contact: string): string {
         const value = String(contact ?? '').trim();
 
-        if (method === 'telegram') {
-            return value.replace(/\D/g, '');
+        if (/^\d+$/.test(value)) {
+            return value.replace(/\D/g, '').slice(0, 10);
         }
 
-        return value;
+        return value.replace(/\s+/g, '').slice(0, 120);
+    }
+
+    private resolveContactMethod(contact: string): LoginContactMethod {
+        return /^\d+$/.test(contact) ? 'telegram' : 'correo';
     }
 
     private createContactMethodLabel(value: string | null, fallback: LoginContactMethod): string {
