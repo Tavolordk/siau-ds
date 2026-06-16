@@ -751,24 +751,55 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 12px;
-  background: rgba(153, 168, 190, 0.22);
+  background: rgba(153, 168, 190, 0.16);
   padding: 10px 12px;
   text-align: left;
+  opacity: 0.68;
   transition:
     border-color 160ms ease,
     background 160ms ease,
     box-shadow 160ms ease,
-    transform 160ms ease;
+    transform 160ms ease,
+    opacity 160ms ease,
+    filter 160ms ease;
 }
 
-.contact-method-option:hover:not(:disabled),
+.contact-method-option:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(153, 168, 190, 0.28);
+  opacity: 0.9;
+}
+
 .contact-method-option--active {
-  border-color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 18px rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.98);
+  background: linear-gradient(135deg, #11142f 0%, #171b46 48%, #0b0e27 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.24),
+    0 10px 24px rgba(0, 0, 0, 0.32),
+    inset 0 0 18px rgba(255, 255, 255, 0.07);
+  opacity: 1;
   transform: translateY(-1px);
+}
+
+.contact-method-option--active > span:first-child {
+  background: #0a0d2b !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 0 14px rgba(255, 255, 255, 0.14) !important;
+}
+
+.contact-method-option--active span {
+  color: #ffffff !important;
+}
+
+.contact-method-option:not(.contact-method-option--active) {
+  filter: saturate(0.85);
+}
+
+.contact-method-option:not(.contact-method-option--active) > span:first-child {
+  background: rgba(27, 31, 74, 0.62) !important;
 }
 
 .contact-method-option:disabled {
