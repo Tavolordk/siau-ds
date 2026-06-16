@@ -26,7 +26,7 @@ export class LoginPage implements OnInit {
         username: ['', [Validators.required, Validators.minLength(3)]],
         contactMethod: ['telegram' as LoginContactMethod, [Validators.required]],
         contact: ['', [Validators.required, Validators.pattern(/^\d{10,15}$/)]],
-        captcha: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(12)]],
+        captcha: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(6)]],
     });
 
     private readonly captchaResetEffect = effect(() => {
@@ -111,7 +111,11 @@ export class LoginPage implements OnInit {
     }
 
     protected normalizeCaptcha(): void {
-        const value = this.form.controls.captcha.value.toUpperCase().replace(/\s+/g, '');
+        const value = this.form.controls.captcha.value
+            .toUpperCase()
+            .replace(/\s+/g, '')
+            .slice(0, 6);
+
         this.form.controls.captcha.setValue(value, { emitEvent: false });
     }
 
