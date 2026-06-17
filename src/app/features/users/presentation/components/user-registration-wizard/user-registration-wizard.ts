@@ -173,6 +173,14 @@ export class UserRegistrationWizard {
     protected readonly commissionDecentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionAdministrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
 
+    protected readonly isAssignmentFederalInstitution = computed(() =>
+        this.isFederalInstitutionValue(this.form().institutionType),
+    );
+
+    protected readonly isCommissionFederalInstitution = computed(() =>
+        this.isFederalInstitutionValue(this.form().commissionInstitutionType),
+    );
+
     protected readonly trustLevelOptions: readonly SiauSelectOption[] = [
         { value: 'vigente', label: 'Vigente' },
         { value: 'pendiente', label: 'Pendiente' },
@@ -331,13 +339,23 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
+        const institutionType = value ?? '';
+        const isFederal = this.isFederalInstitutionValue(institutionType);
+
         this.form.update((current) => ({
             ...current,
-            institutionType: value ?? '',
+            institutionType,
+            entity: isFederal ? '' : current.entity,
+            municipality: '',
             institution: '',
             decentralizedBody: '',
             administrativeUnit: '',
         }));
+
+        if (isFederal) {
+            this.municipalityOptions.set([]);
+        }
+
         this.institutionOptions.set([]);
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
@@ -345,6 +363,17 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentEntity(value: string | null): void {
+        if (this.isAssignmentFederalInstitution()) {
+            this.form.update((current) => ({
+                ...current,
+                entity: '',
+                municipality: '',
+            }));
+            this.municipalityOptions.set([]);
+            this.loadAssignmentInstitutions();
+            return;
+        }
+
         this.form.update((current) => ({
             ...current,
             entity: value ?? '',
@@ -362,6 +391,11 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentMunicipality(value: string | null): void {
+        if (this.isAssignmentFederalInstitution()) {
+            this.updateForm('municipality', '');
+            return;
+        }
+
         this.updateForm('municipality', value);
     }
 
@@ -389,14 +423,24 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionInstitutionType(value: string | null): void {
+        const commissionInstitutionType = value ?? '';
+        const isFederal = this.isFederalInstitutionValue(commissionInstitutionType);
+
         this.form.update((current) => ({
             ...current,
-            commissionInstitutionType: value ?? '',
+            commissionInstitutionType,
+            commissionEntity: isFederal ? '' : current.commissionEntity,
+            commissionMunicipality: '',
             commissionInstitution: '',
             commissionDependency: '',
             commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
+
+        if (isFederal) {
+            this.commissionMunicipalityOptions.set([]);
+        }
+
         this.commissionInstitutionOptions.set([]);
         this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
@@ -405,6 +449,17 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionEntity(value: string | null): void {
+        if (this.isCommissionFederalInstitution()) {
+            this.form.update((current) => ({
+                ...current,
+                commissionEntity: '',
+                commissionMunicipality: '',
+            }));
+            this.commissionMunicipalityOptions.set([]);
+            this.loadCommissionInstitutions();
+            return;
+        }
+
         this.form.update((current) => ({
             ...current,
             commissionEntity: value ?? '',
@@ -424,6 +479,11 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionMunicipality(value: string | null): void {
+        if (this.isCommissionFederalInstitution()) {
+            this.updateForm('commissionMunicipality', '');
+            return;
+        }
+
         this.updateForm('commissionMunicipality', value);
     }
 
@@ -650,7 +710,9 @@ export class UserRegistrationWizard {
     private loadAssignmentInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.institutionType);
-        const estadoId = this.toCatalogId(current.entity);
+        const estadoId = this.isFederalInstitutionValue(current.institutionType)
+            ? undefined
+            : this.toCatalogId(current.entity);
 
         if (!tipoInstitucionId && !estadoId) {
             this.institutionOptions.set([]);
@@ -668,6 +730,7 @@ export class UserRegistrationWizard {
         target: WritableSignal<readonly SiauSelectOption[]>,
     ): void {
         const padreId = this.toCatalogId(parentValue);
+        const current = this.form();
 
         if (!padreId) {
             target.set([]);
@@ -675,8 +738,10 @@ export class UserRegistrationWizard {
         }
 
         this.loadOrgOptions(target, {
-            tipoInstitucionId: this.toCatalogId(this.form().institutionType),
-            estadoId: this.toCatalogId(this.form().entity),
+            tipoInstitucionId: this.toCatalogId(current.institutionType),
+            estadoId: this.isFederalInstitutionValue(current.institutionType)
+                ? undefined
+                : this.toCatalogId(current.entity),
             padreId,
         });
     }
@@ -684,7 +749,9 @@ export class UserRegistrationWizard {
     private loadCommissionInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.commissionInstitutionType);
-        const estadoId = this.toCatalogId(current.commissionEntity);
+        const estadoId = this.isFederalInstitutionValue(current.commissionInstitutionType)
+            ? undefined
+            : this.toCatalogId(current.commissionEntity);
 
         if (!tipoInstitucionId && !estadoId) {
             this.commissionInstitutionOptions.set([]);
@@ -702,6 +769,7 @@ export class UserRegistrationWizard {
         target: WritableSignal<readonly SiauSelectOption[]>,
     ): void {
         const padreId = this.toCatalogId(parentValue);
+        const current = this.form();
 
         if (!padreId) {
             target.set([]);
@@ -709,8 +777,10 @@ export class UserRegistrationWizard {
         }
 
         this.loadOrgOptions(target, {
-            tipoInstitucionId: this.toCatalogId(this.form().commissionInstitutionType),
-            estadoId: this.toCatalogId(this.form().commissionEntity),
+            tipoInstitucionId: this.toCatalogId(current.commissionInstitutionType),
+            estadoId: this.isFederalInstitutionValue(current.commissionInstitutionType)
+                ? undefined
+                : this.toCatalogId(current.commissionEntity),
             padreId,
         });
     }
@@ -746,5 +816,24 @@ export class UserRegistrationWizard {
         const id = Number(value);
 
         return Number.isFinite(id) && id > 0 ? id : undefined;
+    }
+
+    private isFederalInstitutionValue(value: string | null | undefined): boolean {
+        if (!value) {
+            return false;
+        }
+
+        const option = this.institutionTypeOptions().find((item) => item.value === value);
+        const label = option?.label ?? value;
+
+        return this.normalizeText(label).includes('federal');
+    }
+
+    private normalizeText(value: string): string {
+        return value
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toLowerCase();
     }
 }

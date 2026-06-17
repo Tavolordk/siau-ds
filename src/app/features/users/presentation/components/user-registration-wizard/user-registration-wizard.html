@@ -120,17 +120,19 @@
                         [options]="institutionTypeOptions()" [value]="form().institutionType"
                         (valueChange)="updateAssignmentInstitutionType($event)" />
 
-                    <siau-select label="Entidad" placeholder="Selecciona la entidad" [required]="true"
-                        [options]="stateOptions()" [value]="form().entity"
+                    <siau-select label="Entidad" placeholder="Selecciona la entidad"
+                        [required]="!isAssignmentFederalInstitution()" [options]="stateOptions()"
+                        [value]="form().entity" [disabled]="isAssignmentFederalInstitution()"
                         (valueChange)="updateAssignmentEntity($event)" />
 
-                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio" [required]="true"
-                        [options]="municipalityOptions()" [value]="form().municipality" [disabled]="!form().entity"
+                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
+                        [required]="!isAssignmentFederalInstitution()" [options]="municipalityOptions()"
+                        [value]="form().municipality" [disabled]="isAssignmentFederalInstitution() || !form().entity"
                         (valueChange)="updateAssignmentMunicipality($event)" />
 
                     <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
                         [options]="institutionOptions()" [value]="form().institution"
-                        [disabled]="!form().institutionType || !form().entity"
+                        [disabled]="!form().institutionType || (!isAssignmentFederalInstitution() && !form().entity)"
                         (valueChange)="updateAssignmentInstitution($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
@@ -192,17 +194,20 @@
                         [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
                         (valueChange)="updateCommissionInstitutionType($event)" />
 
-                    <siau-select label="Entidad" placeholder="Selecciona la entidad" [required]="true"
-                        [options]="stateOptions()" [value]="form().commissionEntity"
+                    <siau-select label="Entidad" placeholder="Selecciona la entidad"
+                        [required]="!isCommissionFederalInstitution()" [options]="stateOptions()"
+                        [value]="form().commissionEntity" [disabled]="isCommissionFederalInstitution()"
                         (valueChange)="updateCommissionEntity($event)" />
 
-                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio" [required]="true"
-                        [options]="commissionMunicipalityOptions()" [value]="form().commissionMunicipality"
-                        [disabled]="!form().commissionEntity" (valueChange)="updateCommissionMunicipality($event)" />
+                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
+                        [required]="!isCommissionFederalInstitution()" [options]="commissionMunicipalityOptions()"
+                        [value]="form().commissionMunicipality"
+                        [disabled]="isCommissionFederalInstitution() || !form().commissionEntity"
+                        (valueChange)="updateCommissionMunicipality($event)" />
 
                     <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
                         [options]="commissionInstitutionOptions()" [value]="form().commissionInstitution"
-                        [disabled]="!form().commissionInstitutionType || !form().commissionEntity"
+                        [disabled]="!form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity)"
                         (valueChange)="updateCommissionInstitution($event)" />
 
                     <siau-select label="Dependencia" placeholder="Selecciona la dependencia"
