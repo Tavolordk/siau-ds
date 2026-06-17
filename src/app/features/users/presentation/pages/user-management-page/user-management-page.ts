@@ -15,10 +15,37 @@ import { UserRegistrationWizard } from '../../components/user-registration-wizar
 
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'dark' | 'light';
 
+type DetailStepId =
+    | 'general'
+    | 'personal-data'
+    | 'assignment'
+    | 'commission'
+    | 'documents'
+    | 'contact'
+    | 'profiles';
+
 interface DetailFieldViewModel {
     readonly key: string;
     readonly label: string;
     readonly value: string;
+}
+
+interface DetailItemViewModel {
+    readonly key: string;
+    readonly title: string;
+    readonly subtitle: string;
+    readonly fields: readonly DetailFieldViewModel[];
+}
+
+interface DetailStepViewModel {
+    readonly id: DetailStepId;
+    readonly label: string;
+    readonly title: string;
+    readonly description: string;
+    readonly icon: string;
+    readonly fields: readonly DetailFieldViewModel[];
+    readonly items: readonly DetailItemViewModel[];
+    readonly emptyMessage: string | null;
 }
 
 const DEFAULT_PAGINATION: UserPagination = {
@@ -52,10 +79,12 @@ export class UserManagementPage {
     protected readonly detailErrorMessage = signal<string | null>(null);
     protected readonly selectedUser = signal<UserRecord | null>(null);
     protected readonly selectedUserDetail = signal<UserDetailRecord | null>(null);
+    protected readonly activeDetailStepId = signal<DetailStepId>('general');
 
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
     protected readonly canGoNext = computed(() => this.pagination().paginaActual < this.pagination().totalPaginas);
+
     protected readonly detailTitle = computed(() => this.selectedUser()?.fullName ?? 'Detalle del usuario');
 
     protected readonly detailSubtitle = computed(() => {
@@ -65,20 +94,52 @@ export class UserManagementPage {
             return 'Consulta individual de usuario';
         }
 
-        return `${user.username} · ID ${user.userId}`;
+        return `${user.username} · ${user.email}`;
     });
 
-    protected readonly detailFields = computed<readonly DetailFieldViewModel[]>(() => {
+    protected readonly detailSteps = computed<readonly DetailStepViewModel[]>(() => {
         const datos = this.selectedUserDetail()?.datos ?? null;
 
         if (!datos) {
             return [];
         }
 
-        return Object.entries(datos).map(([key, value]) => ({
-            key,
-            label: this.formatDetailLabel(key),
-            value: this.formatDetailValue(value),
+        return this.buildDetailSteps(datos);
+    });
+
+    protected readonly activeDetailStep = computed<DetailStepViewModel | null>(() => {
+        const steps = this.detailSteps();
+
+        if (!steps.length) {
+            return null;
+        }
+
+        return steps.find((step) => step.id === this.activeDetailStepId()) ?? steps[0];
+    });
+
+    protected readonly activeDetailStepNumber = computed(() => {
+        const steps = this.detailSteps();
+
+        if (!steps.length) {
+            return 1;
+        }
+
+        const index = steps.findIndex((step) => step.id === this.activeDetailStepId());
+        return index >= 0 ? index + 1 : 1;
+    });
+
+    protected readonly detailHeaderBadge = computed(() => {
+        const total = this.detailSteps().length || 1;
+        return `${this.activeDetailStepNumber()}/${total} secciones`;
+    });
+
+    protected readonly detailProgressSegments = computed(() => {
+        const activeNumber = this.activeDetailStepNumber();
+        const total = this.detailSteps().length || 1;
+
+        return Array.from({ length: total }).map((_, index) => ({
+            id: `detail-segment-${index + 1}`,
+            active: index < activeNumber,
         }));
     });
 
@@ -130,15 +191,17 @@ export class UserManagementPage {
 
     protected openUserDetail(user: UserRecord): void {
         if (!user.userId) {
-            this.detailErrorMessage.set('No se puede consultar el detalle porque el usuario no tiene ID.');
+            this.detailErrorMessage.set('No se puede consultar el detalle porque el usuario no tiene identificador interno.');
             this.selectedUser.set(user);
             this.selectedUserDetail.set(null);
+            this.activeDetailStepId.set('general');
             this.isDetailOpen.set(true);
             return;
         }
 
         this.selectedUser.set(user);
         this.selectedUserDetail.set(null);
+        this.activeDetailStepId.set('general');
         this.detailErrorMessage.set(null);
         this.isDetailLoading.set(true);
         this.isDetailOpen.set(true);
@@ -149,6 +212,7 @@ export class UserManagementPage {
             .subscribe({
                 next: (detail) => {
                     this.selectedUserDetail.set(detail);
+                    this.activeDetailStepId.set(this.detailSteps()[0]?.id ?? 'general');
                 },
                 error: (error: unknown) => {
                     this.selectedUserDetail.set(null);
@@ -162,6 +226,20 @@ export class UserManagementPage {
         this.selectedUserDetail.set(null);
         this.detailErrorMessage.set(null);
         this.isDetailLoading.set(false);
+        this.activeDetailStepId.set('general');
+    }
+
+    protected goToDetailStep(stepId: DetailStepId): void {
+        this.activeDetailStepId.set(stepId);
+    }
+
+    protected getDetailStepClass(stepId: DetailStepId): string {
+        return [
+            'registration-wizard__step',
+            this.activeDetailStepId() === stepId ? 'registration-wizard__step--active' : '',
+        ]
+            .join(' ')
+            .trim();
     }
 
     protected getRoleTone(role: UserRecord['role']): BadgeTone {
@@ -270,8 +348,312 @@ export class UserManagementPage {
             });
     }
 
+    private buildDetailSteps(datos: Record<string, unknown>): readonly DetailStepViewModel[] {
+        const steps: DetailStepViewModel[] = [];
+
+        const generalFields = this.objectToFields({
+            correo: datos['correo'],
+            cuenta: datos['cuenta'],
+            estatus: datos['estatus'],
+            tipoUsuario: datos['tipoUsuario'],
+        });
+
+        if (generalFields.length) {
+            steps.push({
+                id: 'general',
+                label: 'Cuenta',
+                title: 'Cuenta',
+                description: 'Información principal de acceso del usuario',
+                icon: 'key-round',
+                fields: generalFields,
+                items: [],
+                emptyMessage: null,
+            });
+        }
+
+        steps.push(
+            this.createDetailStep(
+                'personal-data',
+                'Datos Personales',
+                'Datos Personales',
+                'Información de identidad oficial del usuario',
+                'user',
+                datos['s1DatosPersonales'],
+            ),
+        );
+
+        steps.push(
+            this.createDetailStep(
+                'assignment',
+                'Adscripción',
+                'Adscripción',
+                'Información laboral e institucional del usuario',
+                'building-2',
+                datos['s2Adscripcion'],
+            ),
+        );
+
+        steps.push(
+            this.createDetailStep(
+                'commission',
+                'Comisión',
+                'Comisión',
+                'Datos de comisión interinstitucional si aplica',
+                'briefcase',
+                datos['s3Comision'],
+                'Sin comisión registrada.',
+            ),
+        );
+
+        steps.push(
+            this.createDetailStep(
+                'documents',
+                'Archivos',
+                'Archivos',
+                'Documentos registrados del usuario',
+                'file-text',
+                datos['s4Archivos'],
+                'Sin archivos registrados.',
+            ),
+        );
+
+        steps.push(
+            this.createDetailStep(
+                'contact',
+                'Medio de Contacto',
+                'Medio de Contacto',
+                'Correo y teléfono registrados',
+                'phone',
+                datos['s5Contacto'],
+                'Sin medios de contacto registrados.',
+            ),
+        );
+
+        steps.push(
+            this.createDetailStep(
+                'profiles',
+                'Perfiles',
+                'Perfiles',
+                'Perfiles y sistemas asignados al usuario',
+                'shield',
+                datos['s6Perfiles'],
+                'Sin perfiles registrados.',
+            ),
+        );
+
+        return steps.filter((step) => step.fields.length || step.items.length || step.emptyMessage);
+    }
+
+    private createDetailStep(
+        id: DetailStepId,
+        label: string,
+        title: string,
+        description: string,
+        icon: string,
+        value: unknown,
+        emptyMessage = 'Sin información registrada.',
+    ): DetailStepViewModel {
+        if (Array.isArray(value)) {
+            return {
+                id,
+                label,
+                title,
+                description,
+                icon,
+                fields: [],
+                items: value.map((item, index) => this.createDetailItem(id, item, index)),
+                emptyMessage: value.length ? null : emptyMessage,
+            };
+        }
+
+        if (this.isPlainObject(value)) {
+            const fields = this.objectToFields(value as Record<string, unknown>);
+
+            return {
+                id,
+                label,
+                title,
+                description,
+                icon,
+                fields,
+                items: [],
+                emptyMessage: fields.length ? null : emptyMessage,
+            };
+        }
+
+        return {
+            id,
+            label,
+            title,
+            description,
+            icon,
+            fields: [],
+            items: [],
+            emptyMessage,
+        };
+    }
+
+    private createDetailItem(sectionId: DetailStepId, value: unknown, index: number): DetailItemViewModel {
+        if (!this.isPlainObject(value)) {
+            return {
+                key: `${sectionId}-${index}`,
+                title: `Registro ${index + 1}`,
+                subtitle: '',
+                fields: [
+                    {
+                        key: `${sectionId}-${index}-value`,
+                        label: 'Valor',
+                        value: this.formatPrimitiveValue(value),
+                    },
+                ],
+            };
+        }
+
+        const record = value as Record<string, unknown>;
+        const title = this.getFirstTextValue(record, ['perfil', 'sistema', 'nombre', 'nombreArchivo', 'archivo']) || `Registro ${index + 1}`;
+        const subtitle = this.getFirstTextValue(record, ['sistema', 'estatus', 'tipoDocumento']);
+
+        return {
+            key: `${sectionId}-${index}`,
+            title,
+            subtitle,
+            fields: this.objectToFields(record),
+        };
+    }
+
+    private objectToFields(value: Record<string, unknown>): readonly DetailFieldViewModel[] {
+        return Object.entries(value)
+            .filter(([key]) => !this.shouldHideDetailKey(key))
+            .filter(([, fieldValue]) => !this.isEmptyValue(fieldValue))
+            .flatMap(([key, fieldValue]) => this.valueToFields(key, fieldValue));
+    }
+
+    private valueToFields(key: string, value: unknown): readonly DetailFieldViewModel[] {
+        if (Array.isArray(value)) {
+            if (!value.length) {
+                return [];
+            }
+
+            if (value.every((item) => !this.isPlainObject(item) && !Array.isArray(item))) {
+                return [
+                    {
+                        key,
+                        label: this.formatDetailLabel(key),
+                        value: value.map((item) => this.formatPrimitiveValue(item)).join(', '),
+                    },
+                ];
+            }
+
+            return value.flatMap((item, index) => {
+                if (!this.isPlainObject(item)) {
+                    return [
+                        {
+                            key: `${key}-${index}`,
+                            label: `${this.formatDetailLabel(key)} ${index + 1}`,
+                            value: this.formatPrimitiveValue(item),
+                        },
+                    ];
+                }
+
+                return Object.entries(item as Record<string, unknown>)
+                    .filter(([nestedKey]) => !this.shouldHideDetailKey(nestedKey))
+                    .filter(([, nestedValue]) => !this.isEmptyValue(nestedValue))
+                    .map(([nestedKey, nestedValue]) => ({
+                        key: `${key}-${index}-${nestedKey}`,
+                        label: `${this.formatDetailLabel(key)} ${index + 1} · ${this.formatDetailLabel(nestedKey)}`,
+                        value: this.formatPrimitiveValue(nestedValue),
+                    }));
+            });
+        }
+
+        if (this.isPlainObject(value)) {
+            return Object.entries(value as Record<string, unknown>)
+                .filter(([nestedKey]) => !this.shouldHideDetailKey(nestedKey))
+                .filter(([, nestedValue]) => !this.isEmptyValue(nestedValue))
+                .map(([nestedKey, nestedValue]) => ({
+                    key: `${key}-${nestedKey}`,
+                    label: this.formatDetailLabel(nestedKey),
+                    value: this.formatPrimitiveValue(nestedValue),
+                }));
+        }
+
+        return [
+            {
+                key,
+                label: this.formatDetailLabel(key),
+                value: this.formatPrimitiveValue(value),
+            },
+        ];
+    }
+
+    private shouldHideDetailKey(key: string): boolean {
+        const normalizedKey = key.trim().toLowerCase();
+
+        if (!normalizedKey) {
+            return true;
+        }
+
+        if (normalizedKey === 'traceid') {
+            return true;
+        }
+
+        if (normalizedKey.endsWith('id')) {
+            return true;
+        }
+
+        if (normalizedKey.endsWith('clave')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private getFirstTextValue(record: Record<string, unknown>, keys: readonly string[]): string {
+        const value = keys
+            .map((key) => record[key])
+            .find((item) => typeof item === 'string' && item.trim().length > 0);
+
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
     private formatDetailLabel(key: string): string {
+        const labels: Record<string, string> = {
+            correo: 'Correo',
+            cuenta: 'Cuenta',
+            estatus: 'Estatus',
+            tipoUsuario: 'Tipo usuario',
+            rfc: 'RFC',
+            curp: 'CURP',
+            cuip: 'CUIP',
+            sexo: 'Sexo',
+            nombres: 'Nombre(s)',
+            estadoCivil: 'Estado civil',
+            primerApellido: 'Primer apellido',
+            segundoApellido: 'Segundo apellido',
+            fechaNacimiento: 'Fecha nacimiento',
+            cargo: 'Cargo',
+            estado: 'Estado',
+            siglas: 'Siglas',
+            funciones: 'Funciones',
+            fechaInicio: 'Fecha inicio',
+            institucion: 'Institución',
+            numeroEmpleado: 'Número empleado',
+            tipoInstitucion: 'Tipo institución',
+            celular: 'Celular',
+            perfil: 'Perfil',
+            sistema: 'Sistema',
+            rnpsp: 'RNPSP',
+            cConfianza: 'C. Confianza',
+            fechaAlta: 'Fecha alta',
+            fechaActualizacion: 'Fecha actualización',
+        };
+
+        if (labels[key]) {
+            return labels[key];
+        }
+
         return key
+            .replace(/^s\d+/i, '')
             .replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, '$1 $2')
             .replace(/[_-]+/g, ' ')
             .replace(/\s+/g, ' ')
@@ -279,7 +661,7 @@ export class UserManagementPage {
             .replace(/^./, (value) => value.toUpperCase());
     }
 
-    private formatDetailValue(value: unknown): string {
+    private formatPrimitiveValue(value: unknown): string {
         if (value === null || value === undefined || value === '') {
             return 'No capturado';
         }
@@ -296,11 +678,7 @@ export class UserManagementPage {
             return this.formatPossibleDate(value);
         }
 
-        try {
-            return JSON.stringify(value, null, 2);
-        } catch {
-            return String(value);
-        }
+        return String(value);
     }
 
     private formatPossibleDate(value: string): string {
@@ -320,6 +698,26 @@ export class UserManagementPage {
             dateStyle: 'medium',
             timeStyle: trimmedValue.includes('T') ? 'short' : undefined,
         }).format(date);
+    }
+
+    private isPlainObject(value: unknown): value is Record<string, unknown> {
+        return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    private isEmptyValue(value: unknown): boolean {
+        if (value === null || value === undefined || value === '') {
+            return true;
+        }
+
+        if (Array.isArray(value)) {
+            return value.length === 0;
+        }
+
+        if (this.isPlainObject(value)) {
+            return Object.keys(value).length === 0;
+        }
+
+        return false;
     }
 
     private normalizeForCompare(value: string): string {

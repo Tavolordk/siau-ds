@@ -164,57 +164,127 @@
     </main>
 </section>
 
-<siau-modal [open]="isDetailOpen()" [title]="detailTitle()" [subtitle]="detailSubtitle()" icon="eye" size="lg"
-    (close)="closeUserDetail()">
-    <section class="user-detail">
+<siau-modal [open]="isDetailOpen()" [title]="detailTitle()" [subtitle]="detailSubtitle()" icon="eye" size="xl"
+    [headerBadge]="detailHeaderBadge()" (close)="closeUserDetail()">
+    <section class="registration-wizard registration-wizard--detail">
         @if (isDetailLoading()) {
-        <div class="user-detail__state">
+        <div class="registration-wizard__loading">
             <span class="users-table__loader" aria-hidden="true"></span>
             <strong>Consultando detalle...</strong>
             <small>Obteniendo información completa del usuario.</small>
         </div>
         } @else if (detailErrorMessage(); as detailError) {
-        <div class="user-detail__state user-detail__state--error" role="alert">
+        <div class="registration-wizard__loading registration-wizard__loading--error" role="alert">
             <siau-lucide-icon name="circle-x" size="22" strokeWidth="2" aria-hidden="true" />
             <strong>No fue posible consultar el detalle</strong>
             <small>{{ detailError }}</small>
         </div>
         } @else {
-        @if (selectedUser(); as user) {
-        <div class="user-detail__summary">
-            <div>
-                <span>Usuario</span>
-                <strong>{{ user.username }}</strong>
+        <aside class="registration-wizard__sidebar">
+            <div class="registration-wizard__sidebar-title">Secciones</div>
+
+            <div class="registration-wizard__steps">
+                @for (step of detailSteps(); track step.id; let index = $index) {
+                <button type="button" [class]="getDetailStepClass(step.id)" (click)="goToDetailStep(step.id)">
+                    <span class="registration-wizard__step-icon">
+                        <siau-lucide-icon [name]="step.icon" size="13" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <span class="registration-wizard__step-label">{{ step.label }}</span>
+                </button>
+                }
             </div>
 
-            <div>
-                <span>Correo</span>
-                <strong>{{ user.email }}</strong>
-            </div>
+            <div class="registration-wizard__sidebar-progress">
+                <div class="registration-wizard__sidebar-progress-text">
+                    <span>Sección</span>
+                    <strong>{{ activeDetailStepNumber() }}/{{ detailSteps().length }}</strong>
+                </div>
 
-            <div>
-                <span>Fecha alta</span>
-                <strong>{{ formatDate(user.createdAt) }}</strong>
+                <div class="registration-wizard__sidebar-progress-track">
+                    <span [style.width.%]="(activeDetailStepNumber() / detailSteps().length) * 100"></span>
+                </div>
             </div>
-        </div>
-        }
+        </aside>
 
-        @if (detailFields().length) {
-        <dl class="user-detail__grid">
-            @for (field of detailFields(); track field.key) {
-            <div class="user-detail__item">
-                <dt>{{ field.label }}</dt>
-                <dd>{{ field.value }}</dd>
+        <div class="registration-wizard__content">
+            @if (activeDetailStep(); as step) {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon [name]="step.icon" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>{{ step.title }}</h3>
+                        <p>{{ step.description }}</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__section-count">
+                            {{ activeDetailStepNumber() }} / {{ detailSteps().length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                @if (step.emptyMessage) {
+                <div class="registration-wizard__info-box">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ step.emptyMessage }}</span>
+                </div>
+                }
+
+                @if (step.fields.length) {
+                <div class="registration-wizard__grid registration-wizard__grid--detail">
+                    @for (field of step.fields; track field.key) {
+                    <div class="registration-wizard__readonly-field">
+                        <span>{{ field.label }}</span>
+                        <strong>{{ field.value }}</strong>
+                    </div>
+                    }
+                </div>
+                }
+
+                @if (step.items.length) {
+                <div class="registration-wizard__profiles-panel registration-wizard__profiles-panel--detail">
+                    @for (item of step.items; track item.key) {
+                    <article class="registration-wizard__assigned-profile">
+                        <div class="registration-wizard__assigned-profile-main">
+                            <strong>{{ item.title }}</strong>
+
+                            @if (item.subtitle) {
+                            <span>{{ item.subtitle }}</span>
+                            }
+                        </div>
+
+                        <div
+                            class="registration-wizard__grid registration-wizard__grid--detail registration-wizard__grid--item">
+                            @for (field of item.fields; track field.key) {
+                            <div class="registration-wizard__readonly-field">
+                                <span>{{ field.label }}</span>
+                                <strong>{{ field.value }}</strong>
+                            </div>
+                            }
+                        </div>
+                    </article>
+                    }
+                </div>
+                }
+            </section>
+            } @else {
+            <div class="registration-wizard__loading">
+                <siau-lucide-icon name="info" size="22" strokeWidth="2" aria-hidden="true" />
+                <strong>Sin datos adicionales</strong>
+                <small>El servicio respondió correctamente, pero no regresó campos de detalle.</small>
             </div>
             }
-        </dl>
-        } @else {
-        <div class="user-detail__state">
-            <siau-lucide-icon name="info" size="22" strokeWidth="2" aria-hidden="true" />
-            <strong>Sin datos adicionales</strong>
-            <small>El servicio respondió correctamente, pero no regresó campos de detalle.</small>
         </div>
-        }
         }
     </section>
 </siau-modal>
