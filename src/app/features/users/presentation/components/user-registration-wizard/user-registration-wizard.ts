@@ -7,6 +7,7 @@ import {
     input,
     output,
     signal,
+    WritableSignal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
@@ -19,6 +20,7 @@ import {
     SiauStep,
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
+
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 
 type WizardStepId =
@@ -132,23 +134,17 @@ const INITIAL_FORM: UserRegistrationForm = {
     selector: 'app-user-registration-wizard',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [
-        SiauModal,
-        SiauInput,
-        SiauSelect,
-        SiauLucideIcon,
-    ],
+    imports: [SiauModal, SiauInput, SiauSelect, SiauLucideIcon],
     templateUrl: './user-registration-wizard.html',
     styleUrl: './user-registration-wizard.scss',
 })
 export class UserRegistrationWizard {
-    constructor() {
-        this.loadCatalogos();
-    }
     readonly open = input<boolean>(false);
     readonly closed = output<void>();
+
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly destroyRef = inject(DestroyRef);
+
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
@@ -164,6 +160,18 @@ export class UserRegistrationWizard {
     protected readonly systemOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly roleOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly institutionTypeOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly stateOptions = signal<readonly SiauSelectOption[]>([]);
+
+    protected readonly municipalityOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly institutionOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly decentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly administrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
+
+    protected readonly commissionMunicipalityOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly commissionInstitutionOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly commissionDependencyOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly commissionDecentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly commissionAdministrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
 
     protected readonly trustLevelOptions: readonly SiauSelectOption[] = [
         { value: 'vigente', label: 'Vigente' },
@@ -272,6 +280,10 @@ export class UserRegistrationWizard {
         return `${this.activeIndex() + 1}/${this.stepOrder.length} secciones`;
     });
 
+    constructor() {
+        this.loadCatalogos();
+    }
+
     protected goToStep(stepId: string): void {
         if (this.isWizardStep(stepId)) {
             this.activeStepId.set(stepId);
@@ -316,6 +328,151 @@ export class UserRegistrationWizard {
             ...current,
             [key]: value ?? '',
         }));
+    }
+
+    protected updateAssignmentInstitutionType(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            institutionType: value ?? '',
+            institution: '',
+            decentralizedBody: '',
+            administrativeUnit: '',
+        }));
+        this.institutionOptions.set([]);
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+        this.loadAssignmentInstitutions();
+    }
+
+    protected updateAssignmentEntity(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            entity: value ?? '',
+            municipality: '',
+            institution: '',
+            decentralizedBody: '',
+            administrativeUnit: '',
+        }));
+        this.municipalityOptions.set([]);
+        this.institutionOptions.set([]);
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+        this.loadMunicipalities(value, this.municipalityOptions);
+        this.loadAssignmentInstitutions();
+    }
+
+    protected updateAssignmentMunicipality(value: string | null): void {
+        this.updateForm('municipality', value);
+    }
+
+    protected updateAssignmentInstitution(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            institution: value ?? '',
+            decentralizedBody: '',
+            administrativeUnit: '',
+        }));
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+        this.loadAssignmentChildren(value, this.decentralizedBodyOptions);
+        this.loadAssignmentChildren(value, this.administrativeUnitOptions);
+    }
+
+    protected updateAssignmentDecentralizedBody(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            decentralizedBody: value ?? '',
+            administrativeUnit: '',
+        }));
+        this.administrativeUnitOptions.set([]);
+        this.loadAssignmentChildren(value || this.form().institution, this.administrativeUnitOptions);
+    }
+
+    protected updateCommissionInstitutionType(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            commissionInstitutionType: value ?? '',
+            commissionInstitution: '',
+            commissionDependency: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDependencyOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadCommissionInstitutions();
+    }
+
+    protected updateCommissionEntity(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            commissionEntity: value ?? '',
+            commissionMunicipality: '',
+            commissionInstitution: '',
+            commissionDependency: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionMunicipalityOptions.set([]);
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDependencyOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadMunicipalities(value, this.commissionMunicipalityOptions);
+        this.loadCommissionInstitutions();
+    }
+
+    protected updateCommissionMunicipality(value: string | null): void {
+        this.updateForm('commissionMunicipality', value);
+    }
+
+    protected updateCommissionInstitution(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            commissionInstitution: value ?? '',
+            commissionDependency: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionDependencyOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadCommissionChildren(value, this.commissionDependencyOptions);
+        this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions);
+        this.loadCommissionChildren(value, this.commissionAdministrativeUnitOptions);
+    }
+
+    protected updateCommissionDependency(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            commissionDependency: value ?? '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadCommissionChildren(
+            value || this.form().commissionInstitution,
+            this.commissionDecentralizedBodyOptions,
+        );
+        this.loadCommissionChildren(
+            value || this.form().commissionInstitution,
+            this.commissionAdministrativeUnitOptions,
+        );
+    }
+
+    protected updateCommissionDecentralizedBody(value: string | null): void {
+        this.form.update((current) => ({
+            ...current,
+            commissionDecentralizedBody: value ?? '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadCommissionChildren(
+            value || this.form().commissionDependency || this.form().commissionInstitution,
+            this.commissionAdministrativeUnitOptions,
+        );
     }
 
     protected toggleProfile(profile: string): void {
@@ -376,9 +533,7 @@ export class UserRegistrationWizard {
     }
 
     protected removeAssignedProfile(id: string): void {
-        this.assignedSystemProfiles.update((current) =>
-            current.filter((item) => item.id !== id),
-        );
+        this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
     }
 
     protected togglePasswordVisibility(): void {
@@ -431,17 +586,28 @@ export class UserRegistrationWizard {
         this.assignedSystemProfiles.set([]);
         this.showPassword.set(false);
         this.showConfirmPassword.set(false);
+        this.municipalityOptions.set([]);
+        this.institutionOptions.set([]);
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+        this.commissionMunicipalityOptions.set([]);
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDependencyOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
     }
 
     private isWizardStep(value: string): value is WizardStepId {
         return this.stepOrder.includes(value as WizardStepId);
     }
+
     private loadCatalogos(): void {
         forkJoin({
             sexos: this.catalogosFacade.obtenerSexoOptions(),
             sistemas: this.catalogosFacade.obtenerSistemasOptions(),
             roles: this.catalogosFacade.obtenerTipoUsuarioOptions(),
             tiposInstitucion: this.catalogosFacade.obtenerTipoInstitucionOptions(),
+            estados: this.catalogosFacade.obtenerEstadosOptions(),
         })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
@@ -450,10 +616,135 @@ export class UserRegistrationWizard {
                     this.systemOptions.set(catalogos.sistemas);
                     this.roleOptions.set(catalogos.roles);
                     this.institutionTypeOptions.set(catalogos.tiposInstitucion);
+                    this.stateOptions.set(catalogos.estados);
                 },
                 error: (error: unknown) => {
                     console.error('Error cargando catálogos del usuario.', error);
                 },
             });
+    }
+
+    private loadMunicipalities(
+        stateValue: string | null,
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): void {
+        const estadoId = this.toCatalogId(stateValue);
+
+        if (!estadoId) {
+            target.set([]);
+            return;
+        }
+
+        this.catalogosFacade
+            .obtenerMunicipiosOptions(estadoId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => target.set(options),
+                error: (error: unknown) => {
+                    target.set([]);
+                    console.error('Error cargando municipios.', error);
+                },
+            });
+    }
+
+    private loadAssignmentInstitutions(): void {
+        const current = this.form();
+        const tipoInstitucionId = this.toCatalogId(current.institutionType);
+        const estadoId = this.toCatalogId(current.entity);
+
+        if (!tipoInstitucionId && !estadoId) {
+            this.institutionOptions.set([]);
+            return;
+        }
+
+        this.loadOrgOptions(this.institutionOptions, {
+            tipoInstitucionId,
+            estadoId,
+        });
+    }
+
+    private loadAssignmentChildren(
+        parentValue: string | null,
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): void {
+        const padreId = this.toCatalogId(parentValue);
+
+        if (!padreId) {
+            target.set([]);
+            return;
+        }
+
+        this.loadOrgOptions(target, {
+            tipoInstitucionId: this.toCatalogId(this.form().institutionType),
+            estadoId: this.toCatalogId(this.form().entity),
+            padreId,
+        });
+    }
+
+    private loadCommissionInstitutions(): void {
+        const current = this.form();
+        const tipoInstitucionId = this.toCatalogId(current.commissionInstitutionType);
+        const estadoId = this.toCatalogId(current.commissionEntity);
+
+        if (!tipoInstitucionId && !estadoId) {
+            this.commissionInstitutionOptions.set([]);
+            return;
+        }
+
+        this.loadOrgOptions(this.commissionInstitutionOptions, {
+            tipoInstitucionId,
+            estadoId,
+        });
+    }
+
+    private loadCommissionChildren(
+        parentValue: string | null,
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): void {
+        const padreId = this.toCatalogId(parentValue);
+
+        if (!padreId) {
+            target.set([]);
+            return;
+        }
+
+        this.loadOrgOptions(target, {
+            tipoInstitucionId: this.toCatalogId(this.form().commissionInstitutionType),
+            estadoId: this.toCatalogId(this.form().commissionEntity),
+            padreId,
+        });
+    }
+
+    private loadOrgOptions(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+        query: {
+            tipoInstitucionId?: number;
+            estadoId?: number;
+            padreId?: number;
+        },
+    ): void {
+        this.catalogosFacade
+            .obtenerEstructuraOrgOptions({
+                ...query,
+                soloActivos: 1,
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => target.set(options),
+                error: (error: unknown) => {
+                    target.set([]);
+                    console.error('Error cargando estructura orgánica.', error);
+                },
+            });
+    }
+
+    private toCatalogId(value: string | null | undefined): number | undefined {
+        if (!value) {
+            return undefined;
+        }
+
+        const id = Number(value);
+
+        return Number.isFinite(id) && id > 0 ? id : undefined;
     }
 }

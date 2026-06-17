@@ -116,24 +116,30 @@
                 </div>
 
                 <div class="registration-wizard__grid registration-wizard__grid--assignment">
-                    <siau-select label="Tipo de Institución" placeholder="" [required]="true"
+                    <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().institutionType"
-                        (valueChange)="updateForm('institutionType', $event)" />
+                        (valueChange)="updateAssignmentInstitutionType($event)" />
 
-                    <siau-input label="Entidad" placeholder="Ej. Ciudad de México" [required]="true"
-                        [value]="form().entity" (valueChange)="updateForm('entity', $event)" />
+                    <siau-select label="Entidad" placeholder="Selecciona la entidad" [required]="true"
+                        [options]="stateOptions()" [value]="form().entity"
+                        (valueChange)="updateAssignmentEntity($event)" />
 
-                    <siau-input label="Municipio / Alcaldía" placeholder="Ej. Cuauhtémoc" [required]="true"
-                        [value]="form().municipality" (valueChange)="updateForm('municipality', $event)" />
+                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio" [required]="true"
+                        [options]="municipalityOptions()" [value]="form().municipality" [disabled]="!form().entity"
+                        (valueChange)="updateAssignmentMunicipality($event)" />
 
-                    <siau-input label="Institución" placeholder="Ej. SSPC" [required]="true"
-                        [value]="form().institution" (valueChange)="updateForm('institution', $event)" />
+                    <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
+                        [options]="institutionOptions()" [value]="form().institution"
+                        [disabled]="!form().institutionType || !form().entity"
+                        (valueChange)="updateAssignmentInstitution($event)" />
 
-                    <siau-input label="Órgano desconcentrado" placeholder="Opcional" [value]="form().decentralizedBody"
-                        (valueChange)="updateForm('decentralizedBody', $event)" />
+                    <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
+                        [options]="decentralizedBodyOptions()" [value]="form().decentralizedBody"
+                        [disabled]="!form().institution" (valueChange)="updateAssignmentDecentralizedBody($event)" />
 
-                    <siau-input label="Unidad administrativa" placeholder="Opcional" [value]="form().administrativeUnit"
-                        (valueChange)="updateForm('administrativeUnit', $event)" />
+                    <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
+                        [options]="administrativeUnitOptions()" [value]="form().administrativeUnit"
+                        [disabled]="!form().institution" (valueChange)="updateForm('administrativeUnit', $event)" />
 
                     <siau-input label="Cargo" placeholder="Ej. Analista" [value]="form().position"
                         (valueChange)="updateForm('position', $event)" />
@@ -182,30 +188,35 @@
                 </div>
 
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
-                    <siau-select label="Tipo de Institución" placeholder="" [required]="true"
+                    <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
-                        (valueChange)="updateForm('commissionInstitutionType', $event)" />
+                        (valueChange)="updateCommissionInstitutionType($event)" />
 
-                    <siau-input label="Institución" placeholder="Nombre de la institución" [required]="true"
-                        [value]="form().commissionInstitution"
-                        (valueChange)="updateForm('commissionInstitution', $event)" />
+                    <siau-select label="Entidad" placeholder="Selecciona la entidad" [required]="true"
+                        [options]="stateOptions()" [value]="form().commissionEntity"
+                        (valueChange)="updateCommissionEntity($event)" />
 
-                    <siau-input label="Entidad" placeholder="Entidad federativa" [required]="true"
-                        [value]="form().commissionEntity" (valueChange)="updateForm('commissionEntity', $event)" />
+                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio" [required]="true"
+                        [options]="commissionMunicipalityOptions()" [value]="form().commissionMunicipality"
+                        [disabled]="!form().commissionEntity" (valueChange)="updateCommissionMunicipality($event)" />
 
-                    <siau-input label="Municipio / Alcaldía" placeholder="Municipio o alcaldía" [required]="true"
-                        [value]="form().commissionMunicipality"
-                        (valueChange)="updateForm('commissionMunicipality', $event)" />
+                    <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
+                        [options]="commissionInstitutionOptions()" [value]="form().commissionInstitution"
+                        [disabled]="!form().commissionInstitutionType || !form().commissionEntity"
+                        (valueChange)="updateCommissionInstitution($event)" />
 
-                    <siau-input label="Dependencia" placeholder="Opcional" [value]="form().commissionDependency"
-                        (valueChange)="updateForm('commissionDependency', $event)" />
+                    <siau-select label="Dependencia" placeholder="Selecciona la dependencia"
+                        [options]="commissionDependencyOptions()" [value]="form().commissionDependency"
+                        [disabled]="!form().commissionInstitution" (valueChange)="updateCommissionDependency($event)" />
 
-                    <siau-input label="Órgano desconcentrado" placeholder="Opcional"
-                        [value]="form().commissionDecentralizedBody"
-                        (valueChange)="updateForm('commissionDecentralizedBody', $event)" />
+                    <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
+                        [options]="commissionDecentralizedBodyOptions()" [value]="form().commissionDecentralizedBody"
+                        [disabled]="!form().commissionInstitution"
+                        (valueChange)="updateCommissionDecentralizedBody($event)" />
 
-                    <siau-input label="Unidad administrativa" placeholder="Opcional"
-                        [value]="form().commissionAdministrativeUnit"
+                    <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
+                        [options]="commissionAdministrativeUnitOptions()" [value]="form().commissionAdministrativeUnit"
+                        [disabled]="!form().commissionInstitution"
                         (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
                 </div>
             </section>

@@ -3,6 +3,7 @@ import {
     CatalogoRecord,
     EstadoMunicipioQuery,
     EstructuraOrganizacionalQuery,
+    EstructuraOrgQuery,
 } from './catalogo.model';
 
 export abstract class CatalogosRepository {
@@ -19,6 +20,8 @@ export abstract class CatalogosRepository {
     abstract obtenerEstructuraOrganizacional(
         query?: EstructuraOrganizacionalQuery,
     ): Observable<readonly CatalogoRecord[]>;
+
+    abstract obtenerEstructuraOrg(query?: EstructuraOrgQuery): Observable<readonly CatalogoRecord[]>;
 
     abstract obtenerSexo(): Observable<readonly CatalogoRecord[]>;
 

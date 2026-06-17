@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { CatalogoOption } from '../domain/catalogo.model';
+import { CatalogoOption, EstructuraOrgQuery } from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
 import { mapCatalogoToOptions } from './catalogo-option.mapper';
 
@@ -49,6 +49,10 @@ export class CatalogosFacade {
         return this.repository
             .obtenerEstructuraOrganizacional(query)
             .pipe(map(mapCatalogoToOptions));
+    }
+
+    obtenerEstructuraOrgOptions(query: EstructuraOrgQuery): Observable<readonly CatalogoOption[]> {
+        return this.repository.obtenerEstructuraOrg(query).pipe(map(mapCatalogoToOptions));
     }
 
     obtenerSexoOptions(): Observable<readonly CatalogoOption[]> {
