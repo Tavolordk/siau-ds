@@ -24,28 +24,70 @@ type DetailStepId =
     | 'profiles'
     | 'account';
 
-interface DetailFieldViewModel {
-    readonly key: string;
-    readonly label: string;
-    readonly value: string;
-}
-
-interface DetailItemViewModel {
-    readonly key: string;
-    readonly title: string;
-    readonly subtitle: string;
-    readonly fields: readonly DetailFieldViewModel[];
-}
-
 interface DetailStepViewModel {
     readonly id: DetailStepId;
     readonly label: string;
     readonly title: string;
     readonly description: string;
     readonly icon: string;
-    readonly fields: readonly DetailFieldViewModel[];
-    readonly items: readonly DetailItemViewModel[];
-    readonly emptyMessage: string | null;
+    readonly completed: boolean;
+    readonly required: boolean;
+}
+
+interface DetailProfileViewModel {
+    readonly id: string;
+    readonly systemLabel: string;
+    readonly roleLabel: string;
+}
+
+interface DetailDocumentViewModel {
+    readonly id: string;
+    readonly label: string;
+    readonly fileName: string;
+    readonly description: string;
+}
+
+interface DetailDisplayForm {
+    readonly cuip: string;
+    readonly policeIdentificationKey: string;
+    readonly curp: string;
+    readonly rfc: string;
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly secondLastName: string;
+    readonly birthDate: string;
+    readonly gender: string;
+
+    readonly institutionType: string;
+    readonly entity: string;
+    readonly municipality: string;
+    readonly institution: string;
+    readonly decentralizedBody: string;
+    readonly administrativeUnit: string;
+    readonly position: string;
+    readonly functions: string;
+    readonly admissionDate: string;
+    readonly employeeNumber: string;
+
+    readonly commissionInstitutionType: string;
+    readonly commissionInstitution: string;
+    readonly commissionEntity: string;
+    readonly commissionMunicipality: string;
+    readonly commissionDependency: string;
+    readonly commissionDecentralizedBody: string;
+    readonly commissionAdministrativeUnit: string;
+
+    readonly email: string;
+    readonly phone: string;
+    readonly extension: string;
+
+    readonly username: string;
+    readonly password: string;
+    readonly confirmPassword: string;
+    readonly accountStatus: string;
+
+    readonly profiles: readonly DetailProfileViewModel[];
+    readonly documents: readonly DetailDocumentViewModel[];
 }
 
 const DEFAULT_PAGINATION: UserPagination = {
@@ -53,6 +95,49 @@ const DEFAULT_PAGINATION: UserPagination = {
     totalPaginas: 1,
     paginaActual: 1,
     porPagina: 20,
+};
+
+const EMPTY_DETAIL_FORM: DetailDisplayForm = {
+    cuip: '',
+    policeIdentificationKey: '',
+    curp: '',
+    rfc: '',
+    firstName: '',
+    lastName: '',
+    secondLastName: '',
+    birthDate: '',
+    gender: '',
+
+    institutionType: '',
+    entity: '',
+    municipality: '',
+    institution: '',
+    decentralizedBody: '',
+    administrativeUnit: '',
+    position: '',
+    functions: '',
+    admissionDate: '',
+    employeeNumber: '',
+
+    commissionInstitutionType: '',
+    commissionInstitution: '',
+    commissionEntity: '',
+    commissionMunicipality: '',
+    commissionDependency: '',
+    commissionDecentralizedBody: '',
+    commissionAdministrativeUnit: '',
+
+    email: '',
+    phone: '',
+    extension: '',
+
+    username: '',
+    password: '',
+    confirmPassword: '',
+    accountStatus: '',
+
+    profiles: [],
+    documents: [],
 };
 
 @Component({
@@ -81,6 +166,16 @@ export class UserManagementPage {
     protected readonly selectedUserDetail = signal<UserDetailRecord | null>(null);
     protected readonly activeDetailStepId = signal<DetailStepId>('personal-data');
 
+    protected readonly detailStepOrder: readonly DetailStepId[] = [
+        'personal-data',
+        'assignment',
+        'commission',
+        'documents',
+        'contact',
+        'profiles',
+        'account',
+    ];
+
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
     protected readonly canGoNext = computed(() => this.pagination().paginaActual < this.pagination().totalPaginas);
@@ -97,15 +192,81 @@ export class UserManagementPage {
         return `${user.username} · ${user.email}`;
     });
 
-    protected readonly detailSteps = computed<readonly DetailStepViewModel[]>(() => {
+    protected readonly detailForm = computed<DetailDisplayForm>(() => {
         const datos = this.selectedUserDetail()?.datos ?? null;
 
         if (!datos) {
-            return [];
+            return EMPTY_DETAIL_FORM;
         }
 
-        return this.buildDetailSteps(datos);
+        return this.toDetailDisplayForm(datos);
     });
+
+    protected readonly detailSteps = computed<readonly DetailStepViewModel[]>(() => [
+        {
+            id: 'personal-data',
+            label: 'Datos Personales',
+            title: 'Datos Personales',
+            description: 'Información de identidad oficial del usuario en el sistema',
+            icon: 'user',
+            completed: true,
+            required: true,
+        },
+        {
+            id: 'assignment',
+            label: 'Adscripción',
+            title: 'Adscripción',
+            description: 'Centro de trabajo y datos laborales del usuario',
+            icon: 'building-2',
+            completed: true,
+            required: true,
+        },
+        {
+            id: 'commission',
+            label: 'Comisión',
+            title: 'Comisión',
+            description: 'Datos de comisión interinstitucional si aplica',
+            icon: 'briefcase',
+            completed: true,
+            required: false,
+        },
+        {
+            id: 'documents',
+            label: 'Archivos',
+            title: 'Archivos',
+            description: 'Carga de documentos de identidad y laborales',
+            icon: 'file-text',
+            completed: true,
+            required: false,
+        },
+        {
+            id: 'contact',
+            label: 'Medio de Contacto',
+            title: 'Medio de Contacto',
+            description: 'Información de comunicación del usuario en el sistema',
+            icon: 'phone',
+            completed: true,
+            required: true,
+        },
+        {
+            id: 'profiles',
+            label: 'Perfiles',
+            title: 'Perfiles',
+            description: 'Nivel de acceso y sistema asignado al usuario',
+            icon: 'shield',
+            completed: true,
+            required: true,
+        },
+        {
+            id: 'account',
+            label: 'Cuenta',
+            title: 'Cuenta',
+            description: 'Credenciales y estado de la cuenta de acceso',
+            icon: 'key-round',
+            completed: true,
+            required: true,
+        },
+    ]);
 
     protected readonly activeDetailStep = computed<DetailStepViewModel | null>(() => {
         const steps = this.detailSteps();
@@ -117,34 +278,27 @@ export class UserManagementPage {
         return steps.find((step) => step.id === this.activeDetailStepId()) ?? steps[0];
     });
 
-    protected readonly activeDetailStepNumber = computed(() => {
-        const steps = this.detailSteps();
-
-        if (!steps.length) {
-            return 1;
-        }
-
-        const index = steps.findIndex((step) => step.id === this.activeDetailStepId());
-        return index >= 0 ? index + 1 : 1;
+    protected readonly activeDetailIndex = computed(() => {
+        const index = this.detailStepOrder.indexOf(this.activeDetailStepId());
+        return index >= 0 ? index : 0;
     });
+
+    protected readonly activeDetailStepNumber = computed(() => this.activeDetailIndex() + 1);
 
     protected readonly detailHeaderBadge = computed(() => 'Completo');
 
     protected readonly detailProgressSegments = computed(() => {
-        const total = this.detailSteps().length || 1;
+        const activeNumber = this.activeDetailStepNumber();
 
-        return Array.from({ length: total }).map((_, index) => ({
+        return this.detailStepOrder.map((_, index) => ({
             id: `detail-segment-${index + 1}`,
-            active: true,
+            active: index < activeNumber,
         }));
     });
 
-    protected readonly canGoPreviousDetailStep = computed(() => this.activeDetailStepNumber() > 1);
+    protected readonly canGoPreviousDetailStep = computed(() => this.activeDetailIndex() > 0);
 
-    protected readonly canGoNextDetailStep = computed(() => {
-        const total = this.detailSteps().length;
-        return total > 0 && this.activeDetailStepNumber() < total;
-    });
+    protected readonly canGoNextDetailStep = computed(() => this.activeDetailIndex() < this.detailStepOrder.length - 1);
 
     constructor() {
         this.searchTermChanges
@@ -215,7 +369,7 @@ export class UserManagementPage {
             .subscribe({
                 next: (detail) => {
                     this.selectedUserDetail.set(detail);
-                    this.activeDetailStepId.set(this.detailSteps()[0]?.id ?? 'personal-data');
+                    this.activeDetailStepId.set('personal-data');
                 },
                 error: (error: unknown) => {
                     this.selectedUserDetail.set(null);
@@ -237,42 +391,43 @@ export class UserManagementPage {
     }
 
     protected previousDetailStep(): void {
-        const steps = this.detailSteps();
-        const currentIndex = steps.findIndex((step) => step.id === this.activeDetailStepId());
+        const currentIndex = this.activeDetailIndex();
 
         if (currentIndex <= 0) {
             return;
         }
 
-        this.activeDetailStepId.set(steps[currentIndex - 1].id);
+        this.activeDetailStepId.set(this.detailStepOrder[currentIndex - 1]);
     }
 
     protected nextDetailStep(): void {
-        const steps = this.detailSteps();
-        const currentIndex = steps.findIndex((step) => step.id === this.activeDetailStepId());
+        const currentIndex = this.activeDetailIndex();
 
-        if (currentIndex < 0 || currentIndex >= steps.length - 1) {
+        if (currentIndex >= this.detailStepOrder.length - 1) {
             return;
         }
 
-        this.activeDetailStepId.set(steps[currentIndex + 1].id);
+        this.activeDetailStepId.set(this.detailStepOrder[currentIndex + 1]);
     }
 
     protected saveDetailChanges(): void {
         this.closeUserDetail();
     }
 
-    protected getDetailStepClass(stepId: DetailStepId): string {
+    protected getDetailStepClass(step: DetailStepViewModel, index: number): string {
+        const isActive = index === this.activeDetailIndex();
+
         return [
             'registration-wizard__step',
-            this.activeDetailStepId() === stepId ? 'registration-wizard__step--active' : '',
+            isActive ? 'registration-wizard__step--active' : '',
+            step.completed ? 'registration-wizard__step--completed' : '',
         ]
             .join(' ')
             .trim();
     }
 
     protected isDetailStepCompleted(step: DetailStepViewModel): boolean {
-        return Boolean(step.fields.length || step.items.length || step.emptyMessage);
+        return step.completed;
     }
 
     protected getRoleTone(role: UserRecord['role']): BadgeTone {
@@ -335,23 +490,6 @@ export class UserManagementPage {
         return value.includes('inhabil') || value.includes('inactivo') ? 'Activar' : 'Inhabilitar';
     }
 
-    protected formatDate(value: string | null): string {
-        if (!value) {
-            return 'No capturado';
-        }
-
-        const date = new Date(value);
-
-        if (Number.isNaN(date.getTime())) {
-            return value;
-        }
-
-        return new Intl.DateTimeFormat('es-MX', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-        }).format(date);
-    }
-
     private loadUsers(page = 1, search = this.searchTerm().trim()): void {
         const query: UsersQuery = {
             busqueda: search || undefined,
@@ -381,391 +519,125 @@ export class UserManagementPage {
             });
     }
 
-    private buildDetailSteps(datos: Record<string, unknown>): readonly DetailStepViewModel[] {
-        const accountFields = this.objectToFields({
-            correo: datos['correo'],
-            cuenta: datos['cuenta'],
-            estatus: datos['estatus'],
-            tipoUsuario: datos['tipoUsuario'],
-        });
-
-        const steps: DetailStepViewModel[] = [
-            this.createDetailStep(
-                'personal-data',
-                'Datos Personales',
-                'Datos Personales',
-                'Información de identidad oficial del usuario',
-                'user',
-                this.pickOrderedFields(datos['s1DatosPersonales'], [
-                    'curp',
-                    'rfc',
-                    'nombres',
-                    'primerApellido',
-                    'segundoApellido',
-                    'sexo',
-                    'fechaNacimiento',
-                    'estadoCivil',
-                    'cuip',
-                ]),
-            ),
-            this.createDetailStep(
-                'assignment',
-                'Adscripción',
-                'Adscripción',
-                'Centro de trabajo y datos laborales del usuario',
-                'building-2',
-                datos['s2Adscripcion'],
-            ),
-            this.createDetailStep(
-                'commission',
-                'Comisión',
-                'Comisión',
-                'Datos de comisión interinstitucional si aplica',
-                'briefcase',
-                datos['s3Comision'],
-                'Sin comisión registrada.',
-            ),
-            this.createDetailStep(
-                'documents',
-                'Archivos',
-                'Archivos',
-                'Documentos registrados del usuario',
-                'file-text',
-                datos['s4Archivos'],
-                'Sin archivos registrados.',
-            ),
-            this.createDetailStep(
-                'contact',
-                'Medio de Contacto',
-                'Medio de Contacto',
-                'Correo y teléfono registrados',
-                'phone',
-                datos['s5Contacto'],
-                'Sin medios de contacto registrados.',
-            ),
-            this.createDetailStep(
-                'profiles',
-                'Perfiles',
-                'Perfiles',
-                'Perfiles y sistemas asignados al usuario',
-                'shield',
-                datos['s6Perfiles'],
-                'Sin perfiles registrados.',
-            ),
-            {
-                id: 'account',
-                label: 'Cuenta',
-                title: 'Cuenta',
-                description: 'Información principal de acceso del usuario',
-                icon: 'key-round',
-                fields: accountFields,
-                items: [],
-                emptyMessage: accountFields.length ? null : 'Sin información de cuenta registrada.',
-            },
-        ];
-
-        return steps.filter((step) => step.fields.length || step.items.length || step.emptyMessage);
-    }
-
-    private pickOrderedFields(value: unknown, keys: readonly string[]): unknown {
-        if (!this.isPlainObject(value)) {
-            return value;
-        }
-
-        const source = value as Record<string, unknown>;
-        const ordered: Record<string, unknown> = {};
-
-        keys.forEach((key) => {
-            if (Object.prototype.hasOwnProperty.call(source, key)) {
-                ordered[key] = source[key];
-            }
-        });
-
-        Object.entries(source).forEach(([key, fieldValue]) => {
-            if (!Object.prototype.hasOwnProperty.call(ordered, key)) {
-                ordered[key] = fieldValue;
-            }
-        });
-
-        return ordered;
-    }
-
-    private createDetailStep(
-        id: DetailStepId,
-        label: string,
-        title: string,
-        description: string,
-        icon: string,
-        value: unknown,
-        emptyMessage = 'Sin información registrada.',
-    ): DetailStepViewModel {
-        if (Array.isArray(value)) {
-            return {
-                id,
-                label,
-                title,
-                description,
-                icon,
-                fields: [],
-                items: value.map((item, index) => this.createDetailItem(id, item, index)),
-                emptyMessage: value.length ? null : emptyMessage,
-            };
-        }
-
-        if (this.isPlainObject(value)) {
-            const fields = this.objectToFields(value as Record<string, unknown>);
-
-            return {
-                id,
-                label,
-                title,
-                description,
-                icon,
-                fields,
-                items: [],
-                emptyMessage: fields.length ? null : emptyMessage,
-            };
-        }
+    private toDetailDisplayForm(datos: Record<string, unknown>): DetailDisplayForm {
+        const personal = this.toRecord(datos['s1DatosPersonales']);
+        const assignment = this.toRecord(datos['s2Adscripcion']);
+        const commission = this.toRecord(datos['s3Comision']);
+        const contact = this.toRecord(datos['s5Contacto']);
+        const profiles = this.toArray(datos['s6Perfiles']);
+        const documents = this.toArray(datos['s4Archivos']);
 
         return {
-            id,
+            cuip: this.readText(personal, 'cuip'),
+            policeIdentificationKey: this.readFirstText(personal, ['claveUnicaIdentificacionPolicial', 'policeIdentificationKey']),
+            curp: this.readText(personal, 'curp'),
+            rfc: this.readText(personal, 'rfc'),
+            firstName: this.readText(personal, 'nombres'),
+            lastName: this.readText(personal, 'primerApellido'),
+            secondLastName: this.readText(personal, 'segundoApellido'),
+            birthDate: this.toDateOnly(this.readText(personal, 'fechaNacimiento')),
+            gender: this.readText(personal, 'sexo'),
+
+            institutionType: this.readText(assignment, 'tipoInstitucion'),
+            entity: this.readText(assignment, 'estado'),
+            municipality: this.readFirstText(assignment, ['municipio', 'alcaldia']),
+            institution: this.readText(assignment, 'institucion'),
+            decentralizedBody: this.readFirstText(assignment, ['organoDesconcentrado', 'dependencia']),
+            administrativeUnit: this.readFirstText(assignment, ['unidadAdministrativa', 'unidad']),
+            position: this.readText(assignment, 'cargo'),
+            functions: this.readText(assignment, 'funciones'),
+            admissionDate: this.toDateOnly(this.readText(assignment, 'fechaInicio')),
+            employeeNumber: this.readText(assignment, 'numeroEmpleado'),
+
+            commissionInstitutionType: this.readText(commission, 'tipoInstitucion'),
+            commissionInstitution: this.readText(commission, 'institucion'),
+            commissionEntity: this.readText(commission, 'estado'),
+            commissionMunicipality: this.readFirstText(commission, ['municipio', 'alcaldia']),
+            commissionDependency: this.readFirstText(commission, ['dependencia', 'cargo']),
+            commissionDecentralizedBody: this.readText(commission, 'organoDesconcentrado'),
+            commissionAdministrativeUnit: this.readFirstText(commission, ['unidadAdministrativa', 'unidad']),
+
+            email: this.readText(contact, 'correo') || this.readText(datos, 'correo'),
+            phone: this.readFirstText(contact, ['celular', 'telefono', 'phone']),
+            extension: this.readFirstText(contact, ['extension', 'ext']),
+
+            username: this.readText(datos, 'cuenta'),
+            password: '',
+            confirmPassword: '',
+            accountStatus: this.readText(datos, 'estatus'),
+
+            profiles: profiles.map((item, index) => this.toProfileViewModel(item, index)),
+            documents: documents.map((item, index) => this.toDocumentViewModel(item, index)),
+        };
+    }
+
+    private toProfileViewModel(value: unknown, index: number): DetailProfileViewModel {
+        const record = this.toRecord(value);
+        const systemLabel = this.readText(record, 'sistema');
+        const roleLabel = this.readText(record, 'perfil');
+
+        return {
+            id: `profile-${index}`,
+            systemLabel,
+            roleLabel,
+        };
+    }
+
+    private toDocumentViewModel(value: unknown, index: number): DetailDocumentViewModel {
+        const record = this.toRecord(value);
+        const label = this.readFirstText(record, ['tipoDocumento', 'tipo', 'nombre', 'label']) || `Documento ${index + 1}`;
+        const fileName = this.readFirstText(record, ['nombreArchivo', 'archivo', 'fileName', 'url']);
+        const description = this.readFirstText(record, ['descripcion', 'description', 'estatus']);
+
+        return {
+            id: `document-${index}`,
             label,
-            title,
+            fileName,
             description,
-            icon,
-            fields: [],
-            items: [],
-            emptyMessage,
         };
     }
 
-    private createDetailItem(sectionId: DetailStepId, value: unknown, index: number): DetailItemViewModel {
-        if (!this.isPlainObject(value)) {
-            return {
-                key: `${sectionId}-${index}`,
-                title: `Registro ${index + 1}`,
-                subtitle: '',
-                fields: [
-                    {
-                        key: `${sectionId}-${index}-value`,
-                        label: 'Valor',
-                        value: this.formatPrimitiveValue(value),
-                    },
-                ],
-            };
-        }
+    private readText(record: Record<string, unknown>, key: string): string {
+        const value = record[key];
 
-        const record = value as Record<string, unknown>;
-        const title =
-            this.getFirstTextValue(record, ['perfil', 'sistema', 'nombre', 'nombreArchivo', 'archivo']) ||
-            `Registro ${index + 1}`;
-        const subtitle = this.getFirstTextValue(record, ['sistema', 'estatus', 'tipoDocumento']);
-
-        return {
-            key: `${sectionId}-${index}`,
-            title,
-            subtitle,
-            fields: this.objectToFields(record),
-        };
-    }
-
-    private objectToFields(value: Record<string, unknown>): readonly DetailFieldViewModel[] {
-        return Object.entries(value)
-            .filter(([key]) => !this.shouldHideDetailKey(key))
-            .filter(([, fieldValue]) => !this.isEmptyValue(fieldValue))
-            .flatMap(([key, fieldValue]) => this.valueToFields(key, fieldValue));
-    }
-
-    private valueToFields(key: string, value: unknown): readonly DetailFieldViewModel[] {
-        if (Array.isArray(value)) {
-            if (!value.length) {
-                return [];
-            }
-
-            if (value.every((item) => !this.isPlainObject(item) && !Array.isArray(item))) {
-                return [
-                    {
-                        key,
-                        label: this.formatDetailLabel(key),
-                        value: value.map((item) => this.formatPrimitiveValue(item)).join(', '),
-                    },
-                ];
-            }
-
-            return value.flatMap((item, index) => {
-                if (!this.isPlainObject(item)) {
-                    return [
-                        {
-                            key: `${key}-${index}`,
-                            label: `${this.formatDetailLabel(key)} ${index + 1}`,
-                            value: this.formatPrimitiveValue(item),
-                        },
-                    ];
-                }
-
-                return Object.entries(item as Record<string, unknown>)
-                    .filter(([nestedKey]) => !this.shouldHideDetailKey(nestedKey))
-                    .filter(([, nestedValue]) => !this.isEmptyValue(nestedValue))
-                    .map(([nestedKey, nestedValue]) => ({
-                        key: `${key}-${index}-${nestedKey}`,
-                        label: `${this.formatDetailLabel(key)} ${index + 1} · ${this.formatDetailLabel(nestedKey)}`,
-                        value: this.formatPrimitiveValue(nestedValue),
-                    }));
-            });
-        }
-
-        if (this.isPlainObject(value)) {
-            return Object.entries(value as Record<string, unknown>)
-                .filter(([nestedKey]) => !this.shouldHideDetailKey(nestedKey))
-                .filter(([, nestedValue]) => !this.isEmptyValue(nestedValue))
-                .map(([nestedKey, nestedValue]) => ({
-                    key: `${key}-${nestedKey}`,
-                    label: this.formatDetailLabel(nestedKey),
-                    value: this.formatPrimitiveValue(nestedValue),
-                }));
-        }
-
-        return [
-            {
-                key,
-                label: this.formatDetailLabel(key),
-                value: this.formatPrimitiveValue(value),
-            },
-        ];
-    }
-
-    private shouldHideDetailKey(key: string): boolean {
-        const normalizedKey = key.trim().toLowerCase();
-
-        if (!normalizedKey) {
-            return true;
-        }
-
-        if (normalizedKey === 'traceid') {
-            return true;
-        }
-
-        if (normalizedKey.endsWith('id')) {
-            return true;
-        }
-
-        if (normalizedKey.endsWith('clave')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private getFirstTextValue(record: Record<string, unknown>, keys: readonly string[]): string {
-        const value = keys
-            .map((key) => record[key])
-            .find((item) => typeof item === 'string' && item.trim().length > 0);
-
-        return typeof value === 'string' ? value.trim() : '';
-    }
-
-    private formatDetailLabel(key: string): string {
-        const labels: Record<string, string> = {
-            correo: 'Correo',
-            cuenta: 'Cuenta',
-            estatus: 'Estatus',
-            tipoUsuario: 'Tipo usuario',
-            rfc: 'RFC',
-            curp: 'CURP',
-            cuip: 'CUIP',
-            sexo: 'Sexo',
-            nombres: 'Nombre(s)',
-            estadoCivil: 'Estado civil',
-            primerApellido: 'Primer apellido',
-            segundoApellido: 'Segundo apellido',
-            fechaNacimiento: 'Fecha nacimiento',
-            cargo: 'Cargo',
-            estado: 'Estado',
-            siglas: 'Siglas',
-            funciones: 'Funciones',
-            fechaInicio: 'Fecha inicio',
-            institucion: 'Institución',
-            numeroEmpleado: 'Número empleado',
-            tipoInstitucion: 'Tipo institución',
-            celular: 'Celular',
-            perfil: 'Perfil',
-            sistema: 'Sistema',
-            rnpsp: 'RNPSP',
-            cConfianza: 'C. Confianza',
-            fechaAlta: 'Fecha alta',
-            fechaActualizacion: 'Fecha actualización',
-        };
-
-        if (labels[key]) {
-            return labels[key];
-        }
-
-        return key
-            .replace(/^s\d+/i, '')
-            .replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, '$1 $2')
-            .replace(/[_-]+/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .replace(/^./, (value) => value.toUpperCase());
-    }
-
-    private formatPrimitiveValue(value: unknown): string {
-        if (value === null || value === undefined || value === '') {
-            return 'No capturado';
-        }
-
-        if (typeof value === 'boolean') {
-            return value ? 'Sí' : 'No';
-        }
-
-        if (typeof value === 'number') {
-            return String(value);
+        if (value === null || value === undefined) {
+            return '';
         }
 
         if (typeof value === 'string') {
-            return this.formatPossibleDate(value);
+            return value.trim();
         }
 
-        return String(value);
+        if (typeof value === 'number' || typeof value === 'boolean') {
+            return String(value);
+        }
+
+        return '';
     }
 
-    private formatPossibleDate(value: string): string {
-        const trimmedValue = value.trim();
-
-        if (!/^\d{4}-\d{2}-\d{2}/.test(trimmedValue)) {
-            return trimmedValue;
-        }
-
-        const date = new Date(trimmedValue);
-
-        if (Number.isNaN(date.getTime())) {
-            return trimmedValue;
-        }
-
-        return new Intl.DateTimeFormat('es-MX', {
-            dateStyle: 'medium',
-            timeStyle: trimmedValue.includes('T') ? 'short' : undefined,
-        }).format(date);
+    private readFirstText(record: Record<string, unknown>, keys: readonly string[]): string {
+        return keys.map((key) => this.readText(record, key)).find((value) => value.length > 0) ?? '';
     }
 
-    private isPlainObject(value: unknown): value is Record<string, unknown> {
-        return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+    private toRecord(value: unknown): Record<string, unknown> {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            return value as Record<string, unknown>;
+        }
+
+        return {};
     }
 
-    private isEmptyValue(value: unknown): boolean {
-        if (value === null || value === undefined || value === '') {
-            return true;
+    private toArray(value: unknown): readonly unknown[] {
+        return Array.isArray(value) ? value : [];
+    }
+
+    private toDateOnly(value: string): string {
+        if (!value) {
+            return '';
         }
 
-        if (Array.isArray(value)) {
-            return value.length === 0;
-        }
-
-        if (this.isPlainObject(value)) {
-            return Object.keys(value).length === 0;
-        }
-
-        return false;
+        const match = value.match(/^\d{4}-\d{2}-\d{2}/);
+        return match ? match[0] : value;
     }
 
     private normalizeForCompare(value: string): string {

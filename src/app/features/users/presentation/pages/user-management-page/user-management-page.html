@@ -184,7 +184,7 @@
 
             <div class="registration-wizard__steps">
                 @for (step of detailSteps(); track step.id; let index = $index) {
-                <button type="button" [class]="getDetailStepClass(step.id)" (click)="goToDetailStep(step.id)">
+                <button type="button" [class]="getDetailStepClass(step, index)" (click)="goToDetailStep(step.id)">
                     <span class="registration-wizard__step-icon">
                         <siau-lucide-icon [name]="step.icon" size="13" strokeWidth="2" aria-hidden="true" />
                     </span>
@@ -192,9 +192,8 @@
                     <span class="registration-wizard__step-label">{{ step.label }}</span>
 
                     @if (isDetailStepCompleted(step)) {
-                    <span class="registration-wizard__step-check"
-                        [class.registration-wizard__step-check--active]="activeDetailStepId() === step.id">
-                        <siau-lucide-icon name="check" size="10" strokeWidth="3" aria-hidden="true" />
+                    <span class="registration-wizard__step-check" aria-hidden="true">
+                        <siau-lucide-icon name="check" size="10" strokeWidth="3" />
                     </span>
                     }
                 </button>
@@ -204,31 +203,33 @@
             <div class="registration-wizard__sidebar-progress">
                 <div class="registration-wizard__sidebar-progress-text">
                     <span>Progreso</span>
-                    <strong>{{ activeDetailStepNumber() }}/{{ detailSteps().length }}</strong>
+                    <strong>{{ activeDetailStepNumber() }}/{{ detailStepOrder.length }}</strong>
                 </div>
 
                 <div class="registration-wizard__sidebar-progress-track">
-                    <span [style.width.%]="(activeDetailStepNumber() / detailSteps().length) * 100"></span>
+                    <span [style.width.%]="(activeDetailStepNumber() / detailStepOrder.length) * 100"></span>
                 </div>
             </div>
         </aside>
 
-        <div class="registration-wizard__content">
-            @if (activeDetailStep(); as step) {
+        <form class="registration-wizard__content">
+            @switch (activeDetailStepId()) {
+            @case ('personal-data') {
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
-                        <siau-lucide-icon [name]="step.icon" size="18" strokeWidth="2" aria-hidden="true" />
+                        <siau-lucide-icon name="user" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
-                        <h3>{{ step.title }}</h3>
-                        <p>{{ step.description }}</p>
+                        <h3>Datos Personales</h3>
+                        <p>Información de identidad oficial del usuario en el sistema</p>
                     </div>
 
                     <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeDetailStepNumber() }} / {{ detailSteps().length }}
+                            {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
                         </span>
                     </div>
 
@@ -239,93 +240,569 @@
                     </div>
                 </div>
 
-                @if (step.emptyMessage) {
+                <div class="registration-wizard__grid">
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">CUIP</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().cuip" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Clave Única de Identificación Policial</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().policeIdentificationKey" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">CURP</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().curp" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">RFC</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().rfc" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Nombre(s)</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().firstName" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Primer Apellido</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().lastName" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Segundo Apellido</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().secondLastName" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Sexo</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().gender" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Fecha de Nacimiento</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().birthDate" readonly />
+                    </div>
+                </div>
+            </section>
+            }
+
+            @case ('assignment') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="building-2" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Adscripción</h3>
+                        <p>Centro de trabajo y datos laborales del usuario</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__grid registration-wizard__grid--assignment">
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Tipo de Institución</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().institutionType" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Entidad</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().entity" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Municipio / Alcaldía</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().municipality" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Institución</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().institution" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Órgano desconcentrado</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().decentralizedBody" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Unidad administrativa</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().administrativeUnit" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Cargo</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().position" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Funciones</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().functions" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Fecha de Ingreso</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().admissionDate" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Número de Empleado</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().employeeNumber" readonly />
+                    </div>
+                </div>
+            </section>
+            }
+
+            @case ('commission') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="briefcase" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Comisión</h3>
+                        <p>Datos de comisión interinstitucional (si aplica)</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">
+                        {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
+                    </span>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
                 <div class="registration-wizard__info-box">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>{{ step.emptyMessage }}</span>
+                    <span>Esta sección es opcional. Si no existe información de comisión, los campos se muestran
+                        vacíos.</span>
                 </div>
-                }
 
-                @if (step.fields.length) {
-                <div class="registration-wizard__grid registration-wizard__grid--detail">
-                    @for (field of step.fields; track field.key) {
-                    <div class="registration-wizard__readonly-field">
-                        <span>{{ field.label }}</span>
-                        <strong>{{ field.value }}</strong>
+                <div class="registration-wizard__grid">
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Tipo de Institución</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionInstitutionType" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Institución</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionInstitution" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Entidad</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionEntity" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Municipio / Alcaldía</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionMunicipality" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Dependencia</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionDependency" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Órgano desconcentrado</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionDecentralizedBody" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Unidad administrativa</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().commissionAdministrativeUnit" readonly />
+                    </div>
+                </div>
+            </section>
+            }
+
+            @case ('documents') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Archivos</h3>
+                        <p>Carga de documentos de identidad y laborales</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">
+                        {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
+                    </span>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__info-box registration-wizard__info-box--documents">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>Documentos registrados del usuario. Si no hay archivos, la sección queda vacía.</span>
+                </div>
+
+                <div class="registration-wizard__documents-grid">
+                    @if (detailForm().documents.length) {
+                    @for (document of detailForm().documents; track document.id) {
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">{{ document.label }}</div>
+
+                        <div class="registration-wizard__upload-box registration-wizard__upload-box--readonly">
+                            <span class="registration-wizard__upload-icon">
+                                <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
+                            </span>
+
+                            <span class="registration-wizard__upload-title">{{ document.fileName }}</span>
+                            <span class="registration-wizard__upload-text">{{ document.description }}</span>
+                        </div>
+                    </div>
+                    }
+                    } @else {
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">INE</div>
+
+                        <div class="registration-wizard__upload-box registration-wizard__upload-box--readonly">
+                            <span class="registration-wizard__upload-icon">
+                                <siau-lucide-icon name="upload" size="18" strokeWidth="2" aria-hidden="true" />
+                            </span>
+
+                            <span class="registration-wizard__upload-title"></span>
+                            <span class="registration-wizard__upload-text"></span>
+                        </div>
+                    </div>
+
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">Credencial Laboral</div>
+
+                        <div class="registration-wizard__upload-box registration-wizard__upload-box--readonly">
+                            <span class="registration-wizard__upload-icon">
+                                <siau-lucide-icon name="upload" size="18" strokeWidth="2" aria-hidden="true" />
+                            </span>
+
+                            <span class="registration-wizard__upload-title"></span>
+                            <span class="registration-wizard__upload-text"></span>
+                        </div>
                     </div>
                     }
                 </div>
-                }
+            </section>
+            }
 
-                @if (step.items.length) {
-                <div class="registration-wizard__profiles-panel registration-wizard__profiles-panel--detail">
-                    @for (item of step.items; track item.key) {
-                    <article class="registration-wizard__assigned-profile">
-                        <div class="registration-wizard__assigned-profile-main">
-                            <strong>{{ item.title }}</strong>
+            @case ('contact') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="phone" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
 
-                            @if (item.subtitle) {
-                            <span>{{ item.subtitle }}</span>
-                            }
-                        </div>
+                    <div class="registration-wizard__section-title">
+                        <h3>Medio de Contacto</h3>
+                        <p>Información de comunicación del usuario en el sistema</p>
+                    </div>
 
-                        <div
-                            class="registration-wizard__grid registration-wizard__grid--detail registration-wizard__grid--item">
-                            @for (field of item.fields; track field.key) {
-                            <div class="registration-wizard__readonly-field">
-                                <span>{{ field.label }}</span>
-                                <strong>{{ field.value }}</strong>
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__grid">
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Correo Electrónico</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().email" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Teléfono / Celular</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().phone" readonly />
+                    </div>
+
+                    <div class="registration-wizard__field">
+                        <label class="registration-wizard__field-label">Extensión</label>
+                        <input type="text"
+                            class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                            [value]="detailForm().extension" readonly />
+                    </div>
+                </div>
+            </section>
+            }
+
+            @case ('profiles') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="shield" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Perfiles</h3>
+                        <p>Nivel de acceso y sistema asignado al usuario</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__profiles-panel">
+                    <div class="registration-wizard__profiles-field-title">
+                        Sistemas y perfiles asignados
+                    </div>
+
+                    <p class="registration-wizard__profiles-field-help">
+                        Cada usuario puede tener múltiples sistemas con su respectivo perfil de acceso.
+                    </p>
+
+                    @if (detailForm().profiles.length === 0) {
+                    <div class="registration-wizard__profiles-empty"></div>
+                    } @else {
+                    <div class="registration-wizard__profiles-list">
+                        @for (item of detailForm().profiles; track item.id) {
+                        <div class="registration-wizard__profiles-item">
+                            <div class="registration-wizard__profiles-item-content">
+                                <span class="registration-wizard__profiles-item-system">
+                                    {{ item.systemLabel }}
+                                </span>
+                                <span class="registration-wizard__profiles-item-separator">•</span>
+                                <span class="registration-wizard__profiles-item-role">
+                                    {{ item.roleLabel }}
+                                </span>
                             </div>
-                            }
                         </div>
-                    </article>
+                        }
+                    </div>
                     }
                 </div>
-                }
             </section>
-            } @else {
-            <div class="registration-wizard__loading">
-                <siau-lucide-icon name="info" size="22" strokeWidth="2" aria-hidden="true" />
-                <strong>Sin datos adicionales</strong>
-                <small>El servicio respondió correctamente, pero no regresó campos de detalle.</small>
-            </div>
+            }
+
+            @case ('account') {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="key-round" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Cuenta</h3>
+                        <p>Credenciales y estado de la cuenta de acceso</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeDetailStepNumber() }} / {{ detailStepOrder.length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of detailProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__account-panel">
+                    <div class="registration-wizard__account-grid">
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">Nombre de usuario</label>
+                            <input type="text"
+                                class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                                [value]="detailForm().username" readonly />
+                        </div>
+
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">Contraseña</label>
+                            <input type="password"
+                                class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                                [value]="detailForm().password" readonly />
+                        </div>
+
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">Confirmar contraseña</label>
+                            <input type="password"
+                                class="registration-wizard__text-input registration-wizard__text-input--readonly"
+                                [value]="detailForm().confirmPassword" readonly />
+                        </div>
+                    </div>
+
+                    <div class="registration-wizard__account-status-block">
+                        <div class="registration-wizard__field-label">
+                            Estatus de la cuenta
+                        </div>
+
+                        <p class="registration-wizard__account-status-help">
+                            Estado operativo actual de la cuenta.
+                        </p>
+
+                        <div class="registration-wizard__account-status-grid">
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="detailForm().accountStatus.toLowerCase() === 'activo'">
+                                <div class="registration-wizard__status-card-title">
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    Activo
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    El usuario puede ingresar al sistema.
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="detailForm().accountStatus.toLowerCase() === 'inhabilitado'">
+                                <div class="registration-wizard__status-card-title">
+                                    Inhabilitado
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    La cuenta se encuentra bloqueada.
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="detailForm().accountStatus.toLowerCase() === 'suspendido'">
+                                <div class="registration-wizard__status-card-title">
+                                    Suspendido
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Acceso bloqueado temporalmente.
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            }
             }
 
             <footer class="registration-wizard__footer">
-                <button type="button"
-                    class="registration-wizard__footer-button registration-wizard__footer-button--ghost"
-                    [disabled]="!canGoPreviousDetailStep()" (click)="previousDetailStep()">
+                <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
+                    [disabled]="activeDetailIndex() === 0" (click)="previousDetailStep()">
                     <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
-                    <span>Anterior</span>
+                    Anterior
                 </button>
 
-                <div class="registration-wizard__footer-dots" aria-hidden="true">
-                    @for (segment of detailProgressSegments(); track segment.id) {
-                    <span [class.registration-wizard__footer-dot--active]="segment.active"></span>
+                <div class="registration-wizard__dots" aria-hidden="true">
+                    @for (step of detailStepOrder; track step; let index = $index) {
+                    <span [class.registration-wizard__dot--active]="index === activeDetailIndex()"></span>
                     }
                 </div>
 
-                <button type="button"
-                    class="registration-wizard__footer-button registration-wizard__footer-button--secondary"
-                    [disabled]="!canGoNextDetailStep()" (click)="nextDetailStep()">
-                    <span>Siguiente</span>
-                    <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
-                </button>
+                <div class="registration-wizard__actions">
+                    <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
+                        [disabled]="activeDetailIndex() === detailStepOrder.length - 1" (click)="nextDetailStep()">
+                        Siguiente
+                        <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
+                    </button>
 
-                <button type="button"
-                    class="registration-wizard__footer-button registration-wizard__footer-button--cancel"
-                    (click)="closeUserDetail()">
-                    Cancelar
-                </button>
+                    <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
+                        (click)="closeUserDetail()">
+                        Cancelar
+                    </button>
 
-                <button type="button"
-                    class="registration-wizard__footer-button registration-wizard__footer-button--primary"
-                    (click)="saveDetailChanges()">
-                    <siau-lucide-icon name="check" size="14" strokeWidth="2.5" aria-hidden="true" />
-                    <span>Guardar cambios</span>
-                </button>
+                    <button type="button" class="registration-wizard__button registration-wizard__button--primary"
+                        (click)="saveDetailChanges()">
+                        <siau-lucide-icon name="check" size="14" strokeWidth="2" aria-hidden="true" />
+                        Guardar cambios
+                    </button>
+                </div>
             </footer>
-        </div>
+        </form>
         }
     </section>
 </siau-modal>
