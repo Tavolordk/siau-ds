@@ -16,13 +16,13 @@ import { UserRegistrationWizard } from '../../components/user-registration-wizar
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'dark' | 'light';
 
 type DetailStepId =
-    | 'general'
     | 'personal-data'
     | 'assignment'
     | 'commission'
     | 'documents'
     | 'contact'
-    | 'profiles';
+    | 'profiles'
+    | 'account';
 
 interface DetailFieldViewModel {
     readonly key: string;
@@ -79,7 +79,7 @@ export class UserManagementPage {
     protected readonly detailErrorMessage = signal<string | null>(null);
     protected readonly selectedUser = signal<UserRecord | null>(null);
     protected readonly selectedUserDetail = signal<UserDetailRecord | null>(null);
-    protected readonly activeDetailStepId = signal<DetailStepId>('general');
+    protected readonly activeDetailStepId = signal<DetailStepId>('personal-data');
 
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
@@ -128,19 +128,22 @@ export class UserManagementPage {
         return index >= 0 ? index + 1 : 1;
     });
 
-    protected readonly detailHeaderBadge = computed(() => {
-        const total = this.detailSteps().length || 1;
-        return `${this.activeDetailStepNumber()}/${total} secciones`;
-    });
+    protected readonly detailHeaderBadge = computed(() => 'Completo');
 
     protected readonly detailProgressSegments = computed(() => {
-        const activeNumber = this.activeDetailStepNumber();
         const total = this.detailSteps().length || 1;
 
         return Array.from({ length: total }).map((_, index) => ({
             id: `detail-segment-${index + 1}`,
-            active: index < activeNumber,
+            active: true,
         }));
+    });
+
+    protected readonly canGoPreviousDetailStep = computed(() => this.activeDetailStepNumber() > 1);
+
+    protected readonly canGoNextDetailStep = computed(() => {
+        const total = this.detailSteps().length;
+        return total > 0 && this.activeDetailStepNumber() < total;
     });
 
     constructor() {
@@ -194,14 +197,14 @@ export class UserManagementPage {
             this.detailErrorMessage.set('No se puede consultar el detalle porque el usuario no tiene identificador interno.');
             this.selectedUser.set(user);
             this.selectedUserDetail.set(null);
-            this.activeDetailStepId.set('general');
+            this.activeDetailStepId.set('personal-data');
             this.isDetailOpen.set(true);
             return;
         }
 
         this.selectedUser.set(user);
         this.selectedUserDetail.set(null);
-        this.activeDetailStepId.set('general');
+        this.activeDetailStepId.set('personal-data');
         this.detailErrorMessage.set(null);
         this.isDetailLoading.set(true);
         this.isDetailOpen.set(true);
@@ -212,7 +215,7 @@ export class UserManagementPage {
             .subscribe({
                 next: (detail) => {
                     this.selectedUserDetail.set(detail);
-                    this.activeDetailStepId.set(this.detailSteps()[0]?.id ?? 'general');
+                    this.activeDetailStepId.set(this.detailSteps()[0]?.id ?? 'personal-data');
                 },
                 error: (error: unknown) => {
                     this.selectedUserDetail.set(null);
@@ -226,11 +229,37 @@ export class UserManagementPage {
         this.selectedUserDetail.set(null);
         this.detailErrorMessage.set(null);
         this.isDetailLoading.set(false);
-        this.activeDetailStepId.set('general');
+        this.activeDetailStepId.set('personal-data');
     }
 
     protected goToDetailStep(stepId: DetailStepId): void {
         this.activeDetailStepId.set(stepId);
+    }
+
+    protected previousDetailStep(): void {
+        const steps = this.detailSteps();
+        const currentIndex = steps.findIndex((step) => step.id === this.activeDetailStepId());
+
+        if (currentIndex <= 0) {
+            return;
+        }
+
+        this.activeDetailStepId.set(steps[currentIndex - 1].id);
+    }
+
+    protected nextDetailStep(): void {
+        const steps = this.detailSteps();
+        const currentIndex = steps.findIndex((step) => step.id === this.activeDetailStepId());
+
+        if (currentIndex < 0 || currentIndex >= steps.length - 1) {
+            return;
+        }
+
+        this.activeDetailStepId.set(steps[currentIndex + 1].id);
+    }
+
+    protected saveDetailChanges(): void {
+        this.closeUserDetail();
     }
 
     protected getDetailStepClass(stepId: DetailStepId): string {
@@ -240,6 +269,10 @@ export class UserManagementPage {
         ]
             .join(' ')
             .trim();
+    }
+
+    protected isDetailStepCompleted(step: DetailStepViewModel): boolean {
+        return Boolean(step.fields.length || step.items.length || step.emptyMessage);
     }
 
     protected getRoleTone(role: UserRecord['role']): BadgeTone {
@@ -349,51 +382,40 @@ export class UserManagementPage {
     }
 
     private buildDetailSteps(datos: Record<string, unknown>): readonly DetailStepViewModel[] {
-        const steps: DetailStepViewModel[] = [];
-
-        const generalFields = this.objectToFields({
+        const accountFields = this.objectToFields({
             correo: datos['correo'],
             cuenta: datos['cuenta'],
             estatus: datos['estatus'],
             tipoUsuario: datos['tipoUsuario'],
         });
 
-        if (generalFields.length) {
-            steps.push({
-                id: 'general',
-                label: 'Cuenta',
-                title: 'Cuenta',
-                description: 'Información principal de acceso del usuario',
-                icon: 'key-round',
-                fields: generalFields,
-                items: [],
-                emptyMessage: null,
-            });
-        }
-
-        steps.push(
+        const steps: DetailStepViewModel[] = [
             this.createDetailStep(
                 'personal-data',
                 'Datos Personales',
                 'Datos Personales',
                 'Información de identidad oficial del usuario',
                 'user',
-                datos['s1DatosPersonales'],
+                this.pickOrderedFields(datos['s1DatosPersonales'], [
+                    'curp',
+                    'rfc',
+                    'nombres',
+                    'primerApellido',
+                    'segundoApellido',
+                    'sexo',
+                    'fechaNacimiento',
+                    'estadoCivil',
+                    'cuip',
+                ]),
             ),
-        );
-
-        steps.push(
             this.createDetailStep(
                 'assignment',
                 'Adscripción',
                 'Adscripción',
-                'Información laboral e institucional del usuario',
+                'Centro de trabajo y datos laborales del usuario',
                 'building-2',
                 datos['s2Adscripcion'],
             ),
-        );
-
-        steps.push(
             this.createDetailStep(
                 'commission',
                 'Comisión',
@@ -403,9 +425,6 @@ export class UserManagementPage {
                 datos['s3Comision'],
                 'Sin comisión registrada.',
             ),
-        );
-
-        steps.push(
             this.createDetailStep(
                 'documents',
                 'Archivos',
@@ -415,9 +434,6 @@ export class UserManagementPage {
                 datos['s4Archivos'],
                 'Sin archivos registrados.',
             ),
-        );
-
-        steps.push(
             this.createDetailStep(
                 'contact',
                 'Medio de Contacto',
@@ -427,9 +443,6 @@ export class UserManagementPage {
                 datos['s5Contacto'],
                 'Sin medios de contacto registrados.',
             ),
-        );
-
-        steps.push(
             this.createDetailStep(
                 'profiles',
                 'Perfiles',
@@ -439,9 +452,42 @@ export class UserManagementPage {
                 datos['s6Perfiles'],
                 'Sin perfiles registrados.',
             ),
-        );
+            {
+                id: 'account',
+                label: 'Cuenta',
+                title: 'Cuenta',
+                description: 'Información principal de acceso del usuario',
+                icon: 'key-round',
+                fields: accountFields,
+                items: [],
+                emptyMessage: accountFields.length ? null : 'Sin información de cuenta registrada.',
+            },
+        ];
 
         return steps.filter((step) => step.fields.length || step.items.length || step.emptyMessage);
+    }
+
+    private pickOrderedFields(value: unknown, keys: readonly string[]): unknown {
+        if (!this.isPlainObject(value)) {
+            return value;
+        }
+
+        const source = value as Record<string, unknown>;
+        const ordered: Record<string, unknown> = {};
+
+        keys.forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(source, key)) {
+                ordered[key] = source[key];
+            }
+        });
+
+        Object.entries(source).forEach(([key, fieldValue]) => {
+            if (!Object.prototype.hasOwnProperty.call(ordered, key)) {
+                ordered[key] = fieldValue;
+            }
+        });
+
+        return ordered;
     }
 
     private createDetailStep(
@@ -510,7 +556,9 @@ export class UserManagementPage {
         }
 
         const record = value as Record<string, unknown>;
-        const title = this.getFirstTextValue(record, ['perfil', 'sistema', 'nombre', 'nombreArchivo', 'archivo']) || `Registro ${index + 1}`;
+        const title =
+            this.getFirstTextValue(record, ['perfil', 'sistema', 'nombre', 'nombreArchivo', 'archivo']) ||
+            `Registro ${index + 1}`;
         const subtitle = this.getFirstTextValue(record, ['sistema', 'estatus', 'tipoDocumento']);
 
         return {

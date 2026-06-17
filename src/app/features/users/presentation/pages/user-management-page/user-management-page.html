@@ -119,10 +119,9 @@
 
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
-                                    <button type="button" class="users-table__action users-table__action--detail"
-                                        title="Ver detalle" aria-label="Ver detalle de usuario"
-                                        (click)="openUserDetail(user)">
-                                        <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
+                                    <button type="button" class="users-table__action users-table__action--edit"
+                                        title="Editar" aria-label="Editar usuario" (click)="openUserDetail(user)">
+                                        <siau-lucide-icon name="pencil" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
                                     <button type="button" class="users-table__action users-table__action--ban"
@@ -164,7 +163,7 @@
     </main>
 </section>
 
-<siau-modal [open]="isDetailOpen()" [title]="detailTitle()" [subtitle]="detailSubtitle()" icon="eye" size="xl"
+<siau-modal [open]="isDetailOpen()" [title]="detailTitle()" [subtitle]="detailSubtitle()" icon="pencil" size="xl"
     [headerBadge]="detailHeaderBadge()" (close)="closeUserDetail()">
     <section class="registration-wizard registration-wizard--detail">
         @if (isDetailLoading()) {
@@ -191,13 +190,20 @@
                     </span>
 
                     <span class="registration-wizard__step-label">{{ step.label }}</span>
+
+                    @if (isDetailStepCompleted(step)) {
+                    <span class="registration-wizard__step-check"
+                        [class.registration-wizard__step-check--active]="activeDetailStepId() === step.id">
+                        <siau-lucide-icon name="check" size="10" strokeWidth="3" aria-hidden="true" />
+                    </span>
+                    }
                 </button>
                 }
             </div>
 
             <div class="registration-wizard__sidebar-progress">
                 <div class="registration-wizard__sidebar-progress-text">
-                    <span>Sección</span>
+                    <span>Progreso</span>
                     <strong>{{ activeDetailStepNumber() }}/{{ detailSteps().length }}</strong>
                 </div>
 
@@ -284,6 +290,41 @@
                 <small>El servicio respondió correctamente, pero no regresó campos de detalle.</small>
             </div>
             }
+
+            <footer class="registration-wizard__footer">
+                <button type="button"
+                    class="registration-wizard__footer-button registration-wizard__footer-button--ghost"
+                    [disabled]="!canGoPreviousDetailStep()" (click)="previousDetailStep()">
+                    <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
+                    <span>Anterior</span>
+                </button>
+
+                <div class="registration-wizard__footer-dots" aria-hidden="true">
+                    @for (segment of detailProgressSegments(); track segment.id) {
+                    <span [class.registration-wizard__footer-dot--active]="segment.active"></span>
+                    }
+                </div>
+
+                <button type="button"
+                    class="registration-wizard__footer-button registration-wizard__footer-button--secondary"
+                    [disabled]="!canGoNextDetailStep()" (click)="nextDetailStep()">
+                    <span>Siguiente</span>
+                    <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
+                </button>
+
+                <button type="button"
+                    class="registration-wizard__footer-button registration-wizard__footer-button--cancel"
+                    (click)="closeUserDetail()">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                    class="registration-wizard__footer-button registration-wizard__footer-button--primary"
+                    (click)="saveDetailChanges()">
+                    <siau-lucide-icon name="check" size="14" strokeWidth="2.5" aria-hidden="true" />
+                    <span>Guardar cambios</span>
+                </button>
+            </footer>
         </div>
         }
     </section>

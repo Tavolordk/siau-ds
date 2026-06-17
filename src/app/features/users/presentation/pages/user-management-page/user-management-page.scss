@@ -662,6 +662,26 @@
   font-weight: 600;
 }
 
+.registration-wizard__step-check {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 999px;
+  background: rgb(27, 31, 74);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 2px 6px rgba(27, 31, 74, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.registration-wizard__step-check--active {
+  background: rgb(27, 31, 74);
+  color: #ffffff;
+}
+
 .registration-wizard__sidebar-progress {
   flex: none;
   margin-top: 6px;
@@ -960,6 +980,95 @@
   color: #611232;
 }
 
+.registration-wizard__footer {
+  height: 58px;
+  flex: none;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(160, 178, 187, 0.18);
+  background: rgb(234, 241, 248);
+  display: grid;
+  grid-template-columns: 90px 1fr 100px 92px 154px;
+  align-items: center;
+  gap: 12px;
+}
+
+.registration-wizard__footer-button {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.registration-wizard__footer-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.registration-wizard__footer-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.registration-wizard__footer-button--ghost {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(160, 178, 187, 0.22);
+  color: rgba(27, 31, 74, 0.45);
+}
+
+.registration-wizard__footer-button--secondary {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(160, 178, 187, 0.45);
+  color: rgba(27, 31, 74, 0.66);
+}
+
+.registration-wizard__footer-button--cancel {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(160, 178, 187, 0.45);
+  color: rgba(27, 31, 74, 0.7);
+}
+
+.registration-wizard__footer-button--primary {
+  background: rgb(27, 31, 74);
+  border-color: rgb(27, 31, 74);
+  color: #ffffff;
+  box-shadow: 0 8px 16px rgba(27, 31, 74, 0.22);
+}
+
+.registration-wizard__footer-button--primary:hover {
+  filter: brightness(1.05);
+}
+
+.registration-wizard__footer-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.registration-wizard__footer-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(27, 31, 74, 0.22);
+}
+
+.registration-wizard__footer-dots .registration-wizard__footer-dot--active {
+  background: rgb(27, 31, 74);
+}
+
 @keyframes users-loader-spin {
   to {
     transform: rotate(360deg);
@@ -1251,6 +1360,21 @@
   .registration-wizard__grid--item {
     grid-template-columns: 1fr;
   }
+
+  .registration-wizard__footer {
+    height: auto;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .registration-wizard__footer-dots {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+
+  .registration-wizard__footer-button--primary {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1347,6 +1471,11 @@
     font-size: 11px;
   }
 
+  .registration-wizard__step-check {
+    width: 16px;
+    height: 16px;
+  }
+
   .registration-wizard__section-header {
     min-height: auto;
     padding: 11px 12px 9px;
@@ -1370,6 +1499,16 @@
   .registration-wizard__info-box {
     width: calc(100% - 24px);
     margin: 12px 12px 0;
+  }
+
+  .registration-wizard__footer {
+    padding: 8px;
+    grid-template-columns: 1fr;
+  }
+
+  .registration-wizard__footer-dots,
+  .registration-wizard__footer-button--primary {
+    grid-column: auto;
   }
 }
 
@@ -1402,4 +1541,61 @@
   .registration-wizard__step-label {
     font-size: 10.5px;
   }
+}
+
+/* =========================
+   AJUSTE MODAL DETALLE IGUAL AL DISEÑO ORIGINAL
+========================= */
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__header {
+  background: rgb(153, 168, 190) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 1px 3px rgba(0, 0, 0, 0.07) !important;
+  color: rgb(27, 31, 74) !important;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__icon-wrap {
+  background: rgba(27, 31, 74, 0.62) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__title {
+  color: rgba(27, 31, 74, 0.92) !important;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__subtitle {
+  color: rgba(27, 31, 74, 0.6) !important;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__badge {
+  border: 1px solid rgba(27, 31, 74, 0.3) !important;
+  background: rgba(27, 31, 74, 0.16) !important;
+  color: rgb(27, 31, 74) !important;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__badge::before {
+  content: '✓';
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 1.5px solid rgb(27, 31, 74);
+  color: rgb(27, 31, 74);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__close {
+  color: rgba(27, 31, 74, 0.5) !important;
+}
+
+:host ::ng-deep .siau-modal__surface:has(.registration-wizard--detail) .siau-modal__close:hover {
+  background: rgba(27, 31, 74, 0.08) !important;
+  color: rgb(27, 31, 74) !important;
 }
