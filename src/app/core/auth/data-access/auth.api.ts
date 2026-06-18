@@ -154,7 +154,7 @@ export class AuthApi {
         }
 
         return this.http
-            .delete<void>(`${this.baseUrl}/api/v1/sesiones/${encodeURIComponent(session.sid)}`, {
+            .delete<void>(`${this.baseUrl}/api/v1/sesiones`, {
                 body: {
                     sid: session.sid,
                     refreshToken: session.refreshToken,

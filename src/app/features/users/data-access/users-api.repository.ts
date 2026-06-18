@@ -10,7 +10,7 @@ import {
     UsersQuery,
 } from '../domain/models/user-record.model';
 
-const USERS_PATH = '/api/v1/usuarios';
+const USERS_PATH = '/api/v1/consultas/usuarios';
 
 interface ApiErrorDto {
     readonly code?: string | null;
