@@ -379,7 +379,6 @@
   box-shadow: none !important;
 }
 
-/* Esto mata wrappers grises internos del componente */
 :host ::ng-deep siau-input div,
 :host ::ng-deep siau-select div {
   background-color: transparent !important;
@@ -550,6 +549,7 @@
     width: 100%;
   }
 }
+
 /* =========================================================
    PATCH: aviso opcional de Comisión igual al Figma
 ========================================================= */
@@ -594,18 +594,15 @@
   font-weight: 700;
 }
 
-/* Evita que el grid de Comisión quede pegado al aviso */
 .registration-wizard__info-box + .registration-wizard__grid {
   padding-top: 18px;
 }
 
-/* En Comisión el texto no debe verse gigante aunque herede estilos globales */
 .registration-wizard__section .registration-wizard__info-box,
 .registration-wizard__section .registration-wizard__info-box * {
   font-size: 12px;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .registration-wizard__info-box {
     width: calc(100% - 32px);
@@ -614,6 +611,7 @@
     align-items: flex-start;
   }
 }
+
 /* =========================================================
    RESPONSIVE FIX SEGURO: altura + scroll sin romper estilos
 ========================================================= */
@@ -1042,7 +1040,6 @@
   line-height: 1.4;
 }
 
-/* En móvil las cards no deben parecer botones planos gigantes */
 @media (max-width: 768px) {
   .registration-wizard__status-card {
     min-height: auto;
@@ -1051,5 +1048,267 @@
 
   .registration-wizard__status-card-title {
     justify-content: flex-start;
+  }
+}
+
+.registration-wizard__edit-bar {
+  margin: 12px 22px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 178, 187, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.registration-wizard__edit-bar--active {
+  border-color: rgba(27, 31, 74, 0.22);
+  background: rgba(27, 31, 74, 0.06);
+}
+
+.registration-wizard__edit-bar-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.registration-wizard__edit-bar-text strong {
+  color: rgb(27, 31, 74);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.registration-wizard__edit-bar-text span {
+  color: rgb(98, 116, 142);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.registration-wizard__edit-button {
+  flex: none;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(27, 31, 74, 0.2);
+  border-radius: 9px;
+  background: rgb(27, 31, 74);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    filter 150ms ease,
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+
+.registration-wizard__edit-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__edit-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.registration-wizard__status-card:disabled,
+.registration-wizard__profiles-remove:disabled,
+.registration-wizard__button:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__edit-bar {
+    margin: 10px 12px 0;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .registration-wizard__edit-button {
+    width: 100%;
+  }
+}
+/* =========================================================
+   RESTORE: sección Perfiles
+========================================================= */
+
+.registration-wizard__profiles-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.registration-wizard__profiles-field-title {
+  margin: 0;
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.registration-wizard__profiles-field-title span {
+  color: rgb(155, 34, 71);
+}
+
+.registration-wizard__profiles-field-help {
+  margin: -8px 0 0;
+  color: rgba(27, 31, 74, 0.42);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.registration-wizard__profiles-empty {
+  min-height: 48px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(160, 178, 187, 0.55);
+  background: rgba(255, 255, 255, 0.45);
+  color: rgba(27, 31, 74, 0.42);
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.registration-wizard__profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.registration-wizard__profiles-item {
+  min-height: 42px;
+  padding: 9px 10px 9px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 18px rgba(27, 31, 74, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.registration-wizard__profiles-item-content {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.registration-wizard__profiles-item-system {
+  color: rgb(27, 31, 74);
+  font-weight: 700;
+}
+
+.registration-wizard__profiles-item-separator {
+  color: rgba(27, 31, 74, 0.38);
+  font-weight: 700;
+}
+
+.registration-wizard__profiles-item-role {
+  color: rgb(98, 116, 142);
+  font-weight: 600;
+}
+
+.registration-wizard__profiles-remove {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(97, 18, 50, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+
+.registration-wizard__profiles-remove:hover:not(:disabled) {
+  background: rgba(97, 18, 50, 0.09);
+  color: rgb(97, 18, 50);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__profiles-remove:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.registration-wizard__profiles-add-card {
+  margin-top: 4px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 178, 187, 0.32);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.registration-wizard__profiles-add-title {
+  margin-bottom: 12px;
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.registration-wizard__profiles-add-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.registration-wizard__profiles-add-action {
+  display: flex;
+  align-items: end;
+}
+
+.registration-wizard__button--add {
+  min-width: 96px;
+  height: 41px;
+}
+
+.registration-wizard__button--add:disabled {
+  border-color: rgba(160, 178, 187, 0.24);
+  background: rgba(255, 255, 255, 0.32);
+  color: rgba(98, 116, 142, 0.36);
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__profiles-add-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-wizard__profiles-add-action {
+    width: 100%;
+  }
+
+  .registration-wizard__button--add {
+    width: 100%;
+  }
+
+  .registration-wizard__profiles-item {
+    align-items: flex-start;
+  }
+
+  .registration-wizard__profiles-item-content {
+    flex-wrap: wrap;
   }
 }

@@ -18,7 +18,7 @@
             </button>
         </div>
 
-        <article class="users-table-card" [attr.aria-busy]="isLoading()">
+        <article class="users-table-card" [attr.aria-busy]="isLoading() || isDetailLoading()">
             <div class="users-table-card__search-row">
                 <label class="users-table-card__search">
                     <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
@@ -29,7 +29,8 @@
                 </label>
 
                 <button type="button" class="users-table-card__reload" title="Recargar usuarios"
-                    aria-label="Recargar usuarios" [disabled]="isLoading()" (click)="reloadUsers()">
+                    aria-label="Recargar usuarios" [disabled]="isLoading() || isDetailLoading()"
+                    (click)="reloadUsers()">
                     <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>Recargar</span>
                 </button>
@@ -39,6 +40,13 @@
             <div class="users-table-card__message users-table-card__message--error" role="alert">
                 <siau-lucide-icon name="circle-x" size="17" strokeWidth="2" aria-hidden="true" />
                 <span>{{ error }}</span>
+            </div>
+            }
+
+            @if (isDetailLoading()) {
+            <div class="users-table-card__message users-table-card__message--info" role="status">
+                <span class="users-table__loader" aria-hidden="true"></span>
+                <span>Consultando detalle del usuario...</span>
             </div>
             }
 
@@ -119,9 +127,10 @@
 
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
-                                    <button type="button" class="users-table__action users-table__action--edit"
-                                        title="Editar" aria-label="Editar usuario" (click)="openUserDetail(user)">
-                                        <siau-lucide-icon name="pencil" size="16" strokeWidth="2" aria-hidden="true" />
+                                    <button type="button" class="users-table__action users-table__action--detail"
+                                        title="Ver" aria-label="Ver usuario" [disabled]="isDetailLoading()"
+                                        (click)="openUserDetail(user)">
+                                        <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
                                     <button type="button" class="users-table__action users-table__action--ban"
@@ -163,222 +172,5 @@
     </main>
 </section>
 
-
-@if (isDetailOpen()) {
-<div class="edit-user-modal__backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
-    <article class="edit-user-modal__surface">
-        <header class="edit-user-modal__header">
-            <span class="edit-user-modal__header-line" aria-hidden="true"></span>
-
-            <div class="edit-user-modal__avatar">{{ detailInitials() }}</div>
-
-            <div class="edit-user-modal__title-group">
-                <h2 id="edit-user-title">{{ detailTitle() }}</h2>
-
-                <div class="edit-user-modal__subtitle">
-                    @if (selectedUser(); as user) {
-                    <span>{{ user.username }}</span>
-                    <span class="edit-user-modal__dot" aria-hidden="true"></span>
-                    <span>{{ user.role }}</span>
-                    } @else {
-                    <span>Consulta individual de usuario</span>
-                    }
-                </div>
-            </div>
-
-            <div class="edit-user-modal__badge">
-                <siau-lucide-icon name="circle-check" size="13" strokeWidth="2" aria-hidden="true" />
-                <span>{{ detailHeaderBadge() }}</span>
-            </div>
-
-            <button type="button" class="edit-user-modal__close" title="Cerrar" aria-label="Cerrar modal"
-                (click)="closeUserDetail()">
-                <siau-lucide-icon name="x" size="17" strokeWidth="2" aria-hidden="true" />
-            </button>
-        </header>
-
-        @if (isDetailLoading()) {
-        <div class="edit-user-modal__loading">
-            <span class="users-table__loader" aria-hidden="true"></span>
-            <strong>Consultando detalle...</strong>
-            <small>Obteniendo información completa del usuario.</small>
-        </div>
-        } @else if (detailErrorMessage(); as detailError) {
-        <div class="edit-user-modal__loading edit-user-modal__loading--error" role="alert">
-            <siau-lucide-icon name="circle-x" size="22" strokeWidth="2" aria-hidden="true" />
-            <strong>No fue posible consultar el detalle</strong>
-            <small>{{ detailError }}</small>
-        </div>
-        } @else {
-        <div class="edit-user-modal__body">
-            <aside class="edit-user-modal__sidebar">
-                <div class="edit-user-modal__sidebar-title">Secciones</div>
-
-                <div class="edit-user-modal__steps">
-                    @for (step of detailSteps(); track step.id) {
-                    <button type="button" [class]="getDetailStepClass(step.id)" (click)="goToDetailStep(step.id)">
-                        @if (activeDetailStepId() === step.id) {
-                        <span class="edit-user-modal__step-bar" aria-hidden="true"></span>
-                        }
-
-                        <span class="edit-user-modal__step-icon">
-                            <siau-lucide-icon [name]="step.icon" size="13" strokeWidth="2" aria-hidden="true" />
-                        </span>
-
-                        <span class="edit-user-modal__step-label">{{ step.label }}</span>
-
-                        @if (isDetailStepCompleted(step)) {
-                        <span class="edit-user-modal__step-check">
-                            <siau-lucide-icon name="check" size="10" strokeWidth="3" aria-hidden="true" />
-                        </span>
-                        }
-                    </button>
-                    }
-                </div>
-
-                <div class="edit-user-modal__sidebar-progress">
-                    <div class="edit-user-modal__sidebar-progress-text">
-                        <span>Progreso</span>
-                        <strong>{{ activeDetailStepNumber() }}/{{ detailSteps().length }}</strong>
-                    </div>
-
-                    <div class="edit-user-modal__sidebar-progress-track">
-                        <span [style.width.%]="(activeDetailStepNumber() / detailSteps().length) * 100"></span>
-                    </div>
-                </div>
-            </aside>
-
-            <section class="edit-user-modal__content">
-                @if (activeDetailStep(); as step) {
-                <div class="edit-user-modal__section">
-                    <header class="edit-user-modal__section-header">
-                        <span class="edit-user-modal__section-icon">
-                            <siau-lucide-icon [name]="step.icon" size="18" strokeWidth="2" aria-hidden="true" />
-                        </span>
-
-                        <div class="edit-user-modal__section-title">
-                            <h3>{{ step.title }}</h3>
-                            <p>{{ step.description }}</p>
-                        </div>
-
-                        <div class="edit-user-modal__section-meta">
-                            <span>{{ activeDetailStepNumber() }} / {{ detailSteps().length }}</span>
-                        </div>
-
-                        <div class="edit-user-modal__progress-strip" aria-hidden="true">
-                            @for (segment of detailProgressSegments(); track segment.id) {
-                            <span [class.edit-user-modal__progress-segment--active]="segment.active"></span>
-                            }
-                        </div>
-                    </header>
-
-                    <div class="edit-user-modal__section-body">
-                        @if (step.emptyMessage) {
-                        <div class="edit-user-modal__info-box">
-                            <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                            <span>{{ step.emptyMessage }}</span>
-                        </div>
-                        }
-
-                        @if (step.fields.length) {
-                        <div class="edit-user-modal__grid">
-                            @for (field of step.fields; track field.key) {
-                            <label class="edit-user-modal__field">
-                                <span class="edit-user-modal__field-label">
-                                    {{ field.label }}
-
-                                    @if (field.required) {
-                                    <span class="edit-user-modal__required" aria-hidden="true">◆</span>
-                                    }
-                                </span>
-
-                                <input class="mf-input edit-user-modal__input" type="text"
-                                    [placeholder]="field.placeholder" [value]="field.value" readonly />
-                            </label>
-                            }
-                        </div>
-                        }
-
-                        @if (step.items.length) {
-                        <div class="edit-user-modal__items">
-                            @for (item of step.items; track item.key) {
-                            <article class="edit-user-modal__item">
-                                <header class="edit-user-modal__item-header">
-                                    <strong>{{ item.title }}</strong>
-
-                                    @if (item.subtitle) {
-                                    <span>{{ item.subtitle }}</span>
-                                    }
-                                </header>
-
-                                <div class="edit-user-modal__grid edit-user-modal__grid--item">
-                                    @for (field of item.fields; track field.key) {
-                                    <label class="edit-user-modal__field">
-                                        <span class="edit-user-modal__field-label">
-                                            {{ field.label }}
-
-                                            @if (field.required) {
-                                            <span class="edit-user-modal__required" aria-hidden="true">◆</span>
-                                            }
-                                        </span>
-
-                                        <input class="mf-input edit-user-modal__input" type="text"
-                                            [placeholder]="field.placeholder" [value]="field.value" readonly />
-                                    </label>
-                                    }
-                                </div>
-                            </article>
-                            }
-                        </div>
-                        }
-                    </div>
-                </div>
-                } @else {
-                <div class="edit-user-modal__loading">
-                    <siau-lucide-icon name="info" size="22" strokeWidth="2" aria-hidden="true" />
-                    <strong>Sin datos adicionales</strong>
-                    <small>El servicio respondió correctamente, pero no regresó campos de detalle.</small>
-                </div>
-                }
-            </section>
-        </div>
-
-        <footer class="edit-user-modal__footer">
-            <button type="button" class="edit-user-modal__footer-button edit-user-modal__footer-button--ghost"
-                [disabled]="!canGoPreviousDetailStep()" (click)="previousDetailStep()">
-                <siau-lucide-icon name="chevron-left" size="13" strokeWidth="2" aria-hidden="true" />
-                Anterior
-            </button>
-
-            <div class="edit-user-modal__footer-dots" aria-hidden="true">
-                @for (segment of detailProgressSegments(); track segment.id) {
-                <button type="button" class="edit-user-modal__footer-dot"
-                    [class.edit-user-modal__footer-dot--active]="segment.active" tabindex="-1"></button>
-                }
-            </div>
-
-            <button type="button" class="edit-user-modal__footer-button edit-user-modal__footer-button--secondary"
-                [disabled]="!canGoNextDetailStep()" (click)="nextDetailStep()">
-                Siguiente
-                <siau-lucide-icon name="chevron-right" size="13" strokeWidth="2" aria-hidden="true" />
-            </button>
-
-            <span class="edit-user-modal__footer-separator" aria-hidden="true"></span>
-
-            <button type="button" class="edit-user-modal__footer-button edit-user-modal__footer-button--cancel"
-                (click)="closeUserDetail()">
-                Cancelar
-            </button>
-
-            <button type="button" class="edit-user-modal__footer-button edit-user-modal__footer-button--primary"
-                (click)="saveDetailChanges()">
-                <siau-lucide-icon name="check" size="14" strokeWidth="2" aria-hidden="true" />
-                Guardar cambios
-            </button>
-        </footer>
-        }
-    </article>
-</div>
-}
-
-<app-user-registration-wizard [open]="isRegistrationOpen()" (closed)="closeRegistration()" />
+<app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
+    [userDetail]="selectedUserDetail()" (closed)="closeUserWizard()" />

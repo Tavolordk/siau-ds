@@ -1,5 +1,4 @@
-<siau-modal [open]="open()" title="Registrar Nuevo Usuario"
-    subtitle="Complete todas las secciones requeridas para crear el acceso" icon="user-plus" size="xl"
+<siau-modal [open]="open()" [title]="modalTitle()" [subtitle]="modalSubtitle()" [icon]="modalIcon()" size="xl"
     [headerBadge]="headerBadge()" (close)="closeWizard()">
     <section class="registration-wizard">
         <aside class="registration-wizard__sidebar">
@@ -30,6 +29,24 @@
         </aside>
 
         <form class="registration-wizard__content">
+            @if (isEditMode()) {
+            <div class="registration-wizard__edit-bar" [class.registration-wizard__edit-bar--active]="editEnabled()">
+                <div class="registration-wizard__edit-bar-text">
+                    <strong>{{ editEnabled() ? 'Edición habilitada' : 'Vista de usuario' }}</strong>
+                    <span>
+                        {{ editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
+                        Presiona Editar para modificarlos.' }}
+                    </span>
+                </div>
+
+                <button type="button" class="registration-wizard__edit-button" [disabled]="editEnabled()"
+                    (click)="enableEditing()">
+                    <siau-lucide-icon name="pencil" size="14" strokeWidth="2" aria-hidden="true" />
+                    {{ editEnabled() ? 'Editando' : 'Editar' }}
+                </button>
+            </div>
+            }
+
             @switch (activeStepId()) {
             @case ('personal-data') {
             <section class="registration-wizard__section">
@@ -59,32 +76,36 @@
 
                 <div class="registration-wizard__grid">
                     <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [required]="true" [value]="form().cuip"
-                        (valueChange)="updateForm('cuip', $event)" />
+                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Clave Única de Identificación Policial" placeholder=""
                         [value]="form().policeIdentificationKey"
-                        (valueChange)="updateForm('policeIdentificationKey', $event)" />
+                        (valueChange)="updateForm('policeIdentificationKey', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="true" [maxLength]="18"
-                        [value]="form().curp" (valueChange)="updateForm('curp', $event)" />
+                        [value]="form().curp" (valueChange)="updateForm('curp', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="true" [maxLength]="13"
-                        [value]="form().rfc" (valueChange)="updateForm('rfc', $event)" />
+                        [value]="form().rfc" (valueChange)="updateForm('rfc', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
-                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)" />
+                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
-                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)" />
+                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
-                        (valueChange)="updateForm('secondLastName', $event)" />
+                        (valueChange)="updateForm('secondLastName', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions()"
-                        [value]="form().gender" (valueChange)="updateForm('gender', $event)" />
+                        [value]="form().gender" (valueChange)="updateForm('gender', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="true" [value]="form().birthDate"
-                        (valueChange)="updateForm('birthDate', $event)" />
+                        (valueChange)="updateForm('birthDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -118,42 +139,46 @@
                 <div class="registration-wizard__grid registration-wizard__grid--assignment">
                     <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().institutionType"
-                        (valueChange)="updateAssignmentInstitutionType($event)" />
+                        (valueChange)="updateAssignmentInstitutionType($event)" [disabled]="isFormDisabled()" />
 
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="!isAssignmentFederalInstitution()" [options]="stateOptions()"
-                        [value]="form().entity" [disabled]="isAssignmentFederalInstitution()"
+                        [value]="form().entity" [disabled]="isFormDisabled() || (isAssignmentFederalInstitution())"
                         (valueChange)="updateAssignmentEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
                         [required]="!isAssignmentFederalInstitution()" [options]="municipalityOptions()"
-                        [value]="form().municipality" [disabled]="isAssignmentFederalInstitution() || !form().entity"
+                        [value]="form().municipality"
+                        [disabled]="isFormDisabled() || (isAssignmentFederalInstitution() || !form().entity)"
                         (valueChange)="updateAssignmentMunicipality($event)" />
 
                     <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
                         [options]="institutionOptions()" [value]="form().institution"
-                        [disabled]="!form().institutionType || (!isAssignmentFederalInstitution() && !form().entity)"
+                        [disabled]="isFormDisabled() || (!form().institutionType || (!isAssignmentFederalInstitution() && !form().entity))"
                         (valueChange)="updateAssignmentInstitution($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
                         [options]="decentralizedBodyOptions()" [value]="form().decentralizedBody"
-                        [disabled]="!form().institution" (valueChange)="updateAssignmentDecentralizedBody($event)" />
+                        [disabled]="isFormDisabled() || (!form().institution)"
+                        (valueChange)="updateAssignmentDecentralizedBody($event)" />
 
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
                         [options]="administrativeUnitOptions()" [value]="form().administrativeUnit"
-                        [disabled]="!form().institution" (valueChange)="updateForm('administrativeUnit', $event)" />
+                        [disabled]="isFormDisabled() || (!form().institution)"
+                        (valueChange)="updateForm('administrativeUnit', $event)" />
 
                     <siau-input label="Cargo" placeholder="Ej. Analista" [value]="form().position"
-                        (valueChange)="updateForm('position', $event)" />
+                        (valueChange)="updateForm('position', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Funciones" placeholder="Descripción de funciones" [value]="form().functions"
-                        (valueChange)="updateForm('functions', $event)" />
+                        (valueChange)="updateForm('functions', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Fecha de Ingreso" type="date" [required]="true" [value]="form().admissionDate"
-                        (valueChange)="updateForm('admissionDate', $event)" />
+                        (valueChange)="updateForm('admissionDate', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true"
-                        [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)" />
+                        [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)"
+                        [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -192,36 +217,38 @@
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
                     <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
-                        (valueChange)="updateCommissionInstitutionType($event)" />
+                        (valueChange)="updateCommissionInstitutionType($event)" [disabled]="isFormDisabled()" />
 
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="!isCommissionFederalInstitution()" [options]="stateOptions()"
-                        [value]="form().commissionEntity" [disabled]="isCommissionFederalInstitution()"
+                        [value]="form().commissionEntity"
+                        [disabled]="isFormDisabled() || (isCommissionFederalInstitution())"
                         (valueChange)="updateCommissionEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
                         [required]="!isCommissionFederalInstitution()" [options]="commissionMunicipalityOptions()"
                         [value]="form().commissionMunicipality"
-                        [disabled]="isCommissionFederalInstitution() || !form().commissionEntity"
+                        [disabled]="isFormDisabled() || (isCommissionFederalInstitution() || !form().commissionEntity)"
                         (valueChange)="updateCommissionMunicipality($event)" />
 
                     <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
                         [options]="commissionInstitutionOptions()" [value]="form().commissionInstitution"
-                        [disabled]="!form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity)"
+                        [disabled]="isFormDisabled() || (!form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity))"
                         (valueChange)="updateCommissionInstitution($event)" />
 
                     <siau-select label="Dependencia" placeholder="Selecciona la dependencia"
                         [options]="commissionDependencyOptions()" [value]="form().commissionDependency"
-                        [disabled]="!form().commissionInstitution" (valueChange)="updateCommissionDependency($event)" />
+                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        (valueChange)="updateCommissionDependency($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
                         [options]="commissionDecentralizedBodyOptions()" [value]="form().commissionDecentralizedBody"
-                        [disabled]="!form().commissionInstitution"
+                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
                         (valueChange)="updateCommissionDecentralizedBody($event)" />
 
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
                         [options]="commissionAdministrativeUnitOptions()" [value]="form().commissionAdministrativeUnit"
-                        [disabled]="!form().commissionInstitution"
+                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
                         (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
                 </div>
             </section>
@@ -265,7 +292,7 @@
                         </div>
 
                         <input id="document-ine" type="file" class="registration-wizard__file-input"
-                            accept=".pdf,.jpg,.jpeg,.png" />
+                            accept=".pdf,.jpg,.jpeg,.png" [disabled]="isFormDisabled()" />
 
                         <label for="document-ine" class="registration-wizard__upload-box">
                             <span class="registration-wizard__upload-icon">
@@ -283,7 +310,7 @@
                         </div>
 
                         <input id="document-laboral" type="file" class="registration-wizard__file-input"
-                            accept=".pdf,.jpg,.jpeg,.png" />
+                            accept=".pdf,.jpg,.jpeg,.png" [disabled]="isFormDisabled()" />
 
                         <label for="document-laboral" class="registration-wizard__upload-box">
                             <span class="registration-wizard__upload-icon">
@@ -326,10 +353,12 @@
 
                 <div class="registration-wizard__grid registration-wizard__grid--contact">
                     <siau-input label="Correo Electrónico" placeholder="correo@ejemplo.gob.mx" [required]="true"
-                        [value]="form().email" (valueChange)="updateForm('email', $event)" />
+                        [value]="form().email" (valueChange)="updateForm('email', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Número de Celular" placeholder="10 dígitos sin espacios" [required]="true"
-                        [value]="form().phone" (valueChange)="updateForm('phone', $event)" />
+                        [value]="form().phone" (valueChange)="updateForm('phone', $event)"
+                        [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -371,7 +400,7 @@
 
                     @if (assignedSystemProfiles().length === 0) {
                     <div class="registration-wizard__profiles-empty">
-                        Sin sistemas asignados. Agrega uno desde el formulario de abajo.
+                        Sin sistemas asignados.
                     </div>
                     } @else {
                     <div class="registration-wizard__profiles-list">
@@ -388,7 +417,8 @@
                             </div>
 
                             <button type="button" class="registration-wizard__profiles-remove"
-                                (click)="removeAssignedProfile(item.id)" aria-label="Eliminar sistema asignado">
+                                [disabled]="isFormDisabled()" (click)="removeAssignedProfile(item.id)"
+                                aria-label="Eliminar sistema asignado">
                                 <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                             </button>
                         </div>
@@ -401,15 +431,20 @@
 
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
-                                [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)" />
+                                [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
+                                [disabled]="isFormDisabled()" />
 
-                            <siau-select label="Perfil / Rol" placeholder="" [options]="roleOptions()"
-                                [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" />
+                            @if (shouldShowRoleSelect()) {
+                            <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
+                                [value]="selectedRole()" (valueChange)="updateSelectedRole($event)"
+                                [disabled]="isFormDisabled() || !selectedSystem()" />
+                            }
 
                             <div class="registration-wizard__profiles-add-action">
                                 <button type="button"
                                     class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
-                                    [disabled]="!selectedSystem() || !selectedRole()" (click)="addAssignedProfile()">
+                                    [disabled]="isFormDisabled() || !selectedSystem() || !selectedRole() || !availableRoleOptions().length"
+                                    (click)="addAssignedProfile()">
                                     <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
                                     Agregar
                                 </button>
@@ -454,7 +489,8 @@
                             </label>
 
                             <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
-                                [value]="form().username" (input)="updateForm('username', $any($event.target).value)" />
+                                [value]="form().username" [disabled]="isFormDisabled()"
+                                (input)="updateForm('username', $any($event.target).value)" />
                         </div>
 
                         <div class="registration-wizard__field">
@@ -466,6 +502,7 @@
                                 <input [type]="showPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Mínimo 8 caracteres" [value]="form().password"
+                                    [disabled]="isFormDisabled()"
                                     (input)="updateForm('password', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
@@ -485,6 +522,7 @@
                                 <input [type]="showConfirmPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Repite la contraseña" [value]="form().confirmPassword"
+                                    [disabled]="isFormDisabled()"
                                     (input)="updateForm('confirmPassword', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
@@ -509,7 +547,7 @@
                         <div class="registration-wizard__account-status-grid">
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
-                                (click)="setAccountStatus('active')">
+                                [disabled]="isFormDisabled()" (click)="setAccountStatus('active')">
                                 <div class="registration-wizard__status-card-title">
                                     <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
                                     Activo
@@ -521,7 +559,7 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
-                                (click)="setAccountStatus('disabled')">
+                                [disabled]="isFormDisabled()" (click)="setAccountStatus('disabled')">
                                 <div class="registration-wizard__status-card-title">
                                     Inhabilitado
                                 </div>
@@ -532,7 +570,7 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'suspended'"
-                                (click)="setAccountStatus('suspended')">
+                                [disabled]="isFormDisabled()" (click)="setAccountStatus('suspended')">
                                 <div class="registration-wizard__status-card-title">
                                     Suspendido
                                 </div>
@@ -573,9 +611,9 @@
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--primary"
-                        (click)="submit()">
-                        <siau-lucide-icon name="user-plus" size="14" strokeWidth="2" aria-hidden="true" />
-                        Registrar Usuario
+                        [disabled]="isFormDisabled()" (click)="submit()">
+                        <siau-lucide-icon [name]="primaryButtonIcon()" size="14" strokeWidth="2" aria-hidden="true" />
+                        {{ primaryButtonLabel() }}
                     </button>
                 </div>
             </footer>

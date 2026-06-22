@@ -668,6 +668,49 @@
   line-height: 1;
 }
 
+.edit-user-modal__edit {
+  flex: none;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(27, 31, 74, 0.22);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.28);
+  color: rgb(27, 31, 74);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.edit-user-modal__edit:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.46);
+  border-color: rgba(27, 31, 74, 0.34);
+  transform: translateY(-1px);
+}
+
+.edit-user-modal__edit--active {
+  background: rgb(27, 31, 74);
+  border-color: rgb(27, 31, 74);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(27, 31, 74, 0.24);
+}
+
+.edit-user-modal__edit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .edit-user-modal__close {
   flex: none;
   padding: 7px;
@@ -1055,6 +1098,18 @@
 
 .edit-user-modal__input[readonly] {
   cursor: default;
+  background: rgb(255, 255, 255);
+}
+
+.edit-user-modal__input--editable {
+  color: rgb(27, 31, 74);
+  border-color: rgba(27, 31, 74, 0.34);
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.edit-user-modal__input--editable:hover {
+  border-color: rgba(27, 31, 74, 0.48);
 }
 
 .edit-user-modal__info-box {
@@ -1591,6 +1646,16 @@
     display: none;
   }
 
+  .edit-user-modal__edit span {
+    display: none;
+  }
+
+  .edit-user-modal__edit {
+    width: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+
   .edit-user-modal__sidebar {
     min-height: 74px;
     max-height: 84px;
@@ -1675,4 +1740,15 @@
   .edit-user-modal__step-label {
     font-size: 10.5px;
   }
+}
+.users-table-card__message--info {
+  border: 1px solid rgba(62, 92, 118, 0.22);
+  background: rgba(62, 92, 118, 0.08);
+  color: #3e5c76;
+}
+
+.users-table__action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
