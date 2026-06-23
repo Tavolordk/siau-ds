@@ -19,7 +19,7 @@ const DEFAULT_PAGINATION: UserPagination = {
     totalRegistros: 0,
     totalPaginas: 1,
     paginaActual: 1,
-    porPagina: 20,
+    porPagina: 8,
 };
 
 @Component({
