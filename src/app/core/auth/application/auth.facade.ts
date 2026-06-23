@@ -6,7 +6,9 @@ import { AuthApi } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
 import {
     DEFAULT_AUTHENTICATED_ROUTE,
-    SESSION_VALIDATION_INTERVAL_MS,
+    SESSION_INACTIVITY_LIMIT_MS,
+    SESSION_MONITOR_INTERVAL_MS,
+    SESSION_TOKEN_REFRESH_INTERVAL_MS,
 } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model';
 import { LoginRequest } from '../domain/login-request.model';
@@ -25,7 +27,33 @@ export class AuthFacade {
     private readonly sessionPromptErrorState = signal<string | null>(null);
 
     private sessionMonitorId: ReturnType<typeof setInterval> | null = null;
-    private sessionValidationInFlight = false;
+    private sessionRefreshInFlight = false;
+    private activityListenersRegistered = false;
+    private lastActivityAt = Date.now();
+    private lastRefreshAt = Date.now();
+
+    private readonly activityEvents: readonly (keyof WindowEventMap)[] = [
+        'click',
+        'keydown',
+        'mousemove',
+        'mousedown',
+        'scroll',
+        'touchstart',
+        'wheel',
+    ];
+
+    private readonly activityListenerOptions: AddEventListenerOptions = {
+        passive: true,
+        capture: true,
+    };
+
+    private readonly handleUserActivity = (): void => {
+        if (!this.isAuthenticated() || this.sessionPromptVisible()) {
+            return;
+        }
+
+        this.lastActivityAt = Date.now();
+    };
 
     readonly loading = this.loadingState.asReadonly();
     readonly error = this.errorState.asReadonly();
@@ -103,22 +131,31 @@ export class AuthFacade {
     }
 
     startSessionMonitor(): void {
-        if (!this.isAuthenticated() || this.sessionMonitorId) {
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
+        this.lastActivityAt = Date.now();
+        this.lastRefreshAt = this.resolveSessionIssuedAt(this.session());
+        this.registerActivityListeners();
+
+        if (this.sessionMonitorId) {
             return;
         }
 
         this.sessionMonitorId = setInterval(() => {
-            this.validateCurrentSessionAndAskRenewal();
-        }, SESSION_VALIDATION_INTERVAL_MS);
+            this.monitorAuthenticatedSession();
+        }, SESSION_MONITOR_INTERVAL_MS);
     }
 
     stopSessionMonitor(): void {
-        if (!this.sessionMonitorId) {
-            return;
+        if (this.sessionMonitorId) {
+            clearInterval(this.sessionMonitorId);
+            this.sessionMonitorId = null;
         }
 
-        clearInterval(this.sessionMonitorId);
-        this.sessionMonitorId = null;
+        this.unregisterActivityListeners();
+        this.sessionRefreshInFlight = false;
     }
 
     keepSession(): void {
@@ -139,6 +176,9 @@ export class AuthFacade {
                 next: (session) => {
                     this.storage.updateSession(session);
                     this.sessionPromptVisibleState.set(false);
+                    this.sessionPromptErrorState.set(null);
+                    this.lastActivityAt = Date.now();
+                    this.lastRefreshAt = Date.now();
                     this.restartSessionMonitor();
                 },
                 error: (error: Error) => {
@@ -156,29 +196,51 @@ export class AuthFacade {
         this.errorState.set(null);
     }
 
-    private validateCurrentSessionAndAskRenewal(): void {
-        const currentSession = this.session();
-
-        if (!currentSession || this.sessionPromptVisible() || this.sessionValidationInFlight) {
+    private monitorAuthenticatedSession(): void {
+        if (!this.isAuthenticated()) {
+            this.stopSessionMonitor();
             return;
         }
 
-        this.sessionValidationInFlight = true;
+        if (this.sessionPromptVisible()) {
+            return;
+        }
+
+        const now = Date.now();
+        const inactiveForMs = now - this.lastActivityAt;
+
+        if (inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS) {
+            this.sessionPromptErrorState.set(null);
+            this.sessionPromptVisibleState.set(true);
+            return;
+        }
+
+        const refreshAgeMs = now - this.lastRefreshAt;
+
+        if (refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS) {
+            this.refreshActiveSessionSilently();
+        }
+    }
+
+    private refreshActiveSessionSilently(): void {
+        const currentSession = this.session();
+
+        if (!currentSession || this.sessionRefreshInFlight || this.sessionPromptVisible()) {
+            return;
+        }
+
+        this.sessionRefreshInFlight = true;
 
         this.api
-            .validateSession(currentSession)
-            .pipe(finalize(() => (this.sessionValidationInFlight = false)))
+            .refreshSession(currentSession)
+            .pipe(finalize(() => (this.sessionRefreshInFlight = false)))
             .subscribe({
-                next: (validation) => {
-                    if (!validation.active) {
-                        this.forceLocalLogout('Tu sesión expiró. Inicia sesión nuevamente.');
-                        return;
-                    }
-
-                    this.sessionPromptVisibleState.set(true);
+                next: (session) => {
+                    this.storage.updateSession(session);
+                    this.lastRefreshAt = Date.now();
                 },
                 error: () => {
-                    this.forceLocalLogout('No se pudo validar tu sesión. Inicia sesión nuevamente.');
+                    this.forceLocalLogout('Tu sesión expiró. Inicia sesión nuevamente.');
                 },
             });
     }
@@ -209,6 +271,36 @@ export class AuthFacade {
         this.storage.clearAll();
         this.errorState.set(message);
         void this.router.navigateByUrl('/login');
+    }
+
+    private registerActivityListeners(): void {
+        if (this.activityListenersRegistered) {
+            return;
+        }
+
+        this.activityEvents.forEach((eventName) => {
+            window.addEventListener(eventName, this.handleUserActivity, this.activityListenerOptions);
+        });
+
+        this.activityListenersRegistered = true;
+    }
+
+    private unregisterActivityListeners(): void {
+        if (!this.activityListenersRegistered) {
+            return;
+        }
+
+        this.activityEvents.forEach((eventName) => {
+            window.removeEventListener(eventName, this.handleUserActivity, this.activityListenerOptions);
+        });
+
+        this.activityListenersRegistered = false;
+    }
+
+    private resolveSessionIssuedAt(session: AuthSession | null): number {
+        const issuedAt = Date.parse(session?.issuedAt ?? '');
+
+        return Number.isFinite(issuedAt) ? issuedAt : Date.now();
     }
 
     private isAuthSession(result: AuthSession | PendingAuthChallenge): result is AuthSession {

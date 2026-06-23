@@ -327,14 +327,13 @@
 
             @case ('contact') {
             <section class="registration-wizard__section">
-                <div class="registration-wizard__section-header">
-                    <span class="registration-wizard__section-icon">
+                <div class="registration-wizard__section-header"> <span class="registration-wizard__section-icon">
                         <siau-lucide-icon name="phone" size="18" strokeWidth="2" aria-hidden="true" />
                     </span>
 
                     <div class="registration-wizard__section-title">
                         <h3>Medio de Contacto</h3>
-                        <p>Información de comunicación del usuario en el sistema</p>
+                        <p>Correo institucional y teléfono de contacto</p>
                     </div>
 
                     <div class="registration-wizard__section-meta">
@@ -351,14 +350,17 @@
                     </div>
                 </div>
 
-                <div class="registration-wizard__grid registration-wizard__grid--contact">
-                    <siau-input label="Correo Electrónico" placeholder="correo@ejemplo.gob.mx" [required]="true"
-                        [value]="form().email" (valueChange)="updateForm('email', $event)"
+                <div class="registration-wizard__grid">
+                    <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
+                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Número de Celular" placeholder="10 dígitos sin espacios" [required]="true"
+                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="true" [maxLength]="10"
                         [value]="form().phone" (valueChange)="updateForm('phone', $event)"
                         [disabled]="isFormDisabled()" />
+
+                    <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
+                        (valueChange)="updateForm('extension', $event)" [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -410,14 +412,16 @@
                                 <span class="registration-wizard__profiles-item-system">
                                     {{ item.systemLabel }}
                                 </span>
+
                                 <span class="registration-wizard__profiles-item-separator">•</span>
+
                                 <span class="registration-wizard__profiles-item-role">
                                     {{ item.roleLabel }}
                                 </span>
                             </div>
 
                             <button type="button" class="registration-wizard__profiles-remove"
-                                [disabled]="isFormDisabled()" (click)="removeAssignedProfile(item.id)"
+                                [disabled]="isFormDisabled() || isSubmitting()" (click)="removeAssignedProfile(item.id)"
                                 aria-label="Eliminar sistema asignado">
                                 <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                             </button>
@@ -432,18 +436,18 @@
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
-                                [disabled]="isFormDisabled()" />
+                                [disabled]="isFormDisabled() || isSubmitting()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)"
-                                [disabled]="isFormDisabled() || !selectedSystem()" />
+                                [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem()" />
                             }
 
                             <div class="registration-wizard__profiles-add-action">
                                 <button type="button"
                                     class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
-                                    [disabled]="isFormDisabled() || !selectedSystem() || !selectedRole() || !availableRoleOptions().length"
+                                    [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem() || !selectedRole() || !availableRoleOptions().length"
                                     (click)="addAssignedProfile()">
                                     <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
                                     Agregar
@@ -489,7 +493,7 @@
                             </label>
 
                             <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
-                                [value]="form().username" [disabled]="isFormDisabled()"
+                                [value]="form().username" [disabled]="isFormDisabled() || isSubmitting()"
                                 (input)="updateForm('username', $any($event.target).value)" />
                         </div>
 
@@ -502,11 +506,12 @@
                                 <input [type]="showPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Mínimo 8 caracteres" [value]="form().password"
-                                    [disabled]="isFormDisabled()"
+                                    [disabled]="isFormDisabled() || isSubmitting()"
                                     (input)="updateForm('password', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
+                                    [disabled]="isFormDisabled() || isSubmitting()" (click)="togglePasswordVisibility()"
+                                    aria-label="Mostrar u ocultar contraseña">
                                     <siau-lucide-icon [name]="showPassword() ? 'eye-off' : 'eye'" size="16"
                                         strokeWidth="2" aria-hidden="true" />
                                 </button>
@@ -522,10 +527,11 @@
                                 <input [type]="showConfirmPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Repite la contraseña" [value]="form().confirmPassword"
-                                    [disabled]="isFormDisabled()"
+                                    [disabled]="isFormDisabled() || isSubmitting()"
                                     (input)="updateForm('confirmPassword', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
+                                    [disabled]="isFormDisabled() || isSubmitting()"
                                     (click)="toggleConfirmPasswordVisibility()"
                                     aria-label="Mostrar u ocultar confirmación de contraseña">
                                     <siau-lucide-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" size="16"
@@ -547,7 +553,7 @@
                         <div class="registration-wizard__account-status-grid">
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
-                                [disabled]="isFormDisabled()" (click)="setAccountStatus('active')">
+                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('active')">
                                 <div class="registration-wizard__status-card-title">
                                     <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
                                     Activo
@@ -559,7 +565,7 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
-                                [disabled]="isFormDisabled()" (click)="setAccountStatus('disabled')">
+                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('disabled')">
                                 <div class="registration-wizard__status-card-title">
                                     Inhabilitado
                                 </div>
@@ -570,7 +576,7 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'suspended'"
-                                [disabled]="isFormDisabled()" (click)="setAccountStatus('suspended')">
+                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('suspended')">
                                 <div class="registration-wizard__status-card-title">
                                     Suspendido
                                 </div>
@@ -587,7 +593,7 @@
 
             <footer class="registration-wizard__footer">
                 <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                    [disabled]="activeIndex() === 0" (click)="previousStep()">
+                    [disabled]="activeIndex() === 0 || isSubmitting()" (click)="previousStep()">
                     <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
                     Anterior
                 </button>
@@ -600,18 +606,18 @@
 
                 <div class="registration-wizard__actions">
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                        [disabled]="activeIndex() === stepOrder.length - 1" (click)="nextStep()">
+                        [disabled]="activeIndex() === stepOrder.length - 1 || isSubmitting()" (click)="nextStep()">
                         Siguiente
                         <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
-                        (click)="closeWizard()">
+                        [disabled]="isSubmitting()" (click)="closeWizard()">
                         Cancelar
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--primary"
-                        [disabled]="isFormDisabled()" (click)="submit()">
+                        [disabled]="isFormDisabled() || isSubmitting() || !isLastStep()" (click)="submit()">
                         <siau-lucide-icon [name]="primaryButtonIcon()" size="14" strokeWidth="2" aria-hidden="true" />
                         {{ primaryButtonLabel() }}
                     </button>

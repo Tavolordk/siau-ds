@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, throwError } from 'rxjs';
 import { CONSULTAS_API_BASE_URL } from '../../../core/http/consultas-api-base-url.token';
 import {
+    RegistroAdminRequest,
+    RegistroAdminResponse,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -11,6 +13,7 @@ import {
 } from '../domain/models/user-record.model';
 
 const USERS_PATH = '/api/v1/consultas/usuarios';
+const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
 
 interface ApiErrorDto {
     readonly code?: string | null;
@@ -72,6 +75,17 @@ export class UsersApiRepository {
                 map((response) => this.unwrapResponse(response, 'No fue posible consultar usuarios.')),
                 map((response) => this.toUsersPageResult(response, query)),
                 catchError((error: unknown) => this.handleError(error, 'No fue posible consultar usuarios.')),
+            );
+    }
+
+    createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
+        return this.http
+            .post<RegistroAdminResponse>(`${this.baseUrl}${REGISTRO_ADMIN_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible registrar el usuario.'),
+                ),
             );
     }
 

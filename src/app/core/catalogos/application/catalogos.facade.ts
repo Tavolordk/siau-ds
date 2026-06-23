@@ -90,20 +90,22 @@ export class CatalogosFacade {
 }
 
 function mapSistemaToOptions(items: readonly CatalogoRecord[]): readonly CatalogoOption[] {
-    return items
-        .map((item) => {
-            const sistema = toText(item['sistema']);
+    return items.reduce<CatalogoOption[]>((options, item) => {
+        const sistema = toText(item['sistema']);
 
-            if (!sistema) {
-                return null;
-            }
+        if (!sistema) {
+            return options;
+        }
 
-            return {
+        return [
+            ...options,
+            {
                 value: sistema,
                 label: sistema,
-            } satisfies CatalogoOption;
-        })
-        .filter((item): item is CatalogoOption => item !== null);
+                metadata: item,
+            },
+        ];
+    }, []);
 }
 
 function toText(value: unknown): string {

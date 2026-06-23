@@ -10,6 +10,7 @@ export interface CatalogoResponse<T extends CatalogoRecord = CatalogoRecord> {
 export interface CatalogoOption {
     readonly value: string;
     readonly label: string;
+    readonly metadata?: CatalogoRecord;
 }
 
 export type EstadoMunicipioNivel = 'estado' | 'municipio';

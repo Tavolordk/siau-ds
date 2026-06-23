@@ -43,3 +43,65 @@ export interface UserDetailRecord {
     readonly userId: number;
     readonly datos: Record<string, unknown>;
 }
+
+export interface RegistroDatosPersonales {
+    readonly cuip: string | null;
+    readonly curp: string;
+    readonly rfc: string;
+    readonly nombres: string;
+    readonly primerApellido: string;
+    readonly segundoApellido: string | null;
+    readonly sexoId: number;
+    readonly fechaNacimiento: string;
+    readonly estadoCivilId: number;
+}
+
+export interface RegistroAsignacion {
+    readonly estructuraId: number;
+    readonly cargo: string | null;
+    readonly funciones: string | null;
+    readonly numeroEmpleado: string | null;
+    readonly fechaInicio: string | null;
+}
+
+export interface RegistroMedioContacto {
+    readonly correo: string;
+    readonly celular: string;
+}
+
+export interface RegistroCuenta {
+    readonly passwordHash?: string | null;
+    readonly tipoUsuarioId: number;
+    readonly sistemaId: number;
+    readonly perfilId: number;
+}
+
+export interface RegistroAuditoria {
+    readonly usuarioEjecutorId: number | null;
+    readonly correlationId: string;
+}
+
+export interface RegistroAdminRequest {
+    readonly datosPersonales: RegistroDatosPersonales;
+    readonly adscripcion: RegistroAsignacion;
+    readonly comision: RegistroAsignacion | null;
+    readonly medioContacto: RegistroMedioContacto;
+    readonly cuenta: RegistroCuenta;
+    readonly auditoria: RegistroAuditoria;
+}
+
+export interface RegistroAdminData {
+    readonly usuarioId: number | null;
+    readonly personaId: number | null;
+    readonly cuenta: string | null;
+    readonly cuentaGenerada: string | null;
+    readonly nombreCompleto: string | null;
+    readonly tipoUsuario: string | null;
+    readonly tipoInstitucion: string | null;
+    readonly sistema: string | null;
+}
+
+export interface RegistroAdminResponse {
+    readonly mensaje: string | null;
+    readonly datos: RegistroAdminData | null;
+}

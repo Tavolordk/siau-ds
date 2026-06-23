@@ -12,8 +12,9 @@ import {
     WritableSignal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
+import { finalize, forkJoin } from 'rxjs';
 import { CatalogosFacade } from '../../../../../core/catalogos';
+import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import {
     SiauInput,
     SiauModal,
@@ -22,7 +23,13 @@ import {
     SiauStep,
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
-import { UserDetailRecord, UserRecord } from '../../../domain/models/user-record.model';
+import { UsersFacade } from '../../../application/users.facade';
+import {
+    RegistroAdminRequest,
+    RegistroAsignacion,
+    UserDetailRecord,
+    UserRecord,
+} from '../../../domain/models/user-record.model';
 
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 type UserWizardMode = 'create' | 'edit';
@@ -150,6 +157,8 @@ export class UserRegistrationWizard {
     readonly closed = output<void>();
 
     private readonly catalogosFacade = inject(CatalogosFacade);
+    private readonly usersFacade = inject(UsersFacade);
+    private readonly authStorage = inject(AuthStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
@@ -159,6 +168,7 @@ export class UserRegistrationWizard {
     protected readonly editEnabled = signal<boolean>(true);
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
+    protected readonly isSubmitting = signal<boolean>(false);
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -169,6 +179,8 @@ export class UserRegistrationWizard {
     protected readonly showConfirmPassword = signal<boolean>(false);
 
     protected readonly genderOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly civilStatusOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly userTypeOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly systemOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly roleOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly institutionTypeOptions = signal<readonly SiauSelectOption[]>([]);
@@ -347,11 +359,21 @@ export class UserRegistrationWizard {
 
     protected readonly modalIcon = computed(() => (this.isEditMode() ? 'user' : 'user-plus'));
 
-    protected readonly primaryButtonLabel = computed(() =>
-        this.isEditMode() ? 'Guardar cambios' : 'Registrar Usuario',
-    );
+    protected readonly primaryButtonLabel = computed(() => {
+        if (this.isSubmitting()) {
+            return this.isEditMode() ? 'Guardando...' : 'Registrando...';
+        }
 
-    protected readonly primaryButtonIcon = computed(() => (this.isEditMode() ? 'save' : 'user-plus'));
+        return this.isEditMode() ? 'Guardar cambios' : 'Registrar Usuario';
+    });
+
+    protected readonly primaryButtonIcon = computed(() => {
+        if (this.isSubmitting()) {
+            return 'loader-circle';
+        }
+
+        return this.isEditMode() ? 'save' : 'user-plus';
+    });
 
     constructor() {
         this.loadCatalogos();
@@ -424,25 +446,60 @@ export class UserRegistrationWizard {
     }
 
     protected closeWizard(): void {
+        if (this.isSubmitting()) {
+            return;
+        }
+
         this.closed.emit();
         this.resetWizard();
     }
 
     protected submit(): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
-        this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
-        this.closed.emit();
-        this.resetWizard();
+        if (this.isEditMode()) {
+            this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+            this.closed.emit();
+            this.resetWizard();
+            return;
+        }
+
+        let request: RegistroAdminRequest;
+
+        try {
+            request = this.buildCreateUserRequest();
+        } catch (error) {
+            console.error(error);
+            return;
+        }
+
+        this.isSubmitting.set(true);
+
+        this.usersFacade
+            .createAdminUser(request)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isSubmitting.set(false)),
+            )
+            .subscribe({
+                next: () => {
+                    this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+                    this.closed.emit();
+                    this.resetWizard();
+                },
+                error: (error: unknown) => {
+                    console.error('Error registrando usuario.', error);
+                },
+            });
     }
 
     protected updateForm<K extends keyof UserRegistrationForm>(
         key: K,
         value: UserRegistrationForm[K] | string | null,
     ): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -453,7 +510,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -481,7 +538,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentEntity(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -513,7 +570,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentMunicipality(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -526,7 +583,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentInstitution(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -543,7 +600,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentDecentralizedBody(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -557,7 +614,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionInstitutionType(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -587,7 +644,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionEntity(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -621,7 +678,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionMunicipality(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -634,7 +691,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionInstitution(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -654,7 +711,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionDependency(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -677,7 +734,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionDecentralizedBody(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -694,7 +751,7 @@ export class UserRegistrationWizard {
     }
 
     protected toggleProfile(profile: string): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -719,7 +776,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateSelectedSystem(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -733,7 +790,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateSelectedRole(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -741,7 +798,7 @@ export class UserRegistrationWizard {
     }
 
     protected addAssignedProfile(): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -775,10 +832,11 @@ export class UserRegistrationWizard {
         this.assignedSystemProfiles.update((current) => [...current, newItem]);
         this.selectedSystem.set('');
         this.selectedRole.set('');
+        this.roleOptions.set([]);
     }
 
     protected removeAssignedProfile(id: string): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -795,7 +853,7 @@ export class UserRegistrationWizard {
     }
 
     protected setAccountStatus(status: AccountStatus): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -819,6 +877,198 @@ export class UserRegistrationWizard {
         ]
             .join(' ')
             .trim();
+    }
+
+    private buildCreateUserRequest(): RegistroAdminRequest {
+        const current = this.form();
+        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
+        const password = this.toText(current.password);
+
+        if (!assignedProfile) {
+            throw new Error('Selecciona al menos un sistema y perfil.');
+        }
+
+        if (!password) {
+            throw new Error('Captura la contraseña.');
+        }
+
+        return {
+            datosPersonales: {
+                cuip: this.toNullableText(current.cuip),
+                curp: this.requireText(current.curp, 'Captura la CURP.').toUpperCase(),
+                rfc: this.requireText(current.rfc, 'Captura el RFC.').toUpperCase(),
+                nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
+                primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
+                segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
+                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                fechaNacimiento: this.requireText(current.birthDate, 'Captura la fecha de nacimiento.'),
+                estadoCivilId: this.resolveDefaultCatalogId(this.civilStatusOptions(), 1),
+            },
+            adscripcion: {
+                estructuraId: this.resolveAssignmentStructureId(),
+                cargo: this.toNullableText(current.position)?.toUpperCase() ?? null,
+                funciones: this.toNullableText(current.functions),
+                numeroEmpleado: this.toNullableText(current.employeeNumber),
+                fechaInicio: this.toNullableText(current.admissionDate),
+            },
+            comision: this.buildCommissionRequest(),
+            medioContacto: {
+                correo: this.requireText(current.email, 'Captura el correo.'),
+                celular: this.requireText(current.phone, 'Captura el celular.'),
+            },
+            cuenta: {
+                passwordHash: password,
+                tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+                sistemaId: this.resolveAssignedSystemId(assignedProfile),
+                perfilId: this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.'),
+            },
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-admin-${Date.now()}`,
+            },
+        };
+    }
+
+    private buildCommissionRequest(): RegistroAsignacion | null {
+        const current = this.form();
+        const hasCommission =
+            this.hasText(current.commissionInstitutionType) ||
+            this.hasText(current.commissionInstitution) ||
+            this.hasText(current.commissionDependency) ||
+            this.hasText(current.commissionDecentralizedBody) ||
+            this.hasText(current.commissionAdministrativeUnit);
+
+        if (!hasCommission) {
+            return null;
+        }
+
+        return {
+            estructuraId: this.resolveCommissionStructureId(),
+            cargo: null,
+            funciones: null,
+            numeroEmpleado: null,
+            fechaInicio: null,
+        };
+    } private resolveAssignmentStructureId(): number {
+        const current = this.form();
+
+        return this.resolveStructureId(
+            [
+                current.administrativeUnit,
+                current.decentralizedBody,
+                current.institution,
+            ],
+            'Selecciona la institución, órgano o unidad de adscripción.',
+        );
+    }
+
+    private resolveCommissionStructureId(): number {
+        const current = this.form();
+
+        return this.resolveStructureId(
+            [
+                current.commissionAdministrativeUnit,
+                current.commissionDecentralizedBody,
+                current.commissionDependency,
+                current.commissionInstitution,
+            ],
+            'Selecciona la institución, dependencia, órgano o unidad de comisión.',
+        );
+    }
+
+    private resolveStructureId(values: readonly string[], errorMessage: string): number {
+        const value = values.map((item) => this.toCatalogId(item)).find((item) => item !== undefined);
+
+        if (!value) {
+            throw new Error(errorMessage);
+        }
+
+        return value;
+    }
+
+    private resolveAssignedSystemId(profile: AssignedSystemProfile): number {
+        const option = this.systemOptions().find(
+            (item) =>
+                item.value === profile.system ||
+                this.normalizeText(item.label) === this.normalizeText(profile.systemLabel) ||
+                this.normalizeText(item.value) === this.normalizeText(profile.system),
+        );
+
+        const metadata = this.optionMetadata(option);
+        const idFromMetadata = this.firstNumberValue(metadata, ['id', 'idSistema', 'sistemaId']);
+
+        if (idFromMetadata) {
+            return idFromMetadata;
+        }
+
+        return this.requireCatalogId(profile.system, 'Selecciona un sistema válido.');
+    }
+
+    private resolveDefaultCatalogId(options: readonly SiauSelectOption[], fallback: number): number {
+        const firstOption = options[0];
+
+        if (!firstOption) {
+            return fallback;
+        }
+
+        const id = this.toCatalogId(firstOption.value);
+
+        return id ?? fallback;
+    }
+
+    private requireCatalogId(value: string, errorMessage: string): number {
+        const id = this.toCatalogId(value);
+
+        if (!id) {
+            throw new Error(errorMessage);
+        }
+
+        return id;
+    }
+
+    private requireText(value: string, errorMessage: string): string {
+        const text = this.toText(value);
+
+        if (!text) {
+            throw new Error(errorMessage);
+        }
+
+        return text;
+    }
+
+    private toNullableText(value: string | null | undefined): string | null {
+        const text = this.toText(value);
+
+        return text || null;
+    }
+
+    private hasText(value: string | null | undefined): boolean {
+        return this.toText(value).length > 0;
+    }
+
+    private resolveCurrentUserId(): number | null {
+        const rawUserId = this.authStorage.session()?.user.id;
+        const userId = Number(rawUserId);
+
+        return Number.isFinite(userId) && userId > 0 ? userId : null;
+    }
+
+    private optionMetadata(option: SiauSelectOption | undefined): Record<string, unknown> {
+        const metadata = (option as { metadata?: Record<string, unknown> } | undefined)?.metadata;
+
+        return this.toRecord(metadata);
+    }
+
+    private firstNumberValue(record: Record<string, unknown>, keys: readonly string[]): number | null {
+        for (const key of keys) {
+            const value = Number(record[key]);
+
+            if (Number.isFinite(value) && value > 0) {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
@@ -952,7 +1202,15 @@ export class UserRegistrationWizard {
                 );
 
                 const rawRoleLabel = this.toText(
-                    this.firstValue(record, ['perfil', 'rol', 'perfilClave', 'rolClave', 'nombrePerfil', 'perfilNombre']),
+                    this.firstValue(record, [
+                        'descripcionPerfil',
+                        'perfil',
+                        'rol',
+                        'perfilClave',
+                        'rolClave',
+                        'nombrePerfil',
+                        'perfilNombre',
+                    ]),
                 );
 
                 const rawRoleId = this.toText(
@@ -1204,7 +1462,11 @@ export class UserRegistrationWizard {
             return 'suspended';
         }
 
-        if (normalizedValue.includes('inhabil') || normalizedValue.includes('inactivo') || normalizedValue.includes('baja')) {
+        if (
+            normalizedValue.includes('inhabil') ||
+            normalizedValue.includes('inactivo') ||
+            normalizedValue.includes('baja')
+        ) {
             return 'disabled';
         }
 
@@ -1226,6 +1488,7 @@ export class UserRegistrationWizard {
         this.completedSteps.set([]);
         this.editEnabled.set(true);
         this.form.set({ ...INITIAL_FORM, profiles: [] });
+        this.isSubmitting.set(false);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -1251,6 +1514,8 @@ export class UserRegistrationWizard {
     private loadCatalogos(): void {
         forkJoin({
             sexos: this.catalogosFacade.obtenerSexoOptions(),
+            estadosCivil: this.catalogosFacade.obtenerEstadoCivilOptions(),
+            tiposUsuario: this.catalogosFacade.obtenerTipoUsuarioOptions(),
             sistemas: this.catalogosFacade.obtenerSistemasOptions(),
             tiposInstitucion: this.catalogosFacade.obtenerTipoInstitucionOptions(),
             estados: this.catalogosFacade.obtenerEstadosOptions(),
@@ -1259,6 +1524,8 @@ export class UserRegistrationWizard {
             .subscribe({
                 next: (catalogos) => {
                     this.genderOptions.set(catalogos.sexos);
+                    this.civilStatusOptions.set(catalogos.estadosCivil);
+                    this.userTypeOptions.set(catalogos.tiposUsuario);
                     this.systemOptions.set(catalogos.sistemas);
                     this.roleOptions.set([]);
                     this.institutionTypeOptions.set(catalogos.tiposInstitucion);
@@ -1315,14 +1582,7 @@ export class UserRegistrationWizard {
                 this.normalizeText(option.label) === this.normalizeText(cleanSystem),
         );
 
-        const optionValue = this.toText(systemOption?.value);
-        const optionLabel = this.toText(systemOption?.label);
-
-        if (optionValue && Number.isNaN(Number(optionValue))) {
-            return optionValue;
-        }
-
-        return optionLabel || optionValue || cleanSystem;
+        return this.toText(systemOption?.value) || this.toText(systemOption?.label) || cleanSystem;
     }
 
     private loadMunicipalities(

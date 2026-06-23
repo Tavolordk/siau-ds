@@ -51,7 +51,7 @@ const VALUE_KEYS = [
 
 const LABEL_KEYS = [
     // Perfiles por sistema
-    // IMPORTANTE: estos van antes de "sistema", porque si no muestra SIAU.
+    // Estos van antes de "sistema" para no mostrar SIAU/CLC/CERTIAMX como perfil.
     'descripcionPerfil',
     'DescripcionPerfil',
     'DESCRIPCIONPERFIL',
@@ -116,6 +116,7 @@ function mapCatalogoToOption(item: CatalogoRecord): CatalogoOption | null {
     return {
         value: String(value),
         label: String(label),
+        metadata: item,
     };
 }
 
