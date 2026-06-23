@@ -4,6 +4,7 @@ import {
     EstadoMunicipioQuery,
     EstructuraOrganizacionalQuery,
     EstructuraOrgQuery,
+    SistemaPerfilesQuery,
 } from './catalogo.model';
 
 export abstract class CatalogosRepository {
@@ -26,6 +27,8 @@ export abstract class CatalogosRepository {
     abstract obtenerSexo(): Observable<readonly CatalogoRecord[]>;
 
     abstract obtenerSistemas(): Observable<readonly CatalogoRecord[]>;
+
+    abstract obtenerSistemaPerfiles(query?: SistemaPerfilesQuery): Observable<readonly CatalogoRecord[]>;
 
     abstract obtenerTipoEstructura(): Observable<readonly CatalogoRecord[]>;
 

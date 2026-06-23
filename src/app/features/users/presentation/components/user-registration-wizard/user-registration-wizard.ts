@@ -194,26 +194,22 @@ export class UserRegistrationWizard {
     );
 
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
-        if (!this.isEditMode()) {
-            return this.roleOptions();
-        }
-
         const system = this.selectedSystem();
 
         if (!system) {
             return [];
         }
 
+        const catalogRoleOptions = this.roleOptions();
+
+        if (catalogRoleOptions.length > 0) {
+            return catalogRoleOptions;
+        }
+
         return this.findDetailRoleOptionsForSystem(system);
     });
 
-    protected readonly shouldShowRoleSelect = computed(() => {
-        if (!this.isEditMode()) {
-            return true;
-        }
-
-        return Boolean(this.selectedSystem()) && this.availableRoleOptions().length > 0;
-    });
+    protected readonly shouldShowRoleSelect = computed(() => true);
 
     protected readonly trustLevelOptions: readonly SiauSelectOption[] = [
         { value: 'vigente', label: 'Vigente' },
@@ -727,8 +723,13 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.selectedSystem.set(value ?? '');
+        const system = value ?? '';
+
+        this.selectedSystem.set(system);
         this.selectedRole.set('');
+        this.roleOptions.set([]);
+
+        this.loadProfileOptionsForSystem(system);
     }
 
     protected updateSelectedRole(value: string | null): void {
@@ -928,6 +929,7 @@ export class UserRegistrationWizard {
         this.form.set(nextForm);
         this.selectedSystem.set('');
         this.selectedRole.set('');
+        this.roleOptions.set([]);
         this.assignedSystemProfiles.set(assignedProfiles);
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
     }
@@ -967,11 +969,6 @@ export class UserRegistrationWizard {
                 const systemValue = systemOption?.value || rawSystemId || rawSystemLabel;
                 const systemLabel = rawSystemLabel || systemOption?.label || systemValue;
 
-                /*
-                 * Por ahora no usamos catálogo global de perfiles.
-                 * Solo se pinta el perfil que venga en s6Perfiles.
-                 * Si el detalle no trae nombre de perfil, no se agrega.
-                 */
                 const roleValue = rawRoleId || rawRoleLabel;
                 const roleLabel = rawRoleLabel;
 
@@ -1231,6 +1228,7 @@ export class UserRegistrationWizard {
         this.form.set({ ...INITIAL_FORM, profiles: [] });
         this.selectedSystem.set('');
         this.selectedRole.set('');
+        this.roleOptions.set([]);
         this.assignedSystemProfiles.set([]);
         this.detailRoleOptionsBySystem.set({});
         this.showPassword.set(false);
@@ -1254,7 +1252,6 @@ export class UserRegistrationWizard {
         forkJoin({
             sexos: this.catalogosFacade.obtenerSexoOptions(),
             sistemas: this.catalogosFacade.obtenerSistemasOptions(),
-            roles: this.catalogosFacade.obtenerTipoUsuarioOptions(),
             tiposInstitucion: this.catalogosFacade.obtenerTipoInstitucionOptions(),
             estados: this.catalogosFacade.obtenerEstadosOptions(),
         })
@@ -1263,13 +1260,7 @@ export class UserRegistrationWizard {
                 next: (catalogos) => {
                     this.genderOptions.set(catalogos.sexos);
                     this.systemOptions.set(catalogos.sistemas);
-
-                    /*
-                     * Se conserva para creación.
-                     * En edición NO se usa hasta que backend defina perfiles por sistema.
-                     */
-                    this.roleOptions.set(catalogos.roles);
-
+                    this.roleOptions.set([]);
                     this.institutionTypeOptions.set(catalogos.tiposInstitucion);
                     this.stateOptions.set(catalogos.estados);
                     this.catalogosReady.set(true);
@@ -1279,6 +1270,59 @@ export class UserRegistrationWizard {
                     console.error('Error cargando catálogos del usuario.', error);
                 },
             });
+    }
+
+    private loadProfileOptionsForSystem(systemValue: string): void {
+        const sistema = this.resolveSistemaPerfilesQueryValue(systemValue);
+
+        if (!sistema) {
+            this.roleOptions.set([]);
+            return;
+        }
+
+        this.catalogosFacade
+            .obtenerSistemaPerfilesOptions(sistema)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => {
+                    if (this.selectedSystem() !== systemValue) {
+                        return;
+                    }
+
+                    this.roleOptions.set(options);
+                },
+                error: (error: unknown) => {
+                    if (this.selectedSystem() === systemValue) {
+                        this.roleOptions.set(this.findDetailRoleOptionsForSystem(systemValue));
+                    }
+
+                    console.error('Error cargando perfiles del sistema.', error);
+                },
+            });
+    }
+
+    private resolveSistemaPerfilesQueryValue(systemValue: string): string {
+        const cleanSystem = this.toText(systemValue);
+
+        if (!cleanSystem) {
+            return '';
+        }
+
+        const systemOption = this.systemOptions().find(
+            (option) =>
+                option.value === cleanSystem ||
+                this.normalizeText(option.value) === this.normalizeText(cleanSystem) ||
+                this.normalizeText(option.label) === this.normalizeText(cleanSystem),
+        );
+
+        const optionValue = this.toText(systemOption?.value);
+        const optionLabel = this.toText(systemOption?.label);
+
+        if (optionValue && Number.isNaN(Number(optionValue))) {
+            return optionValue;
+        }
+
+        return optionLabel || optionValue || cleanSystem;
     }
 
     private loadMunicipalities(

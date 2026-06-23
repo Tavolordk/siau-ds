@@ -8,12 +8,17 @@ import {
     EstadoMunicipioQuery,
     EstructuraOrganizacionalQuery,
     EstructuraOrgQuery,
+    SistemaPerfilesQuery,
 } from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
 
 const CATALOGOS_PATH = '/api/v1/catalogos';
 
-type CatalogoQuery = EstadoMunicipioQuery | EstructuraOrganizacionalQuery | EstructuraOrgQuery;
+type CatalogoQuery =
+    | EstadoMunicipioQuery
+    | EstructuraOrganizacionalQuery
+    | EstructuraOrgQuery
+    | SistemaPerfilesQuery;
 
 const QUERY_PARAM_NAMES: Record<string, string> = {
     nivel: 'Nivel',
@@ -23,6 +28,7 @@ const QUERY_PARAM_NAMES: Record<string, string> = {
     tipoInstitucionId: 'TipoInstitucionId',
     padreId: 'PadreId',
     busqueda: 'Busqueda',
+    sistema: 'Sistema',
 };
 
 @Injectable({ providedIn: 'root' })
@@ -66,6 +72,12 @@ export class CatalogosApiRepository implements CatalogosRepository {
 
     obtenerSistemas(): Observable<readonly CatalogoRecord[]> {
         return this.getCatalogo('sistemas');
+    }
+
+    obtenerSistemaPerfiles(
+        query: SistemaPerfilesQuery = { soloActivos: 1 },
+    ): Observable<readonly CatalogoRecord[]> {
+        return this.getCatalogo('sistema_perfiles', query);
     }
 
     obtenerTipoEstructura(): Observable<readonly CatalogoRecord[]> {

@@ -22,7 +22,20 @@ const VALUE_KEYS = [
     'idOrgano',
     'tipoInstitucionId',
     'tipoEstructuraId',
+
+    // Perfiles por sistema
+    'idPerfil',
+    'perfilId',
+    'sistemaPerfilId',
+    'perfilSistemaId',
+    'rolId',
+    'idRol',
+    'clavePerfil',
+    'perfilClave',
+    'rolClave',
+
     'sistemaId',
+    'idSistema',
     'tipoUsuarioId',
     'estadoCivilId',
     'sexoId',
@@ -37,6 +50,22 @@ const VALUE_KEYS = [
 ];
 
 const LABEL_KEYS = [
+    // Perfiles por sistema
+    // IMPORTANTE: estos van antes de "sistema", porque si no muestra SIAU.
+    'descripcionPerfil',
+    'DescripcionPerfil',
+    'DESCRIPCIONPERFIL',
+    'nombrePerfil',
+    'perfilNombre',
+    'perfil',
+    'Perfil',
+    'PERFIL',
+    'rol',
+    'rolNombre',
+    'clavePerfil',
+    'perfilClave',
+    'rolClave',
+
     'descripcion',
     'Descripcion',
     'DESCRIPCION',
@@ -57,7 +86,10 @@ const LABEL_KEYS = [
     'Label',
     'estado',
     'municipio',
+
+    // Este debe ir después de los campos de perfil.
     'sistema',
+
     'tipoUsuario',
     'tipoInstitucion',
     'tipoEstructura',

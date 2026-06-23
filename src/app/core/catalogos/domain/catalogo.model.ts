@@ -35,3 +35,8 @@ export interface EstructuraOrgQuery {
     readonly busqueda?: string;
     readonly soloActivos?: 0 | 1;
 }
+
+export interface SistemaPerfilesQuery {
+    readonly sistema?: string;
+    readonly soloActivos?: 0 | 1;
+}
