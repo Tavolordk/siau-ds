@@ -591,6 +591,18 @@
             }
             }
 
+            @if (currentStepErrors().length > 0) {
+            <div class="registration-wizard__info-box">
+                <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+
+                <div>
+                    @for (error of currentStepErrors(); track error.key) {
+                    <div>{{ error.message }}</div>
+                    }
+                </div>
+            </div>
+            }
+
             <footer class="registration-wizard__footer">
                 <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
                     [disabled]="activeIndex() === 0 || isSubmitting()" (click)="previousStep()">

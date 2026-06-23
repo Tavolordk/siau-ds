@@ -99,6 +99,11 @@ interface AssignedSystemProfile {
     readonly roleLabel: string;
 }
 
+interface ValidationMessage {
+    readonly key: string;
+    readonly message: string;
+}
+
 const INITIAL_FORM: UserRegistrationForm = {
     cuip: '',
     policeIdentificationKey: '',
@@ -169,6 +174,7 @@ export class UserRegistrationWizard {
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
     protected readonly isSubmitting = signal<boolean>(false);
+    protected readonly formErrors = signal<Record<string, string>>({});
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -335,6 +341,18 @@ export class UserRegistrationWizard {
 
     protected readonly isFormDisabled = computed(() => this.isEditMode() && !this.editEnabled());
 
+    protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
+        const errors = this.formErrors();
+        const stepFields = this.getStepValidationFields(this.activeStepId());
+
+        return Object.entries(errors)
+            .filter(([key]) => stepFields.includes(key))
+            .map(([key, message]) => ({
+                key,
+                message,
+            }));
+    });
+
     protected readonly modalTitle = computed(() => {
         if (!this.isEditMode()) {
             return 'Registrar Nuevo Usuario';
@@ -421,14 +439,33 @@ export class UserRegistrationWizard {
     }
 
     protected goToStep(stepId: string): void {
-        if (this.isWizardStep(stepId)) {
-            this.activeStepId.set(stepId);
+        if (!this.isWizardStep(stepId)) {
+            return;
         }
+
+        if (this.isEditMode()) {
+            this.activeStepId.set(stepId);
+            return;
+        }
+
+        const current = this.activeStepId();
+        const currentIndex = this.stepOrder.indexOf(current);
+        const targetIndex = this.stepOrder.indexOf(stepId);
+
+        if (targetIndex > currentIndex && !this.validateStep(current)) {
+            return;
+        }
+
+        this.activeStepId.set(stepId);
     }
 
     protected nextStep(): void {
         const current = this.activeStepId();
         const currentIndex = this.stepOrder.indexOf(current);
+
+        if (!this.isEditMode() && !this.validateStep(current)) {
+            return;
+        }
 
         this.markCompleted(current);
 
@@ -466,11 +503,21 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.validateAllSteps()) {
+            return;
+        }
+
         let request: RegistroAdminRequest;
 
         try {
             request = this.buildCreateUserRequest();
         } catch (error) {
+            const message = error instanceof Error ? error.message : 'Revisa la información capturada.';
+
+            this.formErrors.update((current) => ({
+                ...current,
+                submit: message,
+            }));
             console.error(error);
             return;
         }
@@ -490,6 +537,16 @@ export class UserRegistrationWizard {
                     this.resetWizard();
                 },
                 error: (error: unknown) => {
+                    const message =
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible registrar el usuario.';
+
+                    this.formErrors.update((current) => ({
+                        ...current,
+                        submit: message,
+                    }));
+
                     console.error('Error registrando usuario.', error);
                 },
             });
@@ -503,10 +560,14 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const normalizedValue = this.normalizeFormInputValue(key, value);
+
         this.form.update((current) => ({
             ...current,
-            [key]: value ?? '',
+            [key]: normalizedValue,
         }));
+
+        this.clearFieldError(String(key));
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
@@ -830,6 +891,7 @@ export class UserRegistrationWizard {
         };
 
         this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -1489,6 +1551,7 @@ export class UserRegistrationWizard {
         this.editEnabled.set(true);
         this.form.set({ ...INITIAL_FORM, profiles: [] });
         this.isSubmitting.set(false);
+        this.formErrors.set({});
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -1728,6 +1791,288 @@ export class UserRegistrationWizard {
         const label = option?.label ?? value;
 
         return this.normalizeText(label).includes('federal');
+    }
+
+    private validateAllSteps(): boolean {
+        for (const stepId of this.stepOrder) {
+            if (!this.validateStep(stepId)) {
+                this.activeStepId.set(stepId);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private validateStep(stepId: WizardStepId): boolean {
+        const current = this.form();
+        const nextErrors: Record<string, string> = {};
+
+        if (stepId === 'personal-data') {
+            if (!this.hasText(current.curp)) {
+                nextErrors['curp'] = 'La CURP es obligatoria.';
+            } else if (!this.isValidCurp(current.curp)) {
+                nextErrors['curp'] = 'La CURP no tiene un formato válido.';
+            }
+
+            if (!this.hasText(current.rfc)) {
+                nextErrors['rfc'] = 'El RFC es obligatorio.';
+            } else if (!this.isValidRfc(current.rfc)) {
+                nextErrors['rfc'] = 'El RFC no tiene un formato válido.';
+            }
+
+            if (!this.hasText(current.firstName)) {
+                nextErrors['firstName'] = 'El nombre es obligatorio.';
+            }
+
+            if (!this.hasText(current.lastName)) {
+                nextErrors['lastName'] = 'El primer apellido es obligatorio.';
+            }
+
+            if (!this.hasText(current.gender)) {
+                nextErrors['gender'] = 'El sexo es obligatorio.';
+            }
+
+            if (!this.hasText(current.birthDate)) {
+                nextErrors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
+            } else if (!this.isAdult(current.birthDate)) {
+                nextErrors['birthDate'] = 'El usuario debe ser mayor de edad.';
+            }
+        }
+
+        if (stepId === 'assignment') {
+            if (!this.hasText(current.institutionType)) {
+                nextErrors['institutionType'] = 'El tipo de institución es obligatorio.';
+            }
+
+            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.entity)) {
+                nextErrors['entity'] = 'La entidad es obligatoria.';
+            }
+
+            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.municipality)) {
+                nextErrors['municipality'] = 'El municipio o alcaldía es obligatorio.';
+            }
+
+            if (!this.hasText(current.institution)) {
+                nextErrors['institution'] = 'La institución es obligatoria.';
+            }
+
+            if (!this.hasText(current.admissionDate)) {
+                nextErrors['admissionDate'] = 'La fecha de ingreso es obligatoria.';
+            }
+
+            if (!this.hasText(current.employeeNumber)) {
+                nextErrors['employeeNumber'] = 'El número de empleado es obligatorio.';
+            }
+        }
+
+        if (stepId === 'commission') {
+            const hasCommission =
+                this.hasText(current.commissionInstitutionType) ||
+                this.hasText(current.commissionEntity) ||
+                this.hasText(current.commissionMunicipality) ||
+                this.hasText(current.commissionInstitution) ||
+                this.hasText(current.commissionDependency) ||
+                this.hasText(current.commissionDecentralizedBody) ||
+                this.hasText(current.commissionAdministrativeUnit);
+
+            if (hasCommission) {
+                if (!this.hasText(current.commissionInstitutionType)) {
+                    nextErrors['commissionInstitutionType'] = 'El tipo de institución de comisión es obligatorio.';
+                }
+
+                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionEntity)) {
+                    nextErrors['commissionEntity'] = 'La entidad de comisión es obligatoria.';
+                }
+
+                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionMunicipality)) {
+                    nextErrors['commissionMunicipality'] = 'El municipio o alcaldía de comisión es obligatorio.';
+                }
+
+                if (!this.hasText(current.commissionInstitution)) {
+                    nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
+                }
+            }
+        }
+
+        if (stepId === 'contact') {
+            if (!this.hasText(current.email)) {
+                nextErrors['email'] = 'El correo electrónico es obligatorio.';
+            } else if (!this.isValidEmail(current.email)) {
+                nextErrors['email'] = 'El correo electrónico no tiene un formato válido.';
+            }
+
+            if (!this.hasText(current.phone)) {
+                nextErrors['phone'] = 'El teléfono celular es obligatorio.';
+            } else if (!/^\d{10}$/.test(current.phone)) {
+                nextErrors['phone'] = 'El teléfono celular debe tener 10 dígitos.';
+            }
+        }
+
+        if (stepId === 'profiles') {
+            if (this.assignedSystemProfiles().length === 0) {
+                nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
+            }
+        }
+
+        if (stepId === 'account' && !this.isEditMode()) {
+            if (!this.hasText(current.password)) {
+                nextErrors['password'] = 'La contraseña es obligatoria.';
+            }
+
+            if (!this.hasText(current.confirmPassword)) {
+                nextErrors['confirmPassword'] = 'La confirmación de contraseña es obligatoria.';
+            }
+
+            if (
+                this.hasText(current.password) &&
+                this.hasText(current.confirmPassword) &&
+                current.password !== current.confirmPassword
+            ) {
+                nextErrors['confirmPassword'] = 'Las contraseñas no coinciden.';
+            }
+        }
+
+        this.formErrors.update((currentErrors) => {
+            const cleanErrors = { ...currentErrors };
+
+            this.getStepValidationFields(stepId).forEach((field) => {
+                delete cleanErrors[field];
+            });
+
+            return {
+                ...cleanErrors,
+                ...nextErrors,
+            };
+        });
+
+        return Object.keys(nextErrors).length === 0;
+    }
+
+    private getStepValidationFields(stepId: WizardStepId): readonly string[] {
+        const fieldsByStep: Record<WizardStepId, readonly string[]> = {
+            'personal-data': [
+                'curp',
+                'rfc',
+                'firstName',
+                'lastName',
+                'gender',
+                'birthDate',
+            ],
+            assignment: [
+                'institutionType',
+                'entity',
+                'municipality',
+                'institution',
+                'admissionDate',
+                'employeeNumber',
+            ],
+            commission: [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+            ],
+            documents: [],
+            contact: [
+                'email',
+                'phone',
+            ],
+            profiles: [
+                'profiles',
+            ],
+            account: [
+                'password',
+                'confirmPassword',
+                'submit',
+            ],
+        };
+
+        return fieldsByStep[stepId];
+    }
+
+    private clearFieldError(key: string): void {
+        this.formErrors.update((current) => {
+            if (!current[key]) {
+                return current;
+            }
+
+            const next = { ...current };
+            delete next[key];
+
+            return next;
+        });
+    }
+
+    private normalizeFormInputValue<K extends keyof UserRegistrationForm>(
+        key: K,
+        value: UserRegistrationForm[K] | string | null,
+    ): UserRegistrationForm[K] {
+        const textValue = this.toText(value);
+
+        if (this.shouldUppercaseField(key)) {
+            return textValue.toUpperCase() as UserRegistrationForm[K];
+        }
+
+        if (key === 'phone') {
+            return textValue.replace(/\D/g, '').slice(0, 10) as UserRegistrationForm[K];
+        }
+
+        return textValue as UserRegistrationForm[K];
+    }
+
+    private shouldUppercaseField(key: keyof UserRegistrationForm): boolean {
+        return [
+            'cuip',
+            'policeIdentificationKey',
+            'curp',
+            'rfc',
+            'firstName',
+            'lastName',
+            'secondLastName',
+            'position',
+            'functions',
+            'employeeNumber',
+            'username',
+        ].includes(key);
+    }
+
+    private isValidCurp(value: string): boolean {
+        const curp = this.toText(value).toUpperCase();
+
+        return /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/.test(curp);
+    }
+
+    private isValidRfc(value: string): boolean {
+        const rfc = this.toText(value).toUpperCase();
+
+        return /^([A-ZÑ&]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
+    }
+
+    private isValidEmail(value: string): boolean {
+        const email = this.toText(value);
+
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+    }
+
+    private isAdult(dateValue: string): boolean {
+        const birthDate = new Date(`${dateValue}T00:00:00`);
+
+        if (Number.isNaN(birthDate.getTime())) {
+            return false;
+        }
+
+        const today = new Date();
+
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        const dayDiff = today.getDate() - birthDate.getDate();
+
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+            age -= 1;
+        }
+
+        return age >= 18;
     }
 
     private normalizeText(value: string): string {
