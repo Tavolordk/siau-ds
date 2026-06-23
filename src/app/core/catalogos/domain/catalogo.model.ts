@@ -27,3 +27,16 @@ export interface EstructuraOrganizacionalQuery {
     readonly estadoId?: number;
     readonly soloActivos?: 0 | 1;
 }
+
+export interface EstructuraOrgQuery {
+    readonly tipoInstitucionId?: number;
+    readonly estadoId?: number;
+    readonly padreId?: number;
+    readonly busqueda?: string;
+    readonly soloActivos?: 0 | 1;
+}
+
+export interface SistemaPerfilesQuery {
+    readonly sistema?: string;
+    readonly soloActivos?: 0 | 1;
+}

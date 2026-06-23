@@ -1,4 +1,4 @@
 export const AUTH_SYSTEM = 'SIAU';
 export const ADMIN_PROFILE_KEYWORD = 'ADMINISTRADOR';
-export const DEFAULT_AUTHENTICATED_ROUTE = '/usuarios';
+export const DEFAULT_AUTHENTICATED_ROUTE = '/solicitudes';
 export const SESSION_VALIDATION_INTERVAL_MS = 15 * 60 * 1000;

@@ -1,9 +1,7 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, OnInit } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
-import { LoginContactMethod } from '../../../../../core/auth/domain/login-request.model';
 import { CaptchaFacade } from '../../../../../core/captcha/application/captcha.facade';
 import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
 
@@ -15,38 +13,20 @@ import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-b
     templateUrl: './login-page.html',
     styleUrl: './login-page.scss',
 })
-export class LoginPage implements OnInit {
+export class LoginPage {
     private readonly formBuilder = inject(FormBuilder);
-    private readonly destroyRef = inject(DestroyRef);
 
     protected readonly auth = inject(AuthFacade);
     protected readonly captcha = inject(CaptchaFacade);
 
     protected readonly form = this.formBuilder.nonNullable.group({
         username: ['', [Validators.required, Validators.minLength(3)]],
-        contactMethod: ['telegram' as LoginContactMethod, [Validators.required]],
-        contact: ['', [Validators.required, Validators.pattern(/^\d{10,15}$/)]],
-        captcha: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(6)]],
+        contact: ['', [this.contactValidator]],
+        captcha: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(6)]],
     });
 
-    private readonly captchaResetEffect = effect(() => {
-        const challengeId = this.captcha.challenge()?.id;
-
-        if (challengeId) {
-            this.form.controls.captcha.setValue('', { emitEvent: false });
-        }
-    });
-
-    ngOnInit(): void {
+    constructor() {
         this.captcha.load();
-
-        this.form.controls.contactMethod.valueChanges
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((method) => {
-                this.form.controls.contact.setValue('', { emitEvent: false });
-                this.setContactValidators(method);
-                this.auth.clearError();
-            });
     }
 
     protected submit(): void {
@@ -60,7 +40,6 @@ export class LoginPage implements OnInit {
 
         this.auth.login({
             username: value.username.trim(),
-            contactMethod: value.contactMethod,
             contact: String(value.contact).trim(),
             captcha: value.captcha,
         });
@@ -76,38 +55,31 @@ export class LoginPage implements OnInit {
         this.captcha.refresh();
     }
 
-    protected selectContactMethod(method: LoginContactMethod): void {
-        if (this.auth.loading()) {
+    protected normalizeContact(): void {
+        const control = this.form.controls.contact;
+        const originalValue = control.value;
+        const value = originalValue.trim();
+
+        if (!value) {
+            if (originalValue !== value) {
+                control.setValue(value, { emitEvent: false });
+            }
+
             return;
         }
 
-        this.form.controls.contactMethod.setValue(method);
-    }
+        const firstCharacter = value.charAt(0);
+        const startsAsPhone = /^\d$/.test(firstCharacter);
 
-    protected isSelectedContactMethod(method: LoginContactMethod): boolean {
-        return this.form.controls.contactMethod.value === method;
-    }
+        const normalizedValue = startsAsPhone
+            ? value.replace(/\D/g, '').slice(0, 10)
+            : value.replace(/\s+/g, '').slice(0, 120);
 
-    protected isTelegramContact(): boolean {
-        return this.form.controls.contactMethod.value === 'telegram';
-    }
-
-    protected contactPlaceholder(): string {
-        return this.isTelegramContact() ? 'Número de Telegram' : 'Correo electrónico';
-    }
-
-    protected contactAutocomplete(): string {
-        return this.isTelegramContact() ? 'tel' : 'email';
-    }
-
-    protected normalizeContact(): void {
-        const control = this.form.controls.contact;
-        const value = control.value;
-        const normalized = this.isTelegramContact() ? value.replace(/\D/g, '').slice(0, 15) : value.trim();
-
-        if (value !== normalized) {
-            control.setValue(normalized, { emitEvent: false });
+        if (originalValue !== normalizedValue) {
+            control.setValue(normalizedValue, { emitEvent: false });
         }
+
+        control.updateValueAndValidity({ emitEvent: false });
     }
 
     protected normalizeCaptcha(): void {
@@ -119,14 +91,35 @@ export class LoginPage implements OnInit {
         this.form.controls.captcha.setValue(value, { emitEvent: false });
     }
 
-    private setContactValidators(method: LoginContactMethod): void {
-        const control = this.form.controls.contact;
-        const validators =
-            method === 'telegram'
-                ? [Validators.required, Validators.pattern(/^\d{10,15}$/)]
-                : [Validators.required, Validators.email];
+    protected isPhoneContact(): boolean {
+        const value = this.form.controls.contact.value.trim();
 
-        control.setValidators(validators);
-        control.updateValueAndValidity({ emitEvent: false });
+        return /^\d/.test(value);
+    }
+
+    protected contactIconLabel(): string {
+        return this.isPhoneContact() ? 'Número de Telegram' : 'Correo electrónico';
+    }
+
+    protected contactInputMode(): string {
+        return this.isPhoneContact() ? 'numeric' : 'email';
+    }
+
+    protected contactMaxLength(): number {
+        return this.isPhoneContact() ? 10 : 120;
+    }
+
+    private contactValidator(control: AbstractControl<string>): ValidationErrors | null {
+        const value = String(control.value ?? '').trim();
+
+        if (!value) {
+            return { required: true };
+        }
+
+        if (/^\d+$/.test(value)) {
+            return /^\d{10}$/.test(value) ? null : { phoneLength: true };
+        }
+
+        return Validators.email(control) ? { email: true } : null;
     }
 }

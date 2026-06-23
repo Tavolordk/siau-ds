@@ -1,6 +1,10 @@
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { CatalogoOption } from '../domain/catalogo.model';
+import {
+    CatalogoOption,
+    CatalogoRecord,
+    EstructuraOrgQuery,
+} from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
 import { mapCatalogoToOptions } from './catalogo-option.mapper';
 
@@ -51,12 +55,25 @@ export class CatalogosFacade {
             .pipe(map(mapCatalogoToOptions));
     }
 
+    obtenerEstructuraOrgOptions(query: EstructuraOrgQuery): Observable<readonly CatalogoOption[]> {
+        return this.repository.obtenerEstructuraOrg(query).pipe(map(mapCatalogoToOptions));
+    }
+
     obtenerSexoOptions(): Observable<readonly CatalogoOption[]> {
         return this.repository.obtenerSexo().pipe(map(mapCatalogoToOptions));
     }
 
     obtenerSistemasOptions(): Observable<readonly CatalogoOption[]> {
-        return this.repository.obtenerSistemas().pipe(map(mapCatalogoToOptions));
+        return this.repository.obtenerSistemas().pipe(map(mapSistemaToOptions));
+    }
+
+    obtenerSistemaPerfilesOptions(sistema: string): Observable<readonly CatalogoOption[]> {
+        return this.repository
+            .obtenerSistemaPerfiles({
+                sistema,
+                soloActivos: 1,
+            })
+            .pipe(map(mapCatalogoToOptions));
     }
 
     obtenerTipoEstructuraOptions(): Observable<readonly CatalogoOption[]> {
@@ -70,4 +87,29 @@ export class CatalogosFacade {
     obtenerTipoUsuarioOptions(): Observable<readonly CatalogoOption[]> {
         return this.repository.obtenerTipoUsuario().pipe(map(mapCatalogoToOptions));
     }
+}
+
+function mapSistemaToOptions(items: readonly CatalogoRecord[]): readonly CatalogoOption[] {
+    return items
+        .map((item) => {
+            const sistema = toText(item['sistema']);
+
+            if (!sistema) {
+                return null;
+            }
+
+            return {
+                value: sistema,
+                label: sistema,
+            } satisfies CatalogoOption;
+        })
+        .filter((item): item is CatalogoOption => item !== null);
+}
+
+function toText(value: unknown): string {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    return String(value).trim();
 }

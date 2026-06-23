@@ -1,6 +1,6 @@
 import { InjectionToken } from '@angular/core';
 
-export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL', {
+export const CONSULTAS_API_BASE_URL = new InjectionToken<string>('CONSULTAS_API_BASE_URL', {
     providedIn: 'root',
     factory: () => 'http://10.241.83.7:3200',
 });
