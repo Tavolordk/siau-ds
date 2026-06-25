@@ -404,10 +404,13 @@ export class UserRegistrationWizard {
     });
 
     constructor() {
-        this.loadCatalogos();
-
         effect(() => {
             const isOpen = this.open();
+
+            if (isOpen && !this.catalogosReady()) {
+                this.loadCatalogos();
+            }
+
             const mode = this.mode();
             const user = this.user();
             const detail = this.userDetail();

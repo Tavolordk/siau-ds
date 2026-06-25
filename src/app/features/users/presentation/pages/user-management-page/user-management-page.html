@@ -128,19 +128,27 @@
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
                                     <button type="button" class="users-table__action users-table__action--detail"
-                                        title="Ver" aria-label="Ver usuario" [disabled]="isDetailLoading()"
+                                        [attr.title]="isUserBaja(user) ? 'Usuario dado de baja. No puede editarse.' : 'Ver / editar'"
+                                        [attr.aria-label]="isUserBaja(user) ? 'Usuario dado de baja. No puede editarse.' : 'Ver o editar usuario'"
+                                        [disabled]="isDetailLoading() || isUserBaja(user)"
                                         (click)="openUserDetail(user)">
                                         <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
                                     <button type="button" class="users-table__action users-table__action--ban"
                                         [attr.title]="getToggleTitle(user.status)"
-                                        [attr.aria-label]="getToggleTitle(user.status) + ' usuario'">
-                                        <siau-lucide-icon name="ban" size="16" strokeWidth="2" aria-hidden="true" />
+                                        [attr.aria-label]="getToggleTitle(user.status) + ' usuario'"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting() || isUserBaja(user)"
+                                        (click)="openStatusModal(user)">
+                                        <siau-lucide-icon [name]="getToggleIcon(user.status)" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
                                     </button>
 
                                     <button type="button" class="users-table__action users-table__action--delete"
-                                        title="Eliminar" aria-label="Eliminar usuario">
+                                        [attr.title]="isUserBaja(user) ? 'Usuario ya dado de baja' : 'Dar de baja'"
+                                        [attr.aria-label]="isUserBaja(user) ? 'Usuario ya dado de baja' : 'Dar de baja usuario'"
+                                        [disabled]="isDetailLoading() || isBajaSubmitting() || isUserBaja(user)"
+                                        (click)="openBajaModal(user)">
                                         <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
                                 </div>
@@ -173,4 +181,123 @@
 </section>
 
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
-    [userDetail]="selectedUserDetail()" (closed)="closeUserWizard()" />
+    [userDetail]="selectedUserDetail()" (closed)="closeUserWizard()"></app-user-registration-wizard>
+
+<siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
+    subtitle="Esta acción dará de baja al usuario seleccionado" icon="trash-2" size="md" headerBadge="Solicitud de baja"
+    (close)="closeBajaModal()">
+    <section class="user-action-modal">
+        @if (bajaTargetUser(); as user) {
+        <div class="user-action-modal__summary">
+            <span class="user-action-modal__summary-icon">
+                <siau-lucide-icon name="user-x" size="20" strokeWidth="2" aria-hidden="true" />
+            </span>
+
+            <div>
+                <h3>{{ user.fullName }}</h3>
+                <p>{{ user.username }} · {{ user.email }}</p>
+            </div>
+        </div>
+        }
+
+        <div class="user-action-modal__warning">
+            <siau-lucide-icon name="triangle-alert" size="17" strokeWidth="2" aria-hidden="true" />
+            <span>
+                Una vez dado de baja, el usuario ya no podrá editarse desde este módulo.
+            </span>
+        </div>
+
+        <div class="user-action-modal__field">
+            <label for="baja-comment">
+                Comentario de baja <span>*</span>
+            </label>
+
+            <textarea id="baja-comment" rows="5" class="user-action-modal__textarea"
+                placeholder="ESCRIBE EL MOTIVO DE LA BAJA" [value]="bajaComment()" [disabled]="isBajaSubmitting()"
+                (input)="updateBajaComment($any($event.target).value)"></textarea>
+
+            <small>
+                El comentario se enviará en mayúsculas al endpoint de baja.
+            </small>
+        </div>
+
+        @if (bajaCommentError(); as error) {
+        <div class="user-action-modal__error" role="alert">
+            <siau-lucide-icon name="circle-x" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>{{ error }}</span>
+        </div>
+        }
+
+        <footer class="user-action-modal__footer">
+            <button type="button" class="user-action-modal__button user-action-modal__button--secondary"
+                [disabled]="isBajaSubmitting()" (click)="closeBajaModal()">
+                Cancelar
+            </button>
+
+            <button type="button" class="user-action-modal__button user-action-modal__button--danger"
+                [disabled]="isBajaSubmitting()" (click)="confirmDarDeBajaUsuario()">
+                <siau-lucide-icon [name]="isBajaSubmitting() ? 'loader-circle' : 'trash-2'" size="15" strokeWidth="2"
+                    aria-hidden="true" />
+                {{ isBajaSubmitting() ? 'Procesando...' : 'Confirmar baja' }}
+            </button>
+        </footer>
+    </section>
+</siau-modal>
+
+<siau-modal [open]="isStatusModalOpen()" [title]="getStatusModalTitle()" [subtitle]="getStatusModalSubtitle()"
+    [icon]="getStatusModalIcon()" size="md" [headerBadge]="getStatusModalBadge()" (close)="closeStatusModal()">
+    <section class="user-action-modal">
+        @if (statusTargetUser(); as user) {
+        <div class="user-action-modal__summary">
+            <span class="user-action-modal__summary-icon">
+                <siau-lucide-icon [name]="getStatusModalIcon()" size="20" strokeWidth="2" aria-hidden="true" />
+            </span>
+
+            <div>
+                <h3>{{ user.fullName }}</h3>
+                <p>{{ user.username }} · {{ user.email }}</p>
+            </div>
+        </div>
+        }
+
+        <div class="user-action-modal__warning">
+            <siau-lucide-icon name="triangle-alert" size="17" strokeWidth="2" aria-hidden="true" />
+            <span>{{ getStatusModalWarning() }}</span>
+        </div>
+
+        <div class="user-action-modal__field">
+            <label for="status-comment">
+                Comentario <span>*</span>
+            </label>
+
+            <textarea id="status-comment" rows="5" class="user-action-modal__textarea"
+                [placeholder]="getStatusCommentPlaceholder()" [value]="statusComment()"
+                [disabled]="isStatusSubmitting()" (input)="updateStatusComment($any($event.target).value)"></textarea>
+
+            <small>
+                El comentario se enviará en mayúsculas al endpoint correspondiente.
+            </small>
+        </div>
+
+        @if (statusCommentError(); as error) {
+        <div class="user-action-modal__error" role="alert">
+            <siau-lucide-icon name="circle-x" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>{{ error }}</span>
+        </div>
+        }
+
+        <footer class="user-action-modal__footer">
+            <button type="button" class="user-action-modal__button user-action-modal__button--secondary"
+                [disabled]="isStatusSubmitting()" (click)="closeStatusModal()">
+                Cancelar
+            </button>
+
+            <button type="button" class="user-action-modal__button user-action-modal__button--danger"
+                [disabled]="isStatusSubmitting()" (click)="confirmToggleUserStatus()">
+                <siau-lucide-icon [name]="isStatusSubmitting() ? 'loader-circle' : getStatusModalIcon()" size="15"
+                    strokeWidth="2" aria-hidden="true" />
+                {{ isStatusSubmitting() ? 'Procesando...' : getStatusConfirmLabel() }}
+            </button>
+        </footer>
+    </section>
+</siau-modal>

@@ -2,9 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged, finalize, Subject, timeout } from 'rxjs';
+import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
+import { SiauModal } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
 import {
+    SolicitudOperacionRequest,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -26,12 +29,13 @@ const DEFAULT_PAGINATION: UserPagination = {
     selector: 'app-user-management-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, SiauLucideIcon, UserRegistrationWizard],
+    imports: [FormsModule, SiauLucideIcon, SiauModal, UserRegistrationWizard],
     templateUrl: './user-management-page.html',
     styleUrl: './user-management-page.scss',
 })
 export class UserManagementPage {
     private readonly usersFacade = inject(UsersFacade);
+    private readonly authStorage = inject(AuthStorage);
     private readonly searchTermChanges = new Subject<string>();
 
     private detailRequestSequence = 0;
@@ -47,6 +51,18 @@ export class UserManagementPage {
     protected readonly selectedUser = signal<UserRecord | null>(null);
     protected readonly selectedUserDetail = signal<UserDetailRecord | null>(null);
     protected readonly isDetailLoading = signal<boolean>(false);
+
+    protected readonly isBajaModalOpen = signal<boolean>(false);
+    protected readonly bajaTargetUser = signal<UserRecord | null>(null);
+    protected readonly bajaComment = signal<string>('');
+    protected readonly bajaCommentError = signal<string | null>(null);
+    protected readonly isBajaSubmitting = signal<boolean>(false);
+
+    protected readonly isStatusModalOpen = signal<boolean>(false);
+    protected readonly statusTargetUser = signal<UserRecord | null>(null);
+    protected readonly statusComment = signal<string>('');
+    protected readonly statusCommentError = signal<string | null>(null);
+    protected readonly isStatusSubmitting = signal<boolean>(false);
 
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
@@ -101,7 +117,14 @@ export class UserManagementPage {
     }
 
     protected openUserDetail(user: UserRecord): void {
-        if (!user.userId) {
+        if (this.isUserBaja(user)) {
+            this.errorMessage.set('El usuario ya está dado de baja y no puede editarse.');
+            return;
+        }
+
+        const userId = this.resolveTargetUserId(user);
+
+        if (!userId) {
             this.errorMessage.set('No se puede consultar el detalle porque el usuario no tiene identificador interno.');
             return;
         }
@@ -113,16 +136,10 @@ export class UserManagementPage {
         this.userWizardMode.set('edit');
         this.errorMessage.set(null);
         this.isDetailLoading.set(true);
-
-        /*
-         * Abrimos el modal inmediatamente.
-         * Así no se queda la tabla esperando aunque el endpoint tarde.
-         * Cuando el endpoint responda 200, se hidratan los datos en el mismo modal.
-         */
         this.isUserWizardOpen.set(true);
 
         this.usersFacade
-            .getUserDetail(user.userId)
+            .getUserDetail(userId)
             .pipe(timeout(15000))
             .subscribe({
                 next: (detail) => {
@@ -152,6 +169,181 @@ export class UserManagementPage {
         this.userWizardMode.set('create');
         this.selectedUser.set(null);
         this.selectedUserDetail.set(null);
+    }
+
+    protected openBajaModal(user: UserRecord): void {
+        this.bajaTargetUser.set(user);
+        this.bajaComment.set('');
+        this.bajaCommentError.set(null);
+        this.errorMessage.set(null);
+        this.isBajaModalOpen.set(true);
+
+        if (this.isUserBaja(user)) {
+            this.bajaCommentError.set('El usuario ya está dado de baja.');
+            return;
+        }
+
+        if (!this.resolveTargetUserId(user)) {
+            this.bajaCommentError.set('No se encontró el identificador interno del usuario. Revisa el mapeo de usuarioId.');
+        }
+    }
+
+    protected closeBajaModal(): void {
+        if (this.isBajaSubmitting()) {
+            return;
+        }
+
+        this.isBajaModalOpen.set(false);
+        this.bajaTargetUser.set(null);
+        this.bajaComment.set('');
+        this.bajaCommentError.set(null);
+    }
+
+    protected updateBajaComment(value: string): void {
+        const normalizedValue = String(value ?? '').toUpperCase();
+
+        this.bajaComment.set(normalizedValue);
+
+        if (normalizedValue.trim()) {
+            this.bajaCommentError.set(null);
+        }
+    }
+
+    protected confirmDarDeBajaUsuario(): void {
+        const user = this.bajaTargetUser();
+        const userId = this.resolveTargetUserId(user);
+
+        if (!user || !userId) {
+            this.bajaCommentError.set('No se puede dar de baja porque el usuario no tiene identificador interno.');
+            return;
+        }
+
+        if (this.isUserBaja(user)) {
+            this.bajaCommentError.set('El usuario ya está dado de baja.');
+            return;
+        }
+
+        const comentarioNormalizado = this.bajaComment().trim().toUpperCase();
+
+        if (!comentarioNormalizado) {
+            this.bajaCommentError.set('El comentario de baja es obligatorio.');
+            return;
+        }
+
+        const request: SolicitudOperacionRequest = {
+            usuarioId: userId,
+            comentario: comentarioNormalizado,
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-baja-${Date.now()}`,
+            },
+        };
+
+        this.isBajaSubmitting.set(true);
+        this.errorMessage.set(null);
+        this.bajaCommentError.set(null);
+
+        this.usersFacade
+            .darDeBajaUsuario(request)
+            .pipe(finalize(() => this.isBajaSubmitting.set(false)))
+            .subscribe({
+                next: () => {
+                    this.closeBajaModal();
+                    this.reloadUsers();
+                },
+                error: (error: unknown) => {
+                    this.bajaCommentError.set(this.toFriendlyError(error));
+                },
+            });
+    }
+
+    protected openStatusModal(user: UserRecord): void {
+        this.statusTargetUser.set(user);
+        this.statusComment.set('');
+        this.statusCommentError.set(null);
+        this.errorMessage.set(null);
+        this.isStatusModalOpen.set(true);
+
+        if (this.isUserBaja(user)) {
+            this.statusCommentError.set('El usuario está dado de baja y no puede activarse ni inhabilitarse.');
+            return;
+        }
+
+        if (!this.resolveTargetUserId(user)) {
+            this.statusCommentError.set('No se encontró el identificador interno del usuario. Revisa el mapeo de usuarioId.');
+        }
+    }
+
+    protected closeStatusModal(): void {
+        if (this.isStatusSubmitting()) {
+            return;
+        }
+
+        this.isStatusModalOpen.set(false);
+        this.statusTargetUser.set(null);
+        this.statusComment.set('');
+        this.statusCommentError.set(null);
+    }
+
+    protected updateStatusComment(value: string): void {
+        const normalizedValue = String(value ?? '').toUpperCase();
+
+        this.statusComment.set(normalizedValue);
+
+        if (normalizedValue.trim()) {
+            this.statusCommentError.set(null);
+        }
+    }
+
+    protected confirmToggleUserStatus(): void {
+        const user = this.statusTargetUser();
+        const userId = this.resolveTargetUserId(user);
+
+        if (!user || !userId) {
+            this.statusCommentError.set('No se puede procesar la operación porque el usuario no tiene identificador interno.');
+            return;
+        }
+
+        if (this.isUserBaja(user)) {
+            this.statusCommentError.set('El usuario está dado de baja y no puede activarse ni inhabilitarse.');
+            return;
+        }
+
+        const comentarioNormalizado = this.statusComment().trim().toUpperCase();
+
+        if (!comentarioNormalizado) {
+            this.statusCommentError.set('El comentario es obligatorio.');
+            return;
+        }
+
+        const request: SolicitudOperacionRequest = {
+            usuarioId: userId,
+            comentario: comentarioNormalizado,
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-status-${Date.now()}`,
+            },
+        };
+
+        const operation$ = this.isUserInactiveStatus(user.status)
+            ? this.usersFacade.darDeAltaUsuario(request)
+            : this.usersFacade.darDeBajaUsuario(request);
+
+        this.isStatusSubmitting.set(true);
+        this.errorMessage.set(null);
+        this.statusCommentError.set(null);
+
+        operation$
+            .pipe(finalize(() => this.isStatusSubmitting.set(false)))
+            .subscribe({
+                next: () => {
+                    this.closeStatusModal();
+                    this.reloadUsers();
+                },
+                error: (error: unknown) => {
+                    this.statusCommentError.set(this.toFriendlyError(error));
+                },
+            });
     }
 
     protected getRoleTone(role: UserRecord['role']): BadgeTone {
@@ -192,6 +384,7 @@ export class UserManagementPage {
 
     protected getRegistryTone(status: UserRecord['rnpsp']): BadgeTone {
         const value = this.normalizeForCompare(status);
+
         return value.includes('registrado') && !value.includes('no') ? 'success' : 'danger';
     }
 
@@ -210,8 +403,88 @@ export class UserManagementPage {
     }
 
     protected getToggleTitle(status: UserRecord['status']): string {
-        const value = this.normalizeForCompare(status);
-        return value.includes('inhabil') || value.includes('inactivo') ? 'Activar' : 'Inhabilitar';
+        return this.isUserInactiveStatus(status) ? 'Activar' : 'Inhabilitar';
+    }
+
+    protected getToggleIcon(status: UserRecord['status']): string {
+        return this.isUserInactiveStatus(status) ? 'rotate-ccw' : 'ban';
+    }
+
+    protected getStatusModalTitle(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '') ? 'Activar usuario' : 'Inhabilitar usuario';
+    }
+
+    protected getStatusModalSubtitle(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '')
+            ? 'Esta acción reactivará el acceso del usuario seleccionado'
+            : 'Esta acción suspenderá temporalmente el acceso del usuario seleccionado';
+    }
+
+    protected getStatusModalIcon(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '') ? 'rotate-ccw' : 'ban';
+    }
+
+    protected getStatusModalBadge(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '')
+            ? 'Solicitud de activación'
+            : 'Solicitud de inhabilitación';
+    }
+
+    protected getStatusModalWarning(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '')
+            ? 'El usuario volverá a tener acceso cuando la operación sea procesada correctamente.'
+            : 'El usuario quedará inhabilitado y no podrá acceder mientras esté suspendido.';
+    }
+
+    protected getStatusCommentPlaceholder(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '')
+            ? 'ESCRIBE EL MOTIVO DE LA ACTIVACIÓN'
+            : 'ESCRIBE EL MOTIVO DE LA INHABILITACIÓN';
+    }
+
+    protected getStatusConfirmLabel(): string {
+        const user = this.statusTargetUser();
+
+        return this.isUserInactiveStatus(user?.status ?? '')
+            ? 'Confirmar activación'
+            : 'Confirmar inhabilitación';
+    }
+
+    protected isUserBaja(user: UserRecord): boolean {
+        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+
+        if (!status) {
+            return false;
+        }
+
+        if (
+            status.includes('no dado de baja') ||
+            status.includes('no baja') ||
+            status.includes('sin baja')
+        ) {
+            return false;
+        }
+
+        return (
+            status === 'baja' ||
+            status === 'bajado' ||
+            status === 'dado de baja' ||
+            status.includes(' dado de baja') ||
+            status.includes(' estatus baja') ||
+            status.includes(' baja ')
+        );
     }
 
     private loadUsers(page = 1, search = this.searchTerm().trim()): void {
@@ -241,6 +514,46 @@ export class UserManagementPage {
                     this.errorMessage.set(this.toFriendlyError(error));
                 },
             });
+    }
+
+    private isUserInactiveStatus(status: string): boolean {
+        const value = this.normalizeForCompare(status);
+
+        return (
+            value.includes('inhabil') ||
+            value.includes('inactivo') ||
+            value.includes('suspend')
+        );
+    }
+
+    private resolveCurrentUserId(): number | null {
+        const rawUserId = this.authStorage.session()?.user.id;
+        const userId = Number(rawUserId);
+
+        return Number.isFinite(userId) && userId > 0 ? userId : null;
+    }
+
+    private resolveTargetUserId(user: UserRecord | null): number | null {
+        if (!user) {
+            return null;
+        }
+
+        const record = user as unknown as Record<string, unknown>;
+
+        return this.toPositiveNumber(
+            user.userId ??
+            record['usuarioId'] ??
+            record['idUsuario'] ??
+            record['id_usuario'] ??
+            record['id'] ??
+            record['usuarioID'],
+        );
+    }
+
+    private toPositiveNumber(value: unknown): number | null {
+        const numberValue = Number(value);
+
+        return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
     }
 
     private normalizeForCompare(value: string): string {

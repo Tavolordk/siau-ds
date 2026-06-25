@@ -5,6 +5,8 @@ import { CONSULTAS_API_BASE_URL } from '../../../core/http/consultas-api-base-ur
 import {
     RegistroAdminRequest,
     RegistroAdminResponse,
+    SolicitudOperacionRequest,
+    SolicitudOperacionResponse,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -14,7 +16,8 @@ import {
 
 const USERS_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
-
+const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
+const SOLICITUD_ALTA_PATH = '/api/v1/solicitudes/alta';
 interface ApiErrorDto {
     readonly code?: string | null;
     readonly message?: string | null;
@@ -88,7 +91,26 @@ export class UsersApiRepository {
                 ),
             );
     }
-
+    darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_BAJA_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible dar de baja al usuario.'),
+                ),
+            );
+    }
+    darDeAltaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_ALTA_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible dar de alta al usuario.'),
+                ),
+            );
+    }
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.http
             .get<ApiResponseDto<UserDetailResponseDto>>(
