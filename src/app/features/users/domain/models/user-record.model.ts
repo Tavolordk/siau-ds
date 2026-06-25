@@ -70,6 +70,7 @@ export interface RegistroMedioContacto {
 }
 
 export interface RegistroCuenta {
+    readonly password?: string | null;
     readonly passwordHash?: string | null;
     readonly tipoUsuarioId: number;
     readonly sistemaId: number;
@@ -87,6 +88,7 @@ export interface RegistroAdminRequest {
     readonly comision: RegistroAsignacion | null;
     readonly medioContacto: RegistroMedioContacto;
     readonly cuenta: RegistroCuenta;
+    readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
 }
 
