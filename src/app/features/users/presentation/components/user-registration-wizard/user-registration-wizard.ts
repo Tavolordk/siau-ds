@@ -2187,6 +2187,7 @@ export class UserRegistrationWizard {
             'functions',
             'employeeNumber',
             'username',
+            'expressJustification',
         ].includes(key);
     }
 
