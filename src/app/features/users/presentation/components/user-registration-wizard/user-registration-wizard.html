@@ -217,7 +217,7 @@
 
                     <div class="registration-wizard__section-title">
                         <h3>Comisión</h3>
-                        <p>Datos de comisión interinstitucional (si aplica)</p>
+                        <p>Datos de comisión interinstitucional, solo si aplica</p>
                     </div>
 
                     <span class="registration-wizard__section-count">
@@ -231,14 +231,40 @@
                     </div>
                 </div>
 
+                <div class="registration-wizard__express-card"
+                    [class.registration-wizard__express-card--active]="form().commissionEnabled">
+                    <label class="registration-wizard__express-toggle">
+                        <input type="checkbox" [checked]="form().commissionEnabled"
+                            [disabled]="isFormDisabled() || isSubmitting()"
+                            (change)="toggleCommissionSection($any($event.target).checked)" />
+
+                        <span class="registration-wizard__express-check" aria-hidden="true">
+                            @if (form().commissionEnabled) {
+                            <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" />
+                            }
+                        </span>
+
+                        <span class="registration-wizard__express-copy">
+                            <strong>Agregar comisión</strong>
+                            <small>
+                                Activa esta opción únicamente si el usuario tendrá una comisión distinta a su
+                                adscripción.
+                                Si no se activa, la comisión se enviará como null.
+                            </small>
+                        </span>
+                    </label>
+                </div>
+
+                @if (!form().commissionEnabled) {
                 <div class="registration-wizard__info-box">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>
-                        Esta sección es <strong>opcional.</strong> Complétala únicamente si el usuario estará
-                        comisionado en una institución distinta a su adscripción.
+                        La comisión es opcional. Puedes continuar sin capturar esta sección.
                     </span>
                 </div>
+                }
 
+                @if (form().commissionEnabled) {
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
                     <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
@@ -247,35 +273,40 @@
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="!isCommissionFederalInstitution()" [options]="stateOptions()"
                         [value]="form().commissionEntity"
-                        [disabled]="isFormDisabled() || (isCommissionFederalInstitution())"
+                        [disabled]="isFormDisabled() || isCommissionFederalInstitution()"
                         (valueChange)="updateCommissionEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
                         [required]="!isCommissionFederalInstitution()" [options]="commissionMunicipalityOptions()"
                         [value]="form().commissionMunicipality"
-                        [disabled]="isFormDisabled() || (isCommissionFederalInstitution() || !form().commissionEntity)"
+                        [disabled]="isFormDisabled() || isCommissionFederalInstitution() || !form().commissionEntity"
                         (valueChange)="updateCommissionMunicipality($event)" />
 
                     <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
                         [options]="commissionInstitutionOptions()" [value]="form().commissionInstitution"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity))"
+                        [disabled]="isFormDisabled() || !form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity)"
                         (valueChange)="updateCommissionInstitution($event)" />
 
                     <siau-select label="Dependencia" placeholder="Selecciona la dependencia"
                         [options]="commissionDependencyOptions()" [value]="form().commissionDependency"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateCommissionDependency($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
                         [options]="commissionDecentralizedBodyOptions()" [value]="form().commissionDecentralizedBody"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateCommissionDecentralizedBody($event)" />
 
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
                         [options]="commissionAdministrativeUnitOptions()" [value]="form().commissionAdministrativeUnit"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
+
+                    <siau-input label="Fecha de Ingreso" type="date" [required]="true"
+                        [value]="form().commissionAdmissionDate"
+                        (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
+                }
             </section>
             }
 

@@ -65,6 +65,7 @@ interface UserRegistrationForm {
     admissionDate: string;
     employeeNumber: string;
 
+    commissionEnabled: boolean;
     commissionInstitutionType: string;
     commissionInstitution: string;
     commissionEntity: string;
@@ -72,6 +73,7 @@ interface UserRegistrationForm {
     commissionDependency: string;
     commissionDecentralizedBody: string;
     commissionAdministrativeUnit: string;
+    commissionAdmissionDate: string;
 
     email: string;
     phone: string;
@@ -128,6 +130,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     admissionDate: '',
     employeeNumber: '',
 
+    commissionEnabled: false,
     commissionInstitutionType: '',
     commissionInstitution: '',
     commissionEntity: '',
@@ -135,6 +138,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     commissionDependency: '',
     commissionDecentralizedBody: '',
     commissionAdministrativeUnit: '',
+    commissionAdmissionDate: '',
 
     email: '',
     phone: '',
@@ -587,6 +591,47 @@ export class UserRegistrationWizard {
         }));
 
         this.formErrors.set({});
+    }
+
+    protected toggleCommissionSection(checked: boolean): void {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        this.form.update((current) => ({
+            ...current,
+            commissionEnabled: checked,
+            commissionInstitutionType: checked ? current.commissionInstitutionType : '',
+            commissionInstitution: checked ? current.commissionInstitution : '',
+            commissionEntity: checked ? current.commissionEntity : '',
+            commissionMunicipality: checked ? current.commissionMunicipality : '',
+            commissionDependency: checked ? current.commissionDependency : '',
+            commissionDecentralizedBody: checked ? current.commissionDecentralizedBody : '',
+            commissionAdministrativeUnit: checked ? current.commissionAdministrativeUnit : '',
+            commissionAdmissionDate: checked ? current.commissionAdmissionDate : '',
+        }));
+
+        if (!checked) {
+            this.commissionMunicipalityOptions.set([]);
+            this.commissionInstitutionOptions.set([]);
+            this.commissionDependencyOptions.set([]);
+            this.commissionDecentralizedBodyOptions.set([]);
+            this.commissionAdministrativeUnitOptions.set([]);
+        }
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+
+            [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+                'commissionAdmissionDate',
+            ].forEach((key) => delete next[key]);
+
+            return next;
+        });
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
@@ -1046,14 +1091,8 @@ export class UserRegistrationWizard {
 
     private buildCommissionRequest(): RegistroAsignacion | null {
         const current = this.form();
-        const hasCommission =
-            this.hasText(current.commissionInstitutionType) ||
-            this.hasText(current.commissionInstitution) ||
-            this.hasText(current.commissionDependency) ||
-            this.hasText(current.commissionDecentralizedBody) ||
-            this.hasText(current.commissionAdministrativeUnit);
 
-        if (!hasCommission) {
+        if (!current.commissionEnabled) {
             return null;
         }
 
@@ -1062,9 +1101,14 @@ export class UserRegistrationWizard {
             cargo: null,
             funciones: null,
             numeroEmpleado: null,
-            fechaInicio: null,
+            fechaInicio: this.requireText(
+                current.commissionAdmissionDate,
+                'Captura la fecha de ingreso de comisión.',
+            ),
         };
-    } private resolveAssignmentStructureId(): number {
+    }
+
+    private resolveAssignmentStructureId(): number {
         const current = this.form();
 
         return this.resolveStructureId(
@@ -1173,7 +1217,7 @@ export class UserRegistrationWizard {
         return text || null;
     }
 
-    private hasText(value: string | null | undefined): boolean {
+    private hasText(value: unknown): boolean {
         return this.toText(value).length > 0;
     }
 
@@ -1226,6 +1270,16 @@ export class UserRegistrationWizard {
             ? ''
             : this.resolveSelectValue(this.firstValue(commission, ['estado', 'entidad', 'estadoId']), this.stateOptions);
 
+        const hasCommissionData =
+            this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||
+            this.hasText(this.firstValue(commission, ['estado', 'entidad', 'estadoId'])) ||
+            this.hasText(this.firstValue(commission, ['municipio', 'municipioAlcaldia', 'municipioId'])) ||
+            this.hasText(this.firstValue(commission, ['institucion', 'institucionId'])) ||
+            this.hasText(this.firstValue(commission, ['dependencia', 'dependenciaId'])) ||
+            this.hasText(this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
+            this.hasText(this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit'])) ||
+            this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso']));
+
         const nextForm: UserRegistrationForm = {
             ...INITIAL_FORM,
             cuip: this.toText(this.firstValue(personalData, ['cuip'])),
@@ -1265,6 +1319,7 @@ export class UserRegistrationWizard {
             admissionDate: this.toDateInputValue(this.firstValue(assignment, ['fechaInicio', 'fechaIngreso'])),
             employeeNumber: this.toText(this.firstValue(assignment, ['numeroEmpleado', 'numEmpleado'])),
 
+            commissionEnabled: hasCommissionData,
             commissionInstitutionType,
             commissionEntity,
             commissionMunicipality: commissionIsFederal
@@ -1289,6 +1344,7 @@ export class UserRegistrationWizard {
                 this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit']),
                 this.commissionAdministrativeUnitOptions,
             ),
+            commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
 
             email: this.toText(this.firstValue(contact, ['correo', 'email'])) || this.toText(datos['correo']) || user?.email || '',
             phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone'])),
@@ -1945,16 +2001,7 @@ export class UserRegistrationWizard {
         }
 
         if (stepId === 'commission') {
-            const hasCommission =
-                this.hasText(current.commissionInstitutionType) ||
-                this.hasText(current.commissionEntity) ||
-                this.hasText(current.commissionMunicipality) ||
-                this.hasText(current.commissionInstitution) ||
-                this.hasText(current.commissionDependency) ||
-                this.hasText(current.commissionDecentralizedBody) ||
-                this.hasText(current.commissionAdministrativeUnit);
-
-            if (hasCommission) {
+            if (current.commissionEnabled) {
                 if (!this.hasText(current.commissionInstitutionType)) {
                     nextErrors['commissionInstitutionType'] = 'El tipo de institución de comisión es obligatorio.';
                 }
@@ -1969,6 +2016,10 @@ export class UserRegistrationWizard {
 
                 if (!this.hasText(current.commissionInstitution)) {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
+                }
+
+                if (!this.hasText(current.commissionAdmissionDate)) {
+                    nextErrors['commissionAdmissionDate'] = 'La fecha de ingreso de comisión es obligatoria.';
                 }
             }
         }
@@ -2068,6 +2119,7 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
+                'commissionAdmissionDate',
             ],
             documents: [],
             contact: [
@@ -2105,7 +2157,7 @@ export class UserRegistrationWizard {
         key: K,
         value: UserRegistrationForm[K] | string | null,
     ): UserRegistrationForm[K] {
-        if (key === 'expressCreation') {
+        if (key === 'expressCreation' || key === 'commissionEnabled') {
             return Boolean(value) as UserRegistrationForm[K];
         }
 
