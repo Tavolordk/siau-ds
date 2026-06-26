@@ -167,6 +167,7 @@ export class UserRegistrationWizard {
     readonly mode = input<UserWizardMode>('create');
     readonly user = input<UserRecord | null>(null);
     readonly userDetail = input<UserDetailRecord | null>(null);
+    readonly readonlyMode = input<boolean>(false);
     readonly closed = output<void>();
 
     private readonly catalogosFacade = inject(CatalogosFacade);
@@ -347,7 +348,9 @@ export class UserRegistrationWizard {
 
     protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
-    protected readonly isFormDisabled = computed(() => this.isEditMode() && !this.editEnabled());
+    protected readonly isFormDisabled = computed(() =>
+        this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
+    );
 
     protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
         const errors = this.formErrors();
@@ -444,7 +447,7 @@ export class UserRegistrationWizard {
     }
 
     protected enableEditing(): void {
-        if (!this.isEditMode()) {
+        if (!this.isEditMode() || this.readonlyMode()) {
             return;
         }
 
@@ -505,7 +508,7 @@ export class UserRegistrationWizard {
     }
 
     protected submit(): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
+        if (this.readonlyMode() || this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 

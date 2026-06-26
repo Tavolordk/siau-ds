@@ -248,7 +248,11 @@ export class UserManagementPage {
             .pipe(finalize(() => this.isBajaSubmitting.set(false)))
             .subscribe({
                 next: () => {
-                    this.closeBajaModal();
+                    this.isBajaSubmitting.set(false);
+                    this.isBajaModalOpen.set(false);
+                    this.bajaTargetUser.set(null);
+                    this.bajaComment.set('');
+                    this.bajaCommentError.set(null);
                     this.reloadUsers();
                 },
                 error: (error: unknown) => {
@@ -264,8 +268,8 @@ export class UserManagementPage {
         this.errorMessage.set(null);
         this.isStatusModalOpen.set(true);
 
-        if (this.isUserBaja(user)) {
-            this.statusCommentError.set('El usuario está dado de baja y no puede activarse ni inhabilitarse.');
+        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+            this.statusCommentError.set('La cuenta inhabilitada o dada de baja no es reactivable.');
             return;
         }
 
@@ -304,8 +308,8 @@ export class UserManagementPage {
             return;
         }
 
-        if (this.isUserBaja(user)) {
-            this.statusCommentError.set('El usuario está dado de baja y no puede activarse ni inhabilitarse.');
+        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+            this.statusCommentError.set('La cuenta inhabilitada o dada de baja no es reactivable.');
             return;
         }
 
@@ -325,9 +329,9 @@ export class UserManagementPage {
             },
         };
 
-        const operation$ = this.isUserInactiveStatus(user.status)
-            ? this.usersFacade.darDeAltaUsuario(request)
-            : this.usersFacade.darDeBajaUsuario(request);
+        const operation$ = this.isUserSuspended(user)
+            ? this.usersFacade.reactivarUsuario(request)
+            : this.usersFacade.suspenderUsuario(request);
 
         this.isStatusSubmitting.set(true);
         this.errorMessage.set(null);
@@ -337,7 +341,11 @@ export class UserManagementPage {
             .pipe(finalize(() => this.isStatusSubmitting.set(false)))
             .subscribe({
                 next: () => {
-                    this.closeStatusModal();
+                    this.isStatusSubmitting.set(false);
+                    this.isStatusModalOpen.set(false);
+                    this.statusTargetUser.set(null);
+                    this.statusComment.set('');
+                    this.statusCommentError.set(null);
                     this.reloadUsers();
                 },
                 error: (error: unknown) => {
@@ -346,80 +354,30 @@ export class UserManagementPage {
             });
     }
 
-    protected getRoleTone(role: UserRecord['role']): BadgeTone {
-        const value = this.normalizeForCompare(role);
-
-        if (value.includes('admin')) {
-            return 'neutral';
-        }
-
-        if (value.includes('enlace')) {
-            return 'info';
-        }
-
-        if (value.includes('supervisor')) {
-            return 'dark';
-        }
-
-        return 'light';
-    }
-
-    protected getStatusTone(status: UserRecord['status']): BadgeTone {
-        const value = this.normalizeForCompare(status);
-
-        if (value.includes('activo') && !value.includes('inactivo')) {
-            return 'success';
-        }
-
-        if (value.includes('suspend')) {
-            return 'warning';
-        }
-
-        if (value.includes('inhabil') || value.includes('inactivo') || value.includes('baja')) {
-            return 'danger';
-        }
-
-        return 'info';
-    }
-
-    protected getRegistryTone(status: UserRecord['rnpsp']): BadgeTone {
-        const value = this.normalizeForCompare(status);
-
-        return value.includes('registrado') && !value.includes('no') ? 'success' : 'danger';
-    }
-
-    protected getTrustTone(status: UserRecord['trust']): BadgeTone {
-        const value = this.normalizeForCompare(status);
-
-        if (value.includes('vigente') || value.includes('aprobado')) {
-            return 'success';
-        }
-
-        if (value.includes('expir') || value.includes('vencid')) {
-            return 'warning';
-        }
-
-        return 'info';
-    }
-
     protected getToggleTitle(status: UserRecord['status']): string {
-        return this.isUserInactiveStatus(status) ? 'Activar' : 'Inhabilitar';
+        return this.isSuspendedStatus(status) ? 'Habilitar' : 'Inhabilitar';
     }
 
     protected getToggleIcon(status: UserRecord['status']): string {
-        return this.isUserInactiveStatus(status) ? 'rotate-ccw' : 'ban';
+        return this.isSuspendedStatus(status) ? 'check' : 'ban';
+    }
+
+    protected getToggleActionClass(status: UserRecord['status']): string {
+        return this.isSuspendedStatus(status)
+            ? 'users-table__action users-table__action--activate'
+            : 'users-table__action users-table__action--ban';
     }
 
     protected getStatusModalTitle(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '') ? 'Activar usuario' : 'Inhabilitar usuario';
+        return user && this.isUserSuspended(user) ? 'Habilitar usuario' : 'Inhabilitar usuario';
     }
 
     protected getStatusModalSubtitle(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '')
+        return user && this.isUserSuspended(user)
             ? 'Esta acción reactivará el acceso del usuario seleccionado'
             : 'Esta acción suspenderá temporalmente el acceso del usuario seleccionado';
     }
@@ -427,39 +385,61 @@ export class UserManagementPage {
     protected getStatusModalIcon(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '') ? 'rotate-ccw' : 'ban';
+        return user && this.isUserSuspended(user) ? 'check' : 'ban';
     }
 
     protected getStatusModalBadge(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '')
-            ? 'Solicitud de activación'
-            : 'Solicitud de inhabilitación';
+        return user && this.isUserSuspended(user)
+            ? 'Solicitud de reactivación'
+            : 'Solicitud de suspensión';
     }
 
     protected getStatusModalWarning(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '')
-            ? 'El usuario volverá a tener acceso cuando la operación sea procesada correctamente.'
-            : 'El usuario quedará inhabilitado y no podrá acceder mientras esté suspendido.';
+        return user && this.isUserSuspended(user)
+            ? 'El usuario suspendido volverá a tener acceso cuando la operación sea procesada correctamente.'
+            : 'El usuario quedará suspendido y no podrá acceder mientras esté en ese estado.';
     }
 
     protected getStatusCommentPlaceholder(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '')
-            ? 'ESCRIBE EL MOTIVO DE LA ACTIVACIÓN'
-            : 'ESCRIBE EL MOTIVO DE LA INHABILITACIÓN';
+        return user && this.isUserSuspended(user)
+            ? 'ESCRIBE EL MOTIVO DE LA REACTIVACIÓN'
+            : 'ESCRIBE EL MOTIVO DE LA SUSPENSIÓN';
     }
 
     protected getStatusConfirmLabel(): string {
         const user = this.statusTargetUser();
 
-        return this.isUserInactiveStatus(user?.status ?? '')
-            ? 'Confirmar activación'
-            : 'Confirmar inhabilitación';
+        return user && this.isUserSuspended(user)
+            ? 'Confirmar reactivación'
+            : 'Confirmar suspensión';
+    }
+
+    protected isStatusReactivateOperation(): boolean {
+        const user = this.statusTargetUser();
+
+        return user ? this.isUserSuspended(user) : false;
+    }
+
+    protected shouldShowStatusButton(user: UserRecord): boolean {
+        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected shouldShowDeleteButton(user: UserRecord): boolean {
+        if (this.isUserBaja(user) || this.isUserSuspended(user) || this.isUserInactiveNonReactivable(user)) {
+            return false;
+        }
+
+        return true;
     }
 
     protected isUserBaja(user: UserRecord): boolean {
@@ -484,6 +464,37 @@ export class UserManagementPage {
             status.includes(' dado de baja') ||
             status.includes(' estatus baja') ||
             status.includes(' baja ')
+        );
+    }
+
+    protected isUserSuspended(user: UserRecord): boolean {
+        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+
+        return this.isSuspendedStatus(status);
+    }
+
+    protected isUserInactiveNonReactivable(user: UserRecord): boolean {
+        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+
+        if (this.isUserSuspended(user)) {
+            return false;
+        }
+
+        return (
+            status.includes('inhabil') ||
+            status.includes('inactivo') ||
+            status.includes('deshabil')
+        );
+    }
+
+    private isSuspendedStatus(status: string): boolean {
+        const value = this.normalizeForCompare(status);
+
+        return (
+            value.includes('suspend') ||
+            value.includes('suspension') ||
+            value.includes('suspendido') ||
+            value.includes('suspendida')
         );
     }
 
@@ -521,8 +532,7 @@ export class UserManagementPage {
 
         return (
             value.includes('inhabil') ||
-            value.includes('inactivo') ||
-            value.includes('suspend')
+            value.includes('inactivo')
         );
     }
 
@@ -574,5 +584,69 @@ export class UserManagementPage {
         }
 
         return 'Ocurrió un error inesperado al consultar usuarios.';
+    }
+    protected getRoleTone(role: UserRecord['role']): BadgeTone {
+        const value = this.normalizeForCompare(role);
+
+        if (value.includes('admin')) {
+            return 'neutral';
+        }
+
+        if (value.includes('enlace')) {
+            return 'info';
+        }
+
+        if (value.includes('supervisor')) {
+            return 'dark';
+        }
+
+        return 'light';
+    }
+
+    protected getStatusTone(status: UserRecord['status']): BadgeTone {
+        const value = this.normalizeForCompare(status);
+
+        if (value.includes('activo') && !value.includes('inactivo')) {
+            return 'success';
+        }
+
+        if (
+            value.includes('suspend') ||
+            value.includes('suspendido') ||
+            value.includes('suspension')
+        ) {
+            return 'warning';
+        }
+
+        if (
+            value.includes('inhabil') ||
+            value.includes('inactivo') ||
+            value.includes('deshabil') ||
+            value.includes('baja')
+        ) {
+            return 'danger';
+        }
+
+        return 'info';
+    }
+
+    protected getRegistryTone(status: UserRecord['rnpsp']): BadgeTone {
+        const value = this.normalizeForCompare(status);
+
+        return value.includes('registrado') && !value.includes('no') ? 'success' : 'danger';
+    }
+
+    protected getTrustTone(status: UserRecord['trust']): BadgeTone {
+        const value = this.normalizeForCompare(status);
+
+        if (value.includes('vigente') || value.includes('aprobado')) {
+            return 'success';
+        }
+
+        if (value.includes('expir') || value.includes('vencid')) {
+            return 'warning';
+        }
+
+        return 'info';
     }
 }

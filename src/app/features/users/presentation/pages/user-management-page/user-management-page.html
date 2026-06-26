@@ -128,29 +128,33 @@
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
                                     <button type="button" class="users-table__action users-table__action--detail"
-                                        [attr.title]="isUserBaja(user) ? 'Usuario dado de baja. No puede editarse.' : 'Ver / editar'"
-                                        [attr.aria-label]="isUserBaja(user) ? 'Usuario dado de baja. No puede editarse.' : 'Ver o editar usuario'"
+                                        [attr.title]="isUserSuspended(user) || isUserInactiveNonReactivable(user) ? 'Ver detalle. Usuario sin edición.' : 'Ver / editar'"
+                                        [attr.aria-label]="isUserSuspended(user) || isUserInactiveNonReactivable(user) ? 'Ver detalle de usuario sin edición' : 'Ver o editar usuario'"
                                         [disabled]="isDetailLoading() || isUserBaja(user)"
                                         (click)="openUserDetail(user)">
                                         <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
-                                    <button type="button" class="users-table__action users-table__action--ban"
+                                    @if (shouldShowStatusButton(user)) {
+                                    <button type="button" [class]="getToggleActionClass(user.status)"
                                         [attr.title]="getToggleTitle(user.status)"
                                         [attr.aria-label]="getToggleTitle(user.status) + ' usuario'"
-                                        [disabled]="isDetailLoading() || isStatusSubmitting() || isUserBaja(user)"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting()"
                                         (click)="openStatusModal(user)">
                                         <siau-lucide-icon [name]="getToggleIcon(user.status)" size="16" strokeWidth="2"
                                             aria-hidden="true" />
                                     </button>
+                                    }
 
+                                    @if (shouldShowDeleteButton(user)) {
                                     <button type="button" class="users-table__action users-table__action--delete"
                                         [attr.title]="isUserBaja(user) ? 'Usuario ya dado de baja' : 'Dar de baja'"
                                         [attr.aria-label]="isUserBaja(user) ? 'Usuario ya dado de baja' : 'Dar de baja usuario'"
-                                        [disabled]="isDetailLoading() || isBajaSubmitting() || isUserBaja(user)"
+                                        [disabled]="isDetailLoading() || isBajaSubmitting()"
                                         (click)="openBajaModal(user)">
                                         <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -181,7 +185,9 @@
 </section>
 
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
-    [userDetail]="selectedUserDetail()" (closed)="closeUserWizard()"></app-user-registration-wizard>
+    [userDetail]="selectedUserDetail()"
+    [readonlyMode]="selectedUser() !== null && (isUserSuspended(selectedUser()!) || isUserInactiveNonReactivable(selectedUser()!))"
+    (closed)="closeUserWizard()"></app-user-registration-wizard>
 
 <siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
     subtitle="Esta acción dará de baja al usuario seleccionado" icon="trash-2" size="md" headerBadge="Solicitud de baja"
@@ -238,6 +244,7 @@
                 [disabled]="isBajaSubmitting()" (click)="confirmDarDeBajaUsuario()">
                 <siau-lucide-icon [name]="isBajaSubmitting() ? 'loader-circle' : 'trash-2'" size="15" strokeWidth="2"
                     aria-hidden="true" />
+
                 {{ isBajaSubmitting() ? 'Procesando...' : 'Confirmar baja' }}
             </button>
         </footer>
@@ -292,10 +299,13 @@
                 Cancelar
             </button>
 
-            <button type="button" class="user-action-modal__button user-action-modal__button--danger"
+            <button type="button" class="user-action-modal__button"
+                [class.user-action-modal__button--success]="isStatusReactivateOperation()"
+                [class.user-action-modal__button--danger]="!isStatusReactivateOperation()"
                 [disabled]="isStatusSubmitting()" (click)="confirmToggleUserStatus()">
                 <siau-lucide-icon [name]="isStatusSubmitting() ? 'loader-circle' : getStatusModalIcon()" size="15"
                     strokeWidth="2" aria-hidden="true" />
+
                 {{ isStatusSubmitting() ? 'Procesando...' : getStatusConfirmLabel() }}
             </button>
         </footer>

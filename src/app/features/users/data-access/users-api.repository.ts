@@ -17,7 +17,9 @@ import {
 const USERS_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
 const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
-const SOLICITUD_ALTA_PATH = '/api/v1/solicitudes/alta';
+const SOLICITUD_SUSPENDER_PATH = '/api/v1/solicitudes/suspender';
+const SOLICITUD_REACTIVAR_PATH = '/api/v1/solicitudes/reactivar';
+
 interface ApiErrorDto {
     readonly code?: string | null;
     readonly message?: string | null;
@@ -91,6 +93,7 @@ export class UsersApiRepository {
                 ),
             );
     }
+
     darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.http
             .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_BAJA_PATH}`, request)
@@ -101,16 +104,29 @@ export class UsersApiRepository {
                 ),
             );
     }
-    darDeAltaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+
+    suspenderUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.http
-            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_ALTA_PATH}`, request)
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_SUSPENDER_PATH}`, request)
             .pipe(
                 map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible dar de alta al usuario.'),
+                    this.handleError(error, 'No fue posible inhabilitar al usuario.'),
                 ),
             );
     }
+
+    reactivarUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_REACTIVAR_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible habilitar al usuario.'),
+                ),
+            );
+    }
+
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.http
             .get<ApiResponseDto<UserDetailResponseDto>>(

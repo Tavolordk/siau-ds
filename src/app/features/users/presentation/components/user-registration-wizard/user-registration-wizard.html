@@ -30,19 +30,24 @@
 
         <form class="registration-wizard__content">
             @if (isEditMode()) {
-            <div class="registration-wizard__edit-bar" [class.registration-wizard__edit-bar--active]="editEnabled()">
+            <div class="registration-wizard__edit-bar"
+                [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
                 <div class="registration-wizard__edit-bar-text">
-                    <strong>{{ editEnabled() ? 'Edición habilitada' : 'Vista de usuario' }}</strong>
+                    <strong>{{ readonlyMode() ? 'Vista de usuario suspendido' : (editEnabled() ? 'Edición habilitada' :
+                        'Vista de usuario') }}</strong>
                     <span>
-                        {{ editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
-                        Presiona Editar para modificarlos.' }}
+                        {{ readonlyMode()
+                        ? 'El usuario está suspendido. Solo puedes consultar su detalle.'
+                        : (editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
+                        Presiona Editar para modificarlos.') }}
                     </span>
                 </div>
 
-                <button type="button" class="registration-wizard__edit-button" [disabled]="editEnabled()"
-                    (click)="enableEditing()">
-                    <siau-lucide-icon name="pencil" size="14" strokeWidth="2" aria-hidden="true" />
-                    {{ editEnabled() ? 'Editando' : 'Editar' }}
+                <button type="button" class="registration-wizard__edit-button"
+                    [disabled]="readonlyMode() || editEnabled()" (click)="enableEditing()">
+                    <siau-lucide-icon [name]="readonlyMode() ? 'lock' : 'pencil'" size="14" strokeWidth="2"
+                        aria-hidden="true" />
+                    {{ readonlyMode() ? 'Solo consulta' : (editEnabled() ? 'Editando' : 'Editar') }}
                 </button>
             </div>
             }

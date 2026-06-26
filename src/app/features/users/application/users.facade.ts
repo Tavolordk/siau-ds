@@ -26,10 +26,16 @@ export class UsersFacade {
     createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
         return this.repository.createAdminUser(request);
     }
+
     darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.repository.darDeBajaUsuario(request);
     }
-    darDeAltaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
-        return this.repository.darDeAltaUsuario(request);
+
+    suspenderUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.repository.suspenderUsuario(request);
+    }
+
+    reactivarUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.repository.reactivarUsuario(request);
     }
 }
