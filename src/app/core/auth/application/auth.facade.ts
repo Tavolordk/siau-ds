@@ -31,6 +31,7 @@ export class AuthFacade {
     private activityListenersRegistered = false;
     private lastActivityAt = Date.now();
     private lastRefreshAt = Date.now();
+    private hiddenSinceAt: number | null = null;
 
     private readonly activityEvents: readonly (keyof WindowEventMap)[] = [
         'click',
@@ -48,11 +49,46 @@ export class AuthFacade {
     };
 
     private readonly handleUserActivity = (): void => {
-        if (!this.isAuthenticated() || this.sessionPromptVisible()) {
+        if (!this.isAuthenticated() || this.sessionPromptVisible() || this.isDocumentHidden()) {
             return;
         }
 
+        this.hiddenSinceAt = null;
         this.lastActivityAt = Date.now();
+    };
+
+    private readonly handleVisibilityChange = (): void => {
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
+        if (this.isDocumentHidden()) {
+            this.hiddenSinceAt = Date.now();
+            return;
+        }
+
+        this.hiddenSinceAt = null;
+
+        if (!this.sessionPromptVisible()) {
+            this.lastActivityAt = Date.now();
+        }
+    };
+
+    private readonly handleWindowFocus = (): void => {
+        if (!this.isAuthenticated() || this.sessionPromptVisible() || this.isDocumentHidden()) {
+            return;
+        }
+
+        this.hiddenSinceAt = null;
+        this.lastActivityAt = Date.now();
+    };
+
+    private readonly handleWindowBlur = (): void => {
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
+        this.hiddenSinceAt = this.hiddenSinceAt ?? Date.now();
     };
 
     readonly loading = this.loadingState.asReadonly();
@@ -135,8 +171,10 @@ export class AuthFacade {
             return;
         }
 
-        this.lastActivityAt = Date.now();
+        const now = Date.now();
+        this.lastActivityAt = now;
         this.lastRefreshAt = this.resolveSessionIssuedAt(this.session());
+        this.hiddenSinceAt = this.isDocumentHidden() ? now : null;
         this.registerActivityListeners();
 
         if (this.sessionMonitorId) {
@@ -156,6 +194,7 @@ export class AuthFacade {
 
         this.unregisterActivityListeners();
         this.sessionRefreshInFlight = false;
+        this.hiddenSinceAt = null;
     }
 
     keepSession(): void {
@@ -179,6 +218,7 @@ export class AuthFacade {
                     this.sessionPromptErrorState.set(null);
                     this.lastActivityAt = Date.now();
                     this.lastRefreshAt = Date.now();
+                    this.hiddenSinceAt = this.isDocumentHidden() ? Date.now() : null;
                     this.restartSessionMonitor();
                 },
                 error: (error: Error) => {
@@ -208,16 +248,20 @@ export class AuthFacade {
 
         const now = Date.now();
         const inactiveForMs = now - this.lastActivityAt;
+        const refreshAgeMs = now - this.lastRefreshAt;
+        const refreshWindowReached = refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS;
+        const pageHidden = this.isDocumentHidden();
+        const hiddenForMs = this.hiddenSinceAt ? now - this.hiddenSinceAt : 0;
+        const inactiveByNoMovement = inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS;
+        const inactiveByHiddenPage = pageHidden && refreshWindowReached;
+        const inactiveByLongHiddenPage = pageHidden && hiddenForMs >= SESSION_INACTIVITY_LIMIT_MS;
 
-        if (inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS) {
-            this.sessionPromptErrorState.set(null);
-            this.sessionPromptVisibleState.set(true);
+        if (inactiveByNoMovement || inactiveByHiddenPage || inactiveByLongHiddenPage) {
+            this.showSessionPrompt();
             return;
         }
 
-        const refreshAgeMs = now - this.lastRefreshAt;
-
-        if (refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS) {
+        if (refreshWindowReached) {
             this.refreshActiveSessionSilently();
         }
     }
@@ -225,7 +269,7 @@ export class AuthFacade {
     private refreshActiveSessionSilently(): void {
         const currentSession = this.session();
 
-        if (!currentSession || this.sessionRefreshInFlight || this.sessionPromptVisible()) {
+        if (!currentSession || this.sessionRefreshInFlight || this.sessionPromptVisible() || this.isDocumentHidden()) {
             return;
         }
 
@@ -273,6 +317,11 @@ export class AuthFacade {
         void this.router.navigateByUrl('/login');
     }
 
+    private showSessionPrompt(): void {
+        this.sessionPromptErrorState.set(null);
+        this.sessionPromptVisibleState.set(true);
+    }
+
     private registerActivityListeners(): void {
         if (this.activityListenersRegistered) {
             return;
@@ -281,6 +330,10 @@ export class AuthFacade {
         this.activityEvents.forEach((eventName) => {
             window.addEventListener(eventName, this.handleUserActivity, this.activityListenerOptions);
         });
+
+        window.addEventListener('focus', this.handleWindowFocus, this.activityListenerOptions);
+        window.addEventListener('blur', this.handleWindowBlur, this.activityListenerOptions);
+        document.addEventListener('visibilitychange', this.handleVisibilityChange, this.activityListenerOptions);
 
         this.activityListenersRegistered = true;
     }
@@ -294,7 +347,15 @@ export class AuthFacade {
             window.removeEventListener(eventName, this.handleUserActivity, this.activityListenerOptions);
         });
 
+        window.removeEventListener('focus', this.handleWindowFocus, this.activityListenerOptions);
+        window.removeEventListener('blur', this.handleWindowBlur, this.activityListenerOptions);
+        document.removeEventListener('visibilitychange', this.handleVisibilityChange, this.activityListenerOptions);
+
         this.activityListenersRegistered = false;
+    }
+
+    private isDocumentHidden(): boolean {
+        return typeof document !== 'undefined' && document.visibilityState === 'hidden';
     }
 
     private resolveSessionIssuedAt(session: AuthSession | null): number {
