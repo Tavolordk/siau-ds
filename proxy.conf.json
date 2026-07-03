@@ -1,6 +1,6 @@
 {
     "/captcha-api": {
-        "target": "http://10.237.3.44:3206",
+        "target": "http://10.241.83.7:3200",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -27,7 +27,7 @@
         }
     },
     "/auth-api": {
-        "target": "http://10.241.34.10:3240",
+        "target": "http://10.241.83.7:3200",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
