@@ -70,6 +70,7 @@ export interface RegistroMedioContacto {
 }
 
 export interface RegistroCuenta {
+    readonly password?: string | null;
     readonly passwordHash?: string | null;
     readonly tipoUsuarioId: number;
     readonly sistemaId: number;
@@ -87,6 +88,7 @@ export interface RegistroAdminRequest {
     readonly comision: RegistroAsignacion | null;
     readonly medioContacto: RegistroMedioContacto;
     readonly cuenta: RegistroCuenta;
+    readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
 }
 
@@ -104,4 +106,26 @@ export interface RegistroAdminData {
 export interface RegistroAdminResponse {
     readonly mensaje: string | null;
     readonly datos: RegistroAdminData | null;
+}
+export interface SolicitudAuditoria {
+    readonly usuarioEjecutorId: number | null;
+    readonly correlationId: string;
+}
+
+export interface SolicitudOperacionRequest {
+    readonly usuarioId: number;
+    readonly comentario: string;
+    readonly auditoria?: SolicitudAuditoria;
+}
+
+export interface SolicitudOperacionData {
+    readonly operacion: string | null;
+    readonly usuarioId: number | null;
+    readonly filasAfectadas: number;
+    readonly totalRegistros: number;
+}
+
+export interface SolicitudOperacionResponse {
+    readonly mensaje: string | null;
+    readonly datos: SolicitudOperacionData | null;
 }

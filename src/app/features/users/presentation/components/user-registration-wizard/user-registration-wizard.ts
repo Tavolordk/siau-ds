@@ -65,6 +65,7 @@ interface UserRegistrationForm {
     admissionDate: string;
     employeeNumber: string;
 
+    commissionEnabled: boolean;
     commissionInstitutionType: string;
     commissionInstitution: string;
     commissionEntity: string;
@@ -72,6 +73,7 @@ interface UserRegistrationForm {
     commissionDependency: string;
     commissionDecentralizedBody: string;
     commissionAdministrativeUnit: string;
+    commissionAdmissionDate: string;
 
     email: string;
     phone: string;
@@ -83,6 +85,8 @@ interface UserRegistrationForm {
     password: string;
     confirmPassword: string;
     accountStatus: AccountStatus;
+    expressCreation: boolean;
+    expressJustification: string;
 }
 
 interface UserProfileOption {
@@ -126,6 +130,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     admissionDate: '',
     employeeNumber: '',
 
+    commissionEnabled: false,
     commissionInstitutionType: '',
     commissionInstitution: '',
     commissionEntity: '',
@@ -133,6 +138,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     commissionDependency: '',
     commissionDecentralizedBody: '',
     commissionAdministrativeUnit: '',
+    commissionAdmissionDate: '',
 
     email: '',
     phone: '',
@@ -144,6 +150,8 @@ const INITIAL_FORM: UserRegistrationForm = {
     password: '',
     confirmPassword: '',
     accountStatus: 'active',
+    expressCreation: false,
+    expressJustification: '',
 };
 
 @Component({
@@ -159,6 +167,7 @@ export class UserRegistrationWizard {
     readonly mode = input<UserWizardMode>('create');
     readonly user = input<UserRecord | null>(null);
     readonly userDetail = input<UserDetailRecord | null>(null);
+    readonly readonlyMode = input<boolean>(false);
     readonly closed = output<void>();
 
     private readonly catalogosFacade = inject(CatalogosFacade);
@@ -339,7 +348,9 @@ export class UserRegistrationWizard {
 
     protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
-    protected readonly isFormDisabled = computed(() => this.isEditMode() && !this.editEnabled());
+    protected readonly isFormDisabled = computed(() =>
+        this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
+    );
 
     protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
         const errors = this.formErrors();
@@ -363,7 +374,9 @@ export class UserRegistrationWizard {
 
     protected readonly modalSubtitle = computed(() => {
         if (!this.isEditMode()) {
-            return 'Complete todas las secciones requeridas para crear el acceso';
+            return this.form().expressCreation
+                ? 'Creación express activa: captura los datos mínimos y justifica el alta'
+                : 'Complete todas las secciones requeridas para crear el acceso';
         }
 
         const user = this.user();
@@ -394,10 +407,13 @@ export class UserRegistrationWizard {
     });
 
     constructor() {
-        this.loadCatalogos();
-
         effect(() => {
             const isOpen = this.open();
+
+            if (isOpen && !this.catalogosReady()) {
+                this.loadCatalogos();
+            }
+
             const mode = this.mode();
             const user = this.user();
             const detail = this.userDetail();
@@ -431,7 +447,7 @@ export class UserRegistrationWizard {
     }
 
     protected enableEditing(): void {
-        if (!this.isEditMode()) {
+        if (!this.isEditMode() || this.readonlyMode()) {
             return;
         }
 
@@ -492,7 +508,7 @@ export class UserRegistrationWizard {
     }
 
     protected submit(): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
+        if (this.readonlyMode() || this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -568,6 +584,60 @@ export class UserRegistrationWizard {
         }));
 
         this.clearFieldError(String(key));
+    }
+
+    protected toggleExpressCreation(checked: boolean): void {
+        if (this.isFormDisabled() || this.isSubmitting() || this.isEditMode()) {
+            return;
+        }
+
+        this.form.update((current) => ({
+            ...current,
+            expressCreation: checked,
+        }));
+
+        this.formErrors.set({});
+    }
+
+    protected toggleCommissionSection(checked: boolean): void {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        this.form.update((current) => ({
+            ...current,
+            commissionEnabled: checked,
+            commissionInstitutionType: checked ? current.commissionInstitutionType : '',
+            commissionInstitution: checked ? current.commissionInstitution : '',
+            commissionEntity: checked ? current.commissionEntity : '',
+            commissionMunicipality: checked ? current.commissionMunicipality : '',
+            commissionDependency: checked ? current.commissionDependency : '',
+            commissionDecentralizedBody: checked ? current.commissionDecentralizedBody : '',
+            commissionAdministrativeUnit: checked ? current.commissionAdministrativeUnit : '',
+            commissionAdmissionDate: checked ? current.commissionAdmissionDate : '',
+        }));
+
+        if (!checked) {
+            this.commissionMunicipalityOptions.set([]);
+            this.commissionInstitutionOptions.set([]);
+            this.commissionDependencyOptions.set([]);
+            this.commissionDecentralizedBodyOptions.set([]);
+            this.commissionAdministrativeUnitOptions.set([]);
+        }
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+
+            [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+                'commissionAdmissionDate',
+            ].forEach((key) => delete next[key]);
+
+            return next;
+        });
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
@@ -943,27 +1013,42 @@ export class UserRegistrationWizard {
 
     private buildCreateUserRequest(): RegistroAdminRequest {
         const current = this.form();
+        const isExpress = current.expressCreation;
         const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
         const password = this.toText(current.password);
 
-        if (!assignedProfile) {
+        if (!assignedProfile && !isExpress) {
             throw new Error('Selecciona al menos un sistema y perfil.');
         }
 
-        if (!password) {
+        if (!password && !isExpress) {
             throw new Error('Captura la contraseña.');
         }
 
         return {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
-                curp: this.requireText(current.curp, 'Captura la CURP.').toUpperCase(),
-                rfc: this.requireText(current.rfc, 'Captura el RFC.').toUpperCase(),
+                curp: this.getRequiredOrOptionalText(
+                    current.curp,
+                    !isExpress,
+                    'Captura la CURP.',
+                ).toUpperCase(),
+                rfc: this.getRequiredOrOptionalText(
+                    current.rfc,
+                    !isExpress,
+                    'Captura el RFC.',
+                ).toUpperCase(),
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
-                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
-                fechaNacimiento: this.requireText(current.birthDate, 'Captura la fecha de nacimiento.'),
+                sexoId: isExpress
+                    ? this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1)
+                    : this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                fechaNacimiento: this.getRequiredOrOptionalText(
+                    current.birthDate,
+                    !isExpress,
+                    'Captura la fecha de nacimiento.',
+                ),
                 estadoCivilId: this.resolveDefaultCatalogId(this.civilStatusOptions(), 1),
             },
             adscripcion: {
@@ -975,15 +1060,34 @@ export class UserRegistrationWizard {
             },
             comision: this.buildCommissionRequest(),
             medioContacto: {
-                correo: this.requireText(current.email, 'Captura el correo.'),
-                celular: this.requireText(current.phone, 'Captura el celular.'),
+                correo: this.getRequiredOrOptionalText(
+                    current.email,
+                    !isExpress,
+                    'Captura el correo.',
+                ),
+                celular: this.getRequiredOrOptionalText(
+                    current.phone,
+                    !isExpress,
+                    'Captura el celular.',
+                ),
             },
             cuenta: {
-                passwordHash: password,
+                password: password || null,
+                passwordHash: password || null,
                 tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
-                sistemaId: this.resolveAssignedSystemId(assignedProfile),
-                perfilId: this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.'),
+                sistemaId: assignedProfile
+                    ? this.resolveAssignedSystemId(assignedProfile)
+                    : this.resolveDefaultCatalogId(this.systemOptions(), 1),
+                perfilId: assignedProfile
+                    ? this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.')
+                    : this.resolveDefaultCatalogId(this.roleOptions(), 1),
             },
+            comentario: isExpress
+                ? this.requireText(
+                    current.expressJustification,
+                    'Captura la justificación de la creación express.',
+                )
+                : this.toNullableText(current.expressJustification),
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
                 correlationId: `siau-admin-${Date.now()}`,
@@ -993,14 +1097,8 @@ export class UserRegistrationWizard {
 
     private buildCommissionRequest(): RegistroAsignacion | null {
         const current = this.form();
-        const hasCommission =
-            this.hasText(current.commissionInstitutionType) ||
-            this.hasText(current.commissionInstitution) ||
-            this.hasText(current.commissionDependency) ||
-            this.hasText(current.commissionDecentralizedBody) ||
-            this.hasText(current.commissionAdministrativeUnit);
 
-        if (!hasCommission) {
+        if (!current.commissionEnabled) {
             return null;
         }
 
@@ -1009,9 +1107,14 @@ export class UserRegistrationWizard {
             cargo: null,
             funciones: null,
             numeroEmpleado: null,
-            fechaInicio: null,
+            fechaInicio: this.requireText(
+                current.commissionAdmissionDate,
+                'Captura la fecha de ingreso de comisión.',
+            ),
         };
-    } private resolveAssignmentStructureId(): number {
+    }
+
+    private resolveAssignmentStructureId(): number {
         const current = this.form();
 
         return this.resolveStructureId(
@@ -1098,13 +1201,29 @@ export class UserRegistrationWizard {
         return text;
     }
 
+    private getRequiredOrOptionalText(
+        value: string,
+        required: boolean,
+        errorMessage: string,
+    ): string {
+        return required ? this.requireText(value, errorMessage) : this.toText(value);
+    }
+
+    private resolveOptionalCatalogId(
+        value: string,
+        options: readonly SiauSelectOption[],
+        fallback: number,
+    ): number {
+        return this.toCatalogId(value) ?? this.resolveDefaultCatalogId(options, fallback);
+    }
+
     private toNullableText(value: string | null | undefined): string | null {
         const text = this.toText(value);
 
         return text || null;
     }
 
-    private hasText(value: string | null | undefined): boolean {
+    private hasText(value: unknown): boolean {
         return this.toText(value).length > 0;
     }
 
@@ -1157,6 +1276,16 @@ export class UserRegistrationWizard {
             ? ''
             : this.resolveSelectValue(this.firstValue(commission, ['estado', 'entidad', 'estadoId']), this.stateOptions);
 
+        const hasCommissionData =
+            this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||
+            this.hasText(this.firstValue(commission, ['estado', 'entidad', 'estadoId'])) ||
+            this.hasText(this.firstValue(commission, ['municipio', 'municipioAlcaldia', 'municipioId'])) ||
+            this.hasText(this.firstValue(commission, ['institucion', 'institucionId'])) ||
+            this.hasText(this.firstValue(commission, ['dependencia', 'dependenciaId'])) ||
+            this.hasText(this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
+            this.hasText(this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit'])) ||
+            this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso']));
+
         const nextForm: UserRegistrationForm = {
             ...INITIAL_FORM,
             cuip: this.toText(this.firstValue(personalData, ['cuip'])),
@@ -1196,6 +1325,7 @@ export class UserRegistrationWizard {
             admissionDate: this.toDateInputValue(this.firstValue(assignment, ['fechaInicio', 'fechaIngreso'])),
             employeeNumber: this.toText(this.firstValue(assignment, ['numeroEmpleado', 'numEmpleado'])),
 
+            commissionEnabled: hasCommissionData,
             commissionInstitutionType,
             commissionEntity,
             commissionMunicipality: commissionIsFederal
@@ -1220,6 +1350,7 @@ export class UserRegistrationWizard {
                 this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit']),
                 this.commissionAdministrativeUnitOptions,
             ),
+            commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
 
             email: this.toText(this.firstValue(contact, ['correo', 'email'])) || this.toText(datos['correo']) || user?.email || '',
             phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone'])),
@@ -1231,6 +1362,8 @@ export class UserRegistrationWizard {
             password: '',
             confirmPassword: '',
             accountStatus: this.toAccountStatus(this.firstText([datos['estatus'], datos['estatusClave'], user?.status])),
+            expressCreation: false,
+            expressJustification: this.toText(datos['comentario']),
         };
 
         const assignedProfiles = this.toAssignedSystemProfiles(datos['s6Perfiles']);
@@ -1806,19 +1939,24 @@ export class UserRegistrationWizard {
 
     private validateStep(stepId: WizardStepId): boolean {
         const current = this.form();
+        const isExpress = current.expressCreation;
         const nextErrors: Record<string, string> = {};
 
         if (stepId === 'personal-data') {
-            if (!this.hasText(current.curp)) {
-                nextErrors['curp'] = 'La CURP es obligatoria.';
-            } else if (!this.isValidCurp(current.curp)) {
-                nextErrors['curp'] = 'La CURP no tiene un formato válido.';
+            if (!isExpress || this.hasText(current.curp)) {
+                if (!this.hasText(current.curp)) {
+                    nextErrors['curp'] = 'La CURP es obligatoria.';
+                } else if (!this.isValidCurp(current.curp)) {
+                    nextErrors['curp'] = 'La CURP no tiene un formato válido.';
+                }
             }
 
-            if (!this.hasText(current.rfc)) {
-                nextErrors['rfc'] = 'El RFC es obligatorio.';
-            } else if (!this.isValidRfc(current.rfc)) {
-                nextErrors['rfc'] = 'El RFC no tiene un formato válido.';
+            if (!isExpress || this.hasText(current.rfc)) {
+                if (!this.hasText(current.rfc)) {
+                    nextErrors['rfc'] = 'El RFC es obligatorio.';
+                } else if (!this.isValidRfc(current.rfc)) {
+                    nextErrors['rfc'] = 'El RFC no tiene un formato válido.';
+                }
             }
 
             if (!this.hasText(current.firstName)) {
@@ -1829,14 +1967,16 @@ export class UserRegistrationWizard {
                 nextErrors['lastName'] = 'El primer apellido es obligatorio.';
             }
 
-            if (!this.hasText(current.gender)) {
+            if (!isExpress && !this.hasText(current.gender)) {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
-            if (!this.hasText(current.birthDate)) {
-                nextErrors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
-            } else if (!this.isAdult(current.birthDate)) {
-                nextErrors['birthDate'] = 'El usuario debe ser mayor de edad.';
+            if (!isExpress || this.hasText(current.birthDate)) {
+                if (!this.hasText(current.birthDate)) {
+                    nextErrors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
+                } else if (!this.isAdult(current.birthDate)) {
+                    nextErrors['birthDate'] = 'El usuario debe ser mayor de edad.';
+                }
             }
         }
 
@@ -1867,16 +2007,7 @@ export class UserRegistrationWizard {
         }
 
         if (stepId === 'commission') {
-            const hasCommission =
-                this.hasText(current.commissionInstitutionType) ||
-                this.hasText(current.commissionEntity) ||
-                this.hasText(current.commissionMunicipality) ||
-                this.hasText(current.commissionInstitution) ||
-                this.hasText(current.commissionDependency) ||
-                this.hasText(current.commissionDecentralizedBody) ||
-                this.hasText(current.commissionAdministrativeUnit);
-
-            if (hasCommission) {
+            if (current.commissionEnabled) {
                 if (!this.hasText(current.commissionInstitutionType)) {
                     nextErrors['commissionInstitutionType'] = 'El tipo de institución de comisión es obligatorio.';
                 }
@@ -1892,35 +2023,57 @@ export class UserRegistrationWizard {
                 if (!this.hasText(current.commissionInstitution)) {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
                 }
+
+                if (!this.hasText(current.commissionAdmissionDate)) {
+                    nextErrors['commissionAdmissionDate'] = 'La fecha de ingreso de comisión es obligatoria.';
+                }
             }
         }
 
         if (stepId === 'contact') {
-            if (!this.hasText(current.email)) {
-                nextErrors['email'] = 'El correo electrónico es obligatorio.';
-            } else if (!this.isValidEmail(current.email)) {
+            const hasEmail = this.hasText(current.email);
+            const hasPhone = this.hasText(current.phone);
+
+            if (isExpress) {
+                if (!hasEmail && !hasPhone) {
+                    nextErrors['email'] = 'Captura correo electrónico o teléfono celular.';
+                    nextErrors['phone'] = 'Captura correo electrónico o teléfono celular.';
+                }
+            } else {
+                if (!hasEmail) {
+                    nextErrors['email'] = 'El correo electrónico es obligatorio.';
+                }
+
+                if (!hasPhone) {
+                    nextErrors['phone'] = 'El teléfono celular es obligatorio.';
+                }
+            }
+
+            if (hasEmail && !this.isValidEmail(current.email)) {
                 nextErrors['email'] = 'El correo electrónico no tiene un formato válido.';
             }
 
-            if (!this.hasText(current.phone)) {
-                nextErrors['phone'] = 'El teléfono celular es obligatorio.';
-            } else if (!/^\d{10}$/.test(current.phone)) {
+            if (hasPhone && !/^\d{10}$/.test(current.phone)) {
                 nextErrors['phone'] = 'El teléfono celular debe tener 10 dígitos.';
             }
         }
 
-        if (stepId === 'profiles') {
+        if (stepId === 'profiles' && !isExpress) {
             if (this.assignedSystemProfiles().length === 0) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
             }
         }
 
         if (stepId === 'account' && !this.isEditMode()) {
-            if (!this.hasText(current.password)) {
+            if (isExpress && !this.hasText(current.expressJustification)) {
+                nextErrors['expressJustification'] = 'Justifica por qué se realizará la creación express.';
+            }
+
+            if (!isExpress && !this.hasText(current.password)) {
                 nextErrors['password'] = 'La contraseña es obligatoria.';
             }
 
-            if (!this.hasText(current.confirmPassword)) {
+            if (!isExpress && !this.hasText(current.confirmPassword)) {
                 nextErrors['confirmPassword'] = 'La confirmación de contraseña es obligatoria.';
             }
 
@@ -1972,6 +2125,7 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
+                'commissionAdmissionDate',
             ],
             documents: [],
             contact: [
@@ -1984,6 +2138,7 @@ export class UserRegistrationWizard {
             account: [
                 'password',
                 'confirmPassword',
+                'expressJustification',
                 'submit',
             ],
         };
@@ -2008,6 +2163,10 @@ export class UserRegistrationWizard {
         key: K,
         value: UserRegistrationForm[K] | string | null,
     ): UserRegistrationForm[K] {
+        if (key === 'expressCreation' || key === 'commissionEnabled') {
+            return Boolean(value) as UserRegistrationForm[K];
+        }
+
         const textValue = this.toText(value);
 
         if (this.shouldUppercaseField(key)) {
@@ -2034,6 +2193,7 @@ export class UserRegistrationWizard {
             'functions',
             'employeeNumber',
             'username',
+            'expressJustification',
         ].includes(key);
     }
 

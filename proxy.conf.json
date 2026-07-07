@@ -1,0 +1,38 @@
+{
+    "/captcha-api": {
+        "target": "http://10.241.83.7:3200",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/captcha-api": ""
+        }
+    },
+    "/catalogos-api": {
+        "target": "http://10.241.83.7:3200",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/catalogos-api": ""
+        }
+    },
+    "/consultas-api": {
+        "target": "http://10.241.83.7:3200",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/consultas-api": ""
+        }
+    },
+    "/auth-api": {
+        "target": "http://10.241.83.7:3200",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/auth-api": ""
+        }
+    }
+}

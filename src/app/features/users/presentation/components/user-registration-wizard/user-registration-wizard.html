@@ -30,20 +30,46 @@
 
         <form class="registration-wizard__content">
             @if (isEditMode()) {
-            <div class="registration-wizard__edit-bar" [class.registration-wizard__edit-bar--active]="editEnabled()">
+            <div class="registration-wizard__edit-bar"
+                [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
                 <div class="registration-wizard__edit-bar-text">
-                    <strong>{{ editEnabled() ? 'Edición habilitada' : 'Vista de usuario' }}</strong>
+                    <strong>{{ readonlyMode() ? 'Vista de usuario suspendido' : (editEnabled() ? 'Edición habilitada' :
+                        'Vista de usuario') }}</strong>
                     <span>
-                        {{ editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
-                        Presiona Editar para modificarlos.' }}
+                        {{ readonlyMode()
+                        ? 'El usuario está suspendido. Solo puedes consultar su detalle.'
+                        : (editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
+                        Presiona Editar para modificarlos.') }}
                     </span>
                 </div>
 
-                <button type="button" class="registration-wizard__edit-button" [disabled]="editEnabled()"
-                    (click)="enableEditing()">
-                    <siau-lucide-icon name="pencil" size="14" strokeWidth="2" aria-hidden="true" />
-                    {{ editEnabled() ? 'Editando' : 'Editar' }}
+                <button type="button" class="registration-wizard__edit-button"
+                    [disabled]="readonlyMode() || editEnabled()" (click)="enableEditing()">
+                    <siau-lucide-icon [name]="readonlyMode() ? 'lock' : 'pencil'" size="14" strokeWidth="2"
+                        aria-hidden="true" />
+                    {{ readonlyMode() ? 'Solo consulta' : (editEnabled() ? 'Editando' : 'Editar') }}
                 </button>
+            </div>
+            }
+
+            @if (!isEditMode()) {
+            <div class="registration-wizard__express-card"
+                [class.registration-wizard__express-card--active]="form().expressCreation">
+                <label class="registration-wizard__express-toggle">
+                    <input type="checkbox" [checked]="form().expressCreation"
+                        [disabled]="isFormDisabled() || isSubmitting()"
+                        (change)="toggleExpressCreation($any($event.target).checked)" />
+                    <span class="registration-wizard__express-check" aria-hidden="true">
+                        @if (form().expressCreation) {
+                        <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" />
+                        }
+                    </span>
+                    <span class="registration-wizard__express-copy">
+                        <strong>Creación express</strong>
+                        <small>Solo serán obligatorios nombre, primer apellido, adscripción y correo o celular. Al final
+                            deberás capturar una justificación.</small>
+                    </span>
+                </label>
             </div>
             }
 
@@ -61,7 +87,8 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Mínimos express' :
+                            'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
@@ -75,19 +102,21 @@
                 </div>
 
                 <div class="registration-wizard__grid">
-                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [required]="true" [value]="form().cuip"
-                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [required]="!form().expressCreation"
+                        [value]="form().cuip" (valueChange)="updateForm('cuip', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Clave Única de Identificación Policial" placeholder=""
                         [value]="form().policeIdentificationKey"
                         (valueChange)="updateForm('policeIdentificationKey', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="true" [maxLength]="18"
-                        [value]="form().curp" (valueChange)="updateForm('curp', $event)"
+                    <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="!form().expressCreation"
+                        [maxLength]="18" [value]="form().curp" (valueChange)="updateForm('curp', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="true" [maxLength]="13"
-                        [value]="form().rfc" (valueChange)="updateForm('rfc', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="!form().expressCreation"
+                        [maxLength]="13" [value]="form().rfc" (valueChange)="updateForm('rfc', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
@@ -100,12 +129,13 @@
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions()"
-                        [value]="form().gender" (valueChange)="updateForm('gender', $event)"
+                    <siau-select label="Sexo" placeholder="" [required]="!form().expressCreation"
+                        [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Fecha de Nacimiento" type="date" [required]="true" [value]="form().birthDate"
-                        (valueChange)="updateForm('birthDate', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
+                        [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
+                        [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -192,7 +222,7 @@
 
                     <div class="registration-wizard__section-title">
                         <h3>Comisión</h3>
-                        <p>Datos de comisión interinstitucional (si aplica)</p>
+                        <p>Datos de comisión interinstitucional, solo si aplica</p>
                     </div>
 
                     <span class="registration-wizard__section-count">
@@ -206,14 +236,40 @@
                     </div>
                 </div>
 
+                <div class="registration-wizard__express-card"
+                    [class.registration-wizard__express-card--active]="form().commissionEnabled">
+                    <label class="registration-wizard__express-toggle">
+                        <input type="checkbox" [checked]="form().commissionEnabled"
+                            [disabled]="isFormDisabled() || isSubmitting()"
+                            (change)="toggleCommissionSection($any($event.target).checked)" />
+
+                        <span class="registration-wizard__express-check" aria-hidden="true">
+                            @if (form().commissionEnabled) {
+                            <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" />
+                            }
+                        </span>
+
+                        <span class="registration-wizard__express-copy">
+                            <strong>Agregar comisión</strong>
+                            <small>
+                                Activa esta opción únicamente si el usuario tendrá una comisión distinta a su
+                                adscripción.
+                                Si no se activa, la comisión se enviará como null.
+                            </small>
+                        </span>
+                    </label>
+                </div>
+
+                @if (!form().commissionEnabled) {
                 <div class="registration-wizard__info-box">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>
-                        Esta sección es <strong>opcional.</strong> Complétala únicamente si el usuario estará
-                        comisionado en una institución distinta a su adscripción.
+                        La comisión es opcional. Puedes continuar sin capturar esta sección.
                     </span>
                 </div>
+                }
 
+                @if (form().commissionEnabled) {
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
                     <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
@@ -222,35 +278,40 @@
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="!isCommissionFederalInstitution()" [options]="stateOptions()"
                         [value]="form().commissionEntity"
-                        [disabled]="isFormDisabled() || (isCommissionFederalInstitution())"
+                        [disabled]="isFormDisabled() || isCommissionFederalInstitution()"
                         (valueChange)="updateCommissionEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
                         [required]="!isCommissionFederalInstitution()" [options]="commissionMunicipalityOptions()"
                         [value]="form().commissionMunicipality"
-                        [disabled]="isFormDisabled() || (isCommissionFederalInstitution() || !form().commissionEntity)"
+                        [disabled]="isFormDisabled() || isCommissionFederalInstitution() || !form().commissionEntity"
                         (valueChange)="updateCommissionMunicipality($event)" />
 
                     <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
                         [options]="commissionInstitutionOptions()" [value]="form().commissionInstitution"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity))"
+                        [disabled]="isFormDisabled() || !form().commissionInstitutionType || (!isCommissionFederalInstitution() && !form().commissionEntity)"
                         (valueChange)="updateCommissionInstitution($event)" />
 
                     <siau-select label="Dependencia" placeholder="Selecciona la dependencia"
                         [options]="commissionDependencyOptions()" [value]="form().commissionDependency"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateCommissionDependency($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
                         [options]="commissionDecentralizedBodyOptions()" [value]="form().commissionDecentralizedBody"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateCommissionDecentralizedBody($event)" />
 
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
                         [options]="commissionAdministrativeUnitOptions()" [value]="form().commissionAdministrativeUnit"
-                        [disabled]="isFormDisabled() || (!form().commissionInstitution)"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
+
+                    <siau-input label="Fecha de Ingreso" type="date" [required]="true"
+                        [value]="form().commissionAdmissionDate"
+                        (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
+                }
             </section>
             }
 
@@ -337,7 +398,8 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Correo o celular'
+                            : 'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
@@ -350,14 +412,22 @@
                     </div>
                 </div>
 
+                @if (form().expressCreation) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>En creación express basta con capturar <strong>correo electrónico o teléfono
+                            celular</strong>.</span>
+                </div>
+                }
+
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
-                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [required]="!form().expressCreation" [value]="form().email"
+                        (valueChange)="updateForm('email', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="true" [maxLength]="10"
-                        [value]="form().phone" (valueChange)="updateForm('phone', $event)"
-                        [disabled]="isFormDisabled()" />
+                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678"
+                        [required]="!form().expressCreation" [maxLength]="10" [value]="form().phone"
+                        (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
                         (valueChange)="updateForm('extension', $event)" [disabled]="isFormDisabled()" />
@@ -378,7 +448,8 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Opcional express'
+                            : 'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
@@ -391,9 +462,17 @@
                     </div>
                 </div>
 
+                @if (form().expressCreation) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>Esta sección no bloquea el registro express. Si no agregas perfil, se enviarán los valores
+                        mínimos por defecto del contrato.</span>
+                </div>
+                }
+
                 <div class="registration-wizard__profiles-panel">
                     <div class="registration-wizard__profiles-field-title">
-                        Sistemas y perfiles asignados <span>*</span>
+                        Sistemas y perfiles asignados @if (!form().expressCreation) { <span>*</span> }
                     </div>
 
                     <p class="registration-wizard__profiles-field-help">
@@ -472,7 +551,8 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Justificación
+                            requerida' : 'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
@@ -489,7 +569,7 @@
                     <div class="registration-wizard__account-grid">
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Nombre de usuario <span>*</span>
+                                Nombre de usuario
                             </label>
 
                             <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
@@ -499,7 +579,7 @@
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Contraseña <span>*</span>
+                                Contraseña @if (!form().expressCreation) { <span>*</span> }
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
@@ -520,7 +600,7 @@
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Confirmar contraseña <span>*</span>
+                                Confirmar contraseña @if (!form().expressCreation) { <span>*</span> }
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
@@ -543,7 +623,7 @@
 
                     <div class="registration-wizard__account-status-block">
                         <div class="registration-wizard__field-label">
-                            Estatus inicial de la cuenta <span>*</span>
+                            Estatus inicial de la cuenta
                         </div>
 
                         <p class="registration-wizard__account-status-help">
@@ -585,6 +665,23 @@
                                 </div>
                             </button>
                         </div>
+                    </div>
+
+                    <div class="registration-wizard__field registration-wizard__field--full">
+                        <label class="registration-wizard__field-label" for="express-justification">
+                            Comentarios @if (form().expressCreation) { <span>*</span> }
+                        </label>
+
+                        <textarea id="express-justification" class="registration-wizard__textarea" rows="4"
+                            placeholder="Justifica por qué se realizará la creación express"
+                            [value]="form().expressJustification" [disabled]="isFormDisabled() || isSubmitting()"
+                            (input)="updateForm('expressJustification', $any($event.target).value)"></textarea>
+
+                        @if (form().expressCreation) {
+                        <p class="registration-wizard__field-help">
+                            Este comentario se enviará en el campo <strong>comentario</strong> del contrato de registro.
+                        </p>
+                        }
                     </div>
                 </div>
             </section>

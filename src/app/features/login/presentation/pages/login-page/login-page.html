@@ -88,24 +88,41 @@
                         </div>
 
                         <div class="overflow-hidden rounded-xl border border-white/30 bg-[rgba(153,168,190,0.35)]">
-                            <div class="flex items-center justify-between px-3 pb-1 pt-2.5">
+                            <div class="flex items-center justify-between gap-3 px-3 pb-1 pt-2.5">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-white/80">
                                     Verificación de Seguridad
                                 </span>
 
-                                <button type="button" aria-label="Actualizar captcha"
-                                    class="rounded p-0.5 text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                                    [disabled]="captcha.loading() || captcha.verifying() || auth.loading()"
-                                    (click)="refreshCaptcha()">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round" [class.animate-spin]="captcha.loading()">
-                                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                                        <path d="M21 3v5h-5"></path>
-                                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                                        <path d="M8 16H3v5"></path>
-                                    </svg>
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="captcha-countdown rounded-full border border-white/20 bg-black/15 px-2 py-0.5 text-[11px] font-semibold text-white/75"
+                                        [class.text-red-100]="captcha.remainingSeconds() <= 15"
+                                        [class.captcha-countdown--warning]="captcha.remainingSeconds() <= 15"
+                                        aria-live="polite">
+                                        @if (captcha.loading()) {
+                                        Actualizando...
+                                        } @else if (captcha.challenge()) {
+                                        Caduca en {{ captcha.expirationLabel() }}
+                                        } @else {
+                                        Sin captcha
+                                        }
+                                    </span>
+
+                                    <button type="button" aria-label="Actualizar captcha"
+                                        class="rounded p-0.5 text-white/60 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                                        [disabled]="captcha.loading() || captcha.verifying() || auth.loading()"
+                                        (click)="refreshCaptcha()">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13"
+                                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round"
+                                            [class.animate-spin]="captcha.loading()">
+                                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                                            <path d="M21 3v5h-5"></path>
+                                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                                            <path d="M8 16H3v5"></path>
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="mx-3 mb-2 overflow-hidden rounded-lg border border-white/20"
@@ -156,7 +173,7 @@
                         }
 
                         <button type="submit"
-                            [disabled]="form.invalid || auth.loading() || captcha.loading() || captcha.verifying() || !captcha.challenge()"
+                            [disabled]="form.invalid || auth.loading() || captcha.loading() || captcha.verifying() || !captcha.challenge() || captcha.isExpired()"
                             class="group mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1B1F4A] py-3.5 font-bold text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70">
                             {{ auth.loading() || captcha.verifying() ? 'Validando...' : 'Enviar código' }}
 

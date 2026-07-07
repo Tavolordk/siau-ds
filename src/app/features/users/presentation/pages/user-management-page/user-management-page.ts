@@ -2,9 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged, finalize, Subject, timeout } from 'rxjs';
+import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
+import { SiauModal } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
 import {
+    SolicitudOperacionRequest,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -26,12 +29,13 @@ const DEFAULT_PAGINATION: UserPagination = {
     selector: 'app-user-management-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, SiauLucideIcon, UserRegistrationWizard],
+    imports: [FormsModule, SiauLucideIcon, SiauModal, UserRegistrationWizard],
     templateUrl: './user-management-page.html',
     styleUrl: './user-management-page.scss',
 })
 export class UserManagementPage {
     private readonly usersFacade = inject(UsersFacade);
+    private readonly authStorage = inject(AuthStorage);
     private readonly searchTermChanges = new Subject<string>();
 
     private detailRequestSequence = 0;
@@ -47,6 +51,18 @@ export class UserManagementPage {
     protected readonly selectedUser = signal<UserRecord | null>(null);
     protected readonly selectedUserDetail = signal<UserDetailRecord | null>(null);
     protected readonly isDetailLoading = signal<boolean>(false);
+
+    protected readonly isBajaModalOpen = signal<boolean>(false);
+    protected readonly bajaTargetUser = signal<UserRecord | null>(null);
+    protected readonly bajaComment = signal<string>('');
+    protected readonly bajaCommentError = signal<string | null>(null);
+    protected readonly isBajaSubmitting = signal<boolean>(false);
+
+    protected readonly isStatusModalOpen = signal<boolean>(false);
+    protected readonly statusTargetUser = signal<UserRecord | null>(null);
+    protected readonly statusComment = signal<string>('');
+    protected readonly statusCommentError = signal<string | null>(null);
+    protected readonly isStatusSubmitting = signal<boolean>(false);
 
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
@@ -101,7 +117,14 @@ export class UserManagementPage {
     }
 
     protected openUserDetail(user: UserRecord): void {
-        if (!user.userId) {
+        if (this.isUserBaja(user)) {
+            this.errorMessage.set('El usuario ya está dado de baja y no puede editarse.');
+            return;
+        }
+
+        const userId = this.resolveTargetUserId(user);
+
+        if (!userId) {
             this.errorMessage.set('No se puede consultar el detalle porque el usuario no tiene identificador interno.');
             return;
         }
@@ -113,16 +136,10 @@ export class UserManagementPage {
         this.userWizardMode.set('edit');
         this.errorMessage.set(null);
         this.isDetailLoading.set(true);
-
-        /*
-         * Abrimos el modal inmediatamente.
-         * Así no se queda la tabla esperando aunque el endpoint tarde.
-         * Cuando el endpoint responda 200, se hidratan los datos en el mismo modal.
-         */
         this.isUserWizardOpen.set(true);
 
         this.usersFacade
-            .getUserDetail(user.userId)
+            .getUserDetail(userId)
             .pipe(timeout(15000))
             .subscribe({
                 next: (detail) => {
@@ -154,64 +171,331 @@ export class UserManagementPage {
         this.selectedUserDetail.set(null);
     }
 
-    protected getRoleTone(role: UserRecord['role']): BadgeTone {
-        const value = this.normalizeForCompare(role);
+    protected openBajaModal(user: UserRecord): void {
+        this.bajaTargetUser.set(user);
+        this.bajaComment.set('');
+        this.bajaCommentError.set(null);
+        this.errorMessage.set(null);
+        this.isBajaModalOpen.set(true);
 
-        if (value.includes('admin')) {
-            return 'neutral';
+        if (this.isUserBaja(user)) {
+            this.bajaCommentError.set('El usuario ya está dado de baja.');
+            return;
         }
 
-        if (value.includes('enlace')) {
-            return 'info';
+        if (!this.resolveTargetUserId(user)) {
+            this.bajaCommentError.set('No se encontró el identificador interno del usuario. Revisa el mapeo de usuarioId.');
         }
-
-        if (value.includes('supervisor')) {
-            return 'dark';
-        }
-
-        return 'light';
     }
 
-    protected getStatusTone(status: UserRecord['status']): BadgeTone {
-        const value = this.normalizeForCompare(status);
-
-        if (value.includes('activo') && !value.includes('inactivo')) {
-            return 'success';
+    protected closeBajaModal(): void {
+        if (this.isBajaSubmitting()) {
+            return;
         }
 
-        if (value.includes('suspend')) {
-            return 'warning';
-        }
-
-        if (value.includes('inhabil') || value.includes('inactivo') || value.includes('baja')) {
-            return 'danger';
-        }
-
-        return 'info';
+        this.isBajaModalOpen.set(false);
+        this.bajaTargetUser.set(null);
+        this.bajaComment.set('');
+        this.bajaCommentError.set(null);
     }
 
-    protected getRegistryTone(status: UserRecord['rnpsp']): BadgeTone {
-        const value = this.normalizeForCompare(status);
-        return value.includes('registrado') && !value.includes('no') ? 'success' : 'danger';
+    protected updateBajaComment(value: string): void {
+        const normalizedValue = String(value ?? '').toUpperCase();
+
+        this.bajaComment.set(normalizedValue);
+
+        if (normalizedValue.trim()) {
+            this.bajaCommentError.set(null);
+        }
     }
 
-    protected getTrustTone(status: UserRecord['trust']): BadgeTone {
-        const value = this.normalizeForCompare(status);
+    protected confirmDarDeBajaUsuario(): void {
+        const user = this.bajaTargetUser();
+        const userId = this.resolveTargetUserId(user);
 
-        if (value.includes('vigente') || value.includes('aprobado')) {
-            return 'success';
+        if (!user || !userId) {
+            this.bajaCommentError.set('No se puede dar de baja porque el usuario no tiene identificador interno.');
+            return;
         }
 
-        if (value.includes('expir') || value.includes('vencid')) {
-            return 'warning';
+        if (this.isUserBaja(user)) {
+            this.bajaCommentError.set('El usuario ya está dado de baja.');
+            return;
         }
 
-        return 'info';
+        const comentarioNormalizado = this.bajaComment().trim().toUpperCase();
+
+        if (!comentarioNormalizado) {
+            this.bajaCommentError.set('El comentario de baja es obligatorio.');
+            return;
+        }
+
+        const request: SolicitudOperacionRequest = {
+            usuarioId: userId,
+            comentario: comentarioNormalizado,
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-baja-${Date.now()}`,
+            },
+        };
+
+        this.isBajaSubmitting.set(true);
+        this.errorMessage.set(null);
+        this.bajaCommentError.set(null);
+
+        this.usersFacade
+            .darDeBajaUsuario(request)
+            .pipe(finalize(() => this.isBajaSubmitting.set(false)))
+            .subscribe({
+                next: () => {
+                    this.isBajaSubmitting.set(false);
+                    this.isBajaModalOpen.set(false);
+                    this.bajaTargetUser.set(null);
+                    this.bajaComment.set('');
+                    this.bajaCommentError.set(null);
+                    this.reloadUsers();
+                },
+                error: (error: unknown) => {
+                    this.bajaCommentError.set(this.toFriendlyError(error));
+                },
+            });
+    }
+
+    protected openStatusModal(user: UserRecord): void {
+        this.statusTargetUser.set(user);
+        this.statusComment.set('');
+        this.statusCommentError.set(null);
+        this.errorMessage.set(null);
+        this.isStatusModalOpen.set(true);
+
+        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+            this.statusCommentError.set('La cuenta inhabilitada o dada de baja no es reactivable.');
+            return;
+        }
+
+        if (!this.resolveTargetUserId(user)) {
+            this.statusCommentError.set('No se encontró el identificador interno del usuario. Revisa el mapeo de usuarioId.');
+        }
+    }
+
+    protected closeStatusModal(): void {
+        if (this.isStatusSubmitting()) {
+            return;
+        }
+
+        this.isStatusModalOpen.set(false);
+        this.statusTargetUser.set(null);
+        this.statusComment.set('');
+        this.statusCommentError.set(null);
+    }
+
+    protected updateStatusComment(value: string): void {
+        const normalizedValue = String(value ?? '').toUpperCase();
+
+        this.statusComment.set(normalizedValue);
+
+        if (normalizedValue.trim()) {
+            this.statusCommentError.set(null);
+        }
+    }
+
+    protected confirmToggleUserStatus(): void {
+        const user = this.statusTargetUser();
+        const userId = this.resolveTargetUserId(user);
+
+        if (!user || !userId) {
+            this.statusCommentError.set('No se puede procesar la operación porque el usuario no tiene identificador interno.');
+            return;
+        }
+
+        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+            this.statusCommentError.set('La cuenta inhabilitada o dada de baja no es reactivable.');
+            return;
+        }
+
+        const comentarioNormalizado = this.statusComment().trim().toUpperCase();
+
+        if (!comentarioNormalizado) {
+            this.statusCommentError.set('El comentario es obligatorio.');
+            return;
+        }
+
+        const request: SolicitudOperacionRequest = {
+            usuarioId: userId,
+            comentario: comentarioNormalizado,
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-status-${Date.now()}`,
+            },
+        };
+
+        const operation$ = this.isUserSuspended(user)
+            ? this.usersFacade.reactivarUsuario(request)
+            : this.usersFacade.suspenderUsuario(request);
+
+        this.isStatusSubmitting.set(true);
+        this.errorMessage.set(null);
+        this.statusCommentError.set(null);
+
+        operation$
+            .pipe(finalize(() => this.isStatusSubmitting.set(false)))
+            .subscribe({
+                next: () => {
+                    this.isStatusSubmitting.set(false);
+                    this.isStatusModalOpen.set(false);
+                    this.statusTargetUser.set(null);
+                    this.statusComment.set('');
+                    this.statusCommentError.set(null);
+                    this.reloadUsers();
+                },
+                error: (error: unknown) => {
+                    this.statusCommentError.set(this.toFriendlyError(error));
+                },
+            });
     }
 
     protected getToggleTitle(status: UserRecord['status']): string {
+        return this.isSuspendedStatus(status) ? 'Habilitar' : 'Inhabilitar';
+    }
+
+    protected getToggleIcon(status: UserRecord['status']): string {
+        return this.isSuspendedStatus(status) ? 'check' : 'ban';
+    }
+
+    protected getToggleActionClass(status: UserRecord['status']): string {
+        return this.isSuspendedStatus(status)
+            ? 'users-table__action users-table__action--activate'
+            : 'users-table__action users-table__action--ban';
+    }
+
+    protected getStatusModalTitle(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user) ? 'Habilitar usuario' : 'Inhabilitar usuario';
+    }
+
+    protected getStatusModalSubtitle(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user)
+            ? 'Esta acción reactivará el acceso del usuario seleccionado'
+            : 'Esta acción suspenderá temporalmente el acceso del usuario seleccionado';
+    }
+
+    protected getStatusModalIcon(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user) ? 'check' : 'ban';
+    }
+
+    protected getStatusModalBadge(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user)
+            ? 'Solicitud de reactivación'
+            : 'Solicitud de suspensión';
+    }
+
+    protected getStatusModalWarning(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user)
+            ? 'El usuario suspendido volverá a tener acceso cuando la operación sea procesada correctamente.'
+            : 'El usuario quedará suspendido y no podrá acceder mientras esté en ese estado.';
+    }
+
+    protected getStatusCommentPlaceholder(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user)
+            ? 'ESCRIBE EL MOTIVO DE LA REACTIVACIÓN'
+            : 'ESCRIBE EL MOTIVO DE LA SUSPENSIÓN';
+    }
+
+    protected getStatusConfirmLabel(): string {
+        const user = this.statusTargetUser();
+
+        return user && this.isUserSuspended(user)
+            ? 'Confirmar reactivación'
+            : 'Confirmar suspensión';
+    }
+
+    protected isStatusReactivateOperation(): boolean {
+        const user = this.statusTargetUser();
+
+        return user ? this.isUserSuspended(user) : false;
+    }
+
+    protected shouldShowStatusButton(user: UserRecord): boolean {
+        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected shouldShowDeleteButton(user: UserRecord): boolean {
+        if (this.isUserBaja(user) || this.isUserSuspended(user) || this.isUserInactiveNonReactivable(user)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected isUserBaja(user: UserRecord): boolean {
+        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+
+        if (!status) {
+            return false;
+        }
+
+        if (
+            status.includes('no dado de baja') ||
+            status.includes('no baja') ||
+            status.includes('sin baja')
+        ) {
+            return false;
+        }
+
+        return (
+            status === 'baja' ||
+            status === 'bajado' ||
+            status === 'dado de baja' ||
+            status.includes(' dado de baja') ||
+            status.includes(' estatus baja') ||
+            status.includes(' baja ')
+        );
+    }
+
+    protected isUserSuspended(user: UserRecord): boolean {
+        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+
+        return this.isSuspendedStatus(status);
+    }
+
+    protected isUserInactiveNonReactivable(user: UserRecord): boolean {
+        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+
+        if (this.isUserSuspended(user)) {
+            return false;
+        }
+
+        return (
+            status.includes('inhabil') ||
+            status.includes('inactivo') ||
+            status.includes('deshabil')
+        );
+    }
+
+    private isSuspendedStatus(status: string): boolean {
         const value = this.normalizeForCompare(status);
-        return value.includes('inhabil') || value.includes('inactivo') ? 'Activar' : 'Inhabilitar';
+
+        return (
+            value.includes('suspend') ||
+            value.includes('suspension') ||
+            value.includes('suspendido') ||
+            value.includes('suspendida')
+        );
     }
 
     private loadUsers(page = 1, search = this.searchTerm().trim()): void {
@@ -243,6 +527,45 @@ export class UserManagementPage {
             });
     }
 
+    private isUserInactiveStatus(status: string): boolean {
+        const value = this.normalizeForCompare(status);
+
+        return (
+            value.includes('inhabil') ||
+            value.includes('inactivo')
+        );
+    }
+
+    private resolveCurrentUserId(): number | null {
+        const rawUserId = this.authStorage.session()?.user.id;
+        const userId = Number(rawUserId);
+
+        return Number.isFinite(userId) && userId > 0 ? userId : null;
+    }
+
+    private resolveTargetUserId(user: UserRecord | null): number | null {
+        if (!user) {
+            return null;
+        }
+
+        const record = user as unknown as Record<string, unknown>;
+
+        return this.toPositiveNumber(
+            user.userId ??
+            record['usuarioId'] ??
+            record['idUsuario'] ??
+            record['id_usuario'] ??
+            record['id'] ??
+            record['usuarioID'],
+        );
+    }
+
+    private toPositiveNumber(value: unknown): number | null {
+        const numberValue = Number(value);
+
+        return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+    }
+
     private normalizeForCompare(value: string): string {
         return value
             .normalize('NFD')
@@ -261,5 +584,69 @@ export class UserManagementPage {
         }
 
         return 'Ocurrió un error inesperado al consultar usuarios.';
+    }
+    protected getRoleTone(role: UserRecord['role']): BadgeTone {
+        const value = this.normalizeForCompare(role);
+
+        if (value.includes('admin')) {
+            return 'neutral';
+        }
+
+        if (value.includes('enlace')) {
+            return 'info';
+        }
+
+        if (value.includes('supervisor')) {
+            return 'dark';
+        }
+
+        return 'light';
+    }
+
+    protected getStatusTone(status: UserRecord['status']): BadgeTone {
+        const value = this.normalizeForCompare(status);
+
+        if (value.includes('activo') && !value.includes('inactivo')) {
+            return 'success';
+        }
+
+        if (
+            value.includes('suspend') ||
+            value.includes('suspendido') ||
+            value.includes('suspension')
+        ) {
+            return 'warning';
+        }
+
+        if (
+            value.includes('inhabil') ||
+            value.includes('inactivo') ||
+            value.includes('deshabil') ||
+            value.includes('baja')
+        ) {
+            return 'danger';
+        }
+
+        return 'info';
+    }
+
+    protected getRegistryTone(status: UserRecord['rnpsp']): BadgeTone {
+        const value = this.normalizeForCompare(status);
+
+        return value.includes('registrado') && !value.includes('no') ? 'success' : 'danger';
+    }
+
+    protected getTrustTone(status: UserRecord['trust']): BadgeTone {
+        const value = this.normalizeForCompare(status);
+
+        if (value.includes('vigente') || value.includes('aprobado')) {
+            return 'success';
+        }
+
+        if (value.includes('expir') || value.includes('vencid')) {
+            return 'warning';
+        }
+
+        return 'info';
     }
 }
