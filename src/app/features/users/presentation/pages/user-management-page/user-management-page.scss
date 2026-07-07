@@ -1752,3 +1752,382 @@
   cursor: not-allowed;
   transform: none;
 }
+/* =========================================================
+   MODAL ACCIONES DE USUARIO
+========================================================= */
+
+.user-action-modal {
+  display: grid;
+  gap: 16px;
+  padding: 4px 2px 0;
+}
+
+.user-action-modal__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.user-action-modal__summary-icon {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(113, 18, 57);
+  background: rgba(113, 18, 57, 0.08);
+  border: 1px solid rgba(113, 18, 57, 0.15);
+}
+
+.user-action-modal__summary h3 {
+  margin: 0;
+  color: rgb(27, 31, 74);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.user-action-modal__summary p {
+  margin: 3px 0 0;
+  color: rgba(27, 31, 74, 0.56);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.user-action-modal__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  color: rgb(113, 18, 57);
+  background: rgba(113, 18, 57, 0.07);
+  border: 1px solid rgba(113, 18, 57, 0.14);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.user-action-modal__field {
+  display: grid;
+  gap: 7px;
+}
+
+.user-action-modal__field label {
+  color: rgb(27, 31, 74);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.user-action-modal__field label span {
+  color: rgb(113, 18, 57);
+}
+
+.user-action-modal__textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgb(160, 178, 187);
+  background: rgb(255, 255, 255);
+  color: rgb(27, 31, 74);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+}
+
+.user-action-modal__textarea:focus {
+  border-color: rgb(27, 31, 74);
+  box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.1);
+}
+
+.user-action-modal__textarea::placeholder {
+  color: rgba(27, 31, 74, 0.28);
+}
+
+.user-action-modal__field small {
+  color: rgba(27, 31, 74, 0.48);
+  font-size: 11px;
+}
+
+.user-action-modal__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  color: rgb(113, 18, 57);
+  background: rgba(113, 18, 57, 0.07);
+  border: 1px solid rgba(113, 18, 57, 0.14);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-action-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.user-action-modal__button {
+  min-height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.user-action-modal__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.user-action-modal__button--secondary {
+  color: rgb(27, 31, 74);
+  background: rgba(232, 237, 243, 0.95);
+}
+
+.user-action-modal__button--danger {
+  color: rgb(255, 255, 255);
+  background: rgb(113, 18, 57);
+  box-shadow: 0 12px 24px rgba(113, 18, 57, 0.22);
+}
+
+@media (max-width: 768px) {
+  .user-action-modal__footer {
+    flex-direction: column-reverse;
+  }
+
+  .user-action-modal__button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+/* =========================================================
+   ESTADOS NUEVOS DE ACCIONES USUARIO
+========================================================= */
+
+.users-table-card__message--info {
+  border: 1px solid rgba(62, 92, 118, 0.22);
+  background: rgba(62, 92, 118, 0.08);
+  color: #3e5c76;
+}
+
+.users-table__action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Botón de habilitar con palomita verde */
+.users-table__action--activate,
+.users-table__action--enable {
+  color: rgb(30, 91, 79);
+}
+
+.users-table__action--activate:hover,
+.users-table__action--enable:hover {
+  background: rgba(30, 91, 79, 0.15);
+}
+
+/* Botón inhabilitar */
+.users-table__action--ban {
+  color: #c5651a;
+}
+
+.users-table__action--ban:hover {
+  background: rgba(197, 101, 26, 0.15);
+}
+
+/* Botón baja */
+.users-table__action--delete {
+  color: #611232;
+}
+
+.users-table__action--delete:hover {
+  background: rgba(97, 18, 50, 0.15);
+}
+
+/* =========================================================
+   MODAL ACCIONES DE USUARIO
+========================================================= */
+
+.user-action-modal {
+  display: grid;
+  gap: 16px;
+  padding: 4px 2px 0;
+}
+
+.user-action-modal__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.user-action-modal__summary-icon {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(113, 18, 57);
+  background: rgba(113, 18, 57, 0.08);
+  border: 1px solid rgba(113, 18, 57, 0.15);
+}
+
+.user-action-modal__summary h3 {
+  margin: 0;
+  color: rgb(27, 31, 74);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.user-action-modal__summary p {
+  margin: 3px 0 0;
+  color: rgba(27, 31, 74, 0.56);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.user-action-modal__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  color: rgb(113, 18, 57);
+  background: rgba(113, 18, 57, 0.07);
+  border: 1px solid rgba(113, 18, 57, 0.14);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.user-action-modal__field {
+  display: grid;
+  gap: 7px;
+}
+
+.user-action-modal__field label {
+  color: rgb(27, 31, 74);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.user-action-modal__field label span {
+  color: rgb(113, 18, 57);
+}
+
+.user-action-modal__textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgb(160, 178, 187);
+  background: rgb(255, 255, 255);
+  color: rgb(27, 31, 74);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+}
+
+.user-action-modal__textarea:focus {
+  border-color: rgb(27, 31, 74);
+  box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.1);
+}
+
+.user-action-modal__textarea::placeholder {
+  color: rgba(27, 31, 74, 0.28);
+}
+
+.user-action-modal__field small {
+  color: rgba(27, 31, 74, 0.48);
+  font-size: 11px;
+}
+
+.user-action-modal__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  color: rgb(113, 18, 57);
+  background: rgba(113, 18, 57, 0.07);
+  border: 1px solid rgba(113, 18, 57, 0.14);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-action-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.user-action-modal__button {
+  min-height: 38px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.user-action-modal__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.user-action-modal__button--secondary {
+  color: rgb(27, 31, 74);
+  background: rgba(232, 237, 243, 0.95);
+}
+
+.user-action-modal__button--danger {
+  color: rgb(255, 255, 255);
+  background: rgb(113, 18, 57);
+  box-shadow: 0 12px 24px rgba(113, 18, 57, 0.22);
+}
+
+.user-action-modal__button--success {
+  color: #ffffff;
+  background: rgb(30, 91, 79);
+  box-shadow: 0 12px 24px rgba(30, 91, 79, 0.22);
+}
+
+@media (max-width: 768px) {
+  .user-action-modal__footer {
+    flex-direction: column-reverse;
+  }
+
+  .user-action-modal__button {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -3,6 +3,10 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, throwError } from 'rxjs';
 import { CONSULTAS_API_BASE_URL } from '../../../core/http/consultas-api-base-url.token';
 import {
+    RegistroAdminRequest,
+    RegistroAdminResponse,
+    SolicitudOperacionRequest,
+    SolicitudOperacionResponse,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -11,6 +15,10 @@ import {
 } from '../domain/models/user-record.model';
 
 const USERS_PATH = '/api/v1/consultas/usuarios';
+const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
+const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
+const SOLICITUD_SUSPENDER_PATH = '/api/v1/solicitudes/suspender';
+const SOLICITUD_REACTIVAR_PATH = '/api/v1/solicitudes/reactivar';
 
 interface ApiErrorDto {
     readonly code?: string | null;
@@ -72,6 +80,50 @@ export class UsersApiRepository {
                 map((response) => this.unwrapResponse(response, 'No fue posible consultar usuarios.')),
                 map((response) => this.toUsersPageResult(response, query)),
                 catchError((error: unknown) => this.handleError(error, 'No fue posible consultar usuarios.')),
+            );
+    }
+
+    createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
+        return this.http
+            .post<RegistroAdminResponse>(`${this.baseUrl}${REGISTRO_ADMIN_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible registrar el usuario.'),
+                ),
+            );
+    }
+
+    darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_BAJA_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible dar de baja al usuario.'),
+                ),
+            );
+    }
+
+    suspenderUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_SUSPENDER_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible inhabilitar al usuario.'),
+                ),
+            );
+    }
+
+    reactivarUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_REACTIVAR_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible habilitar al usuario.'),
+                ),
             );
     }
 

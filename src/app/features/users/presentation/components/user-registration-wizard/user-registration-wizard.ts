@@ -12,8 +12,9 @@ import {
     WritableSignal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
+import { finalize, forkJoin } from 'rxjs';
 import { CatalogosFacade } from '../../../../../core/catalogos';
+import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import {
     SiauInput,
     SiauModal,
@@ -22,7 +23,13 @@ import {
     SiauStep,
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
-import { UserDetailRecord, UserRecord } from '../../../domain/models/user-record.model';
+import { UsersFacade } from '../../../application/users.facade';
+import {
+    RegistroAdminRequest,
+    RegistroAsignacion,
+    UserDetailRecord,
+    UserRecord,
+} from '../../../domain/models/user-record.model';
 
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 type UserWizardMode = 'create' | 'edit';
@@ -58,6 +65,7 @@ interface UserRegistrationForm {
     admissionDate: string;
     employeeNumber: string;
 
+    commissionEnabled: boolean;
     commissionInstitutionType: string;
     commissionInstitution: string;
     commissionEntity: string;
@@ -65,6 +73,7 @@ interface UserRegistrationForm {
     commissionDependency: string;
     commissionDecentralizedBody: string;
     commissionAdministrativeUnit: string;
+    commissionAdmissionDate: string;
 
     email: string;
     phone: string;
@@ -76,6 +85,8 @@ interface UserRegistrationForm {
     password: string;
     confirmPassword: string;
     accountStatus: AccountStatus;
+    expressCreation: boolean;
+    expressJustification: string;
 }
 
 interface UserProfileOption {
@@ -90,6 +101,11 @@ interface AssignedSystemProfile {
     readonly systemLabel: string;
     readonly role: string;
     readonly roleLabel: string;
+}
+
+interface ValidationMessage {
+    readonly key: string;
+    readonly message: string;
 }
 
 const INITIAL_FORM: UserRegistrationForm = {
@@ -114,6 +130,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     admissionDate: '',
     employeeNumber: '',
 
+    commissionEnabled: false,
     commissionInstitutionType: '',
     commissionInstitution: '',
     commissionEntity: '',
@@ -121,6 +138,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     commissionDependency: '',
     commissionDecentralizedBody: '',
     commissionAdministrativeUnit: '',
+    commissionAdmissionDate: '',
 
     email: '',
     phone: '',
@@ -132,6 +150,8 @@ const INITIAL_FORM: UserRegistrationForm = {
     password: '',
     confirmPassword: '',
     accountStatus: 'active',
+    expressCreation: false,
+    expressJustification: '',
 };
 
 @Component({
@@ -147,9 +167,12 @@ export class UserRegistrationWizard {
     readonly mode = input<UserWizardMode>('create');
     readonly user = input<UserRecord | null>(null);
     readonly userDetail = input<UserDetailRecord | null>(null);
+    readonly readonlyMode = input<boolean>(false);
     readonly closed = output<void>();
 
     private readonly catalogosFacade = inject(CatalogosFacade);
+    private readonly usersFacade = inject(UsersFacade);
+    private readonly authStorage = inject(AuthStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
@@ -159,6 +182,8 @@ export class UserRegistrationWizard {
     protected readonly editEnabled = signal<boolean>(true);
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
+    protected readonly isSubmitting = signal<boolean>(false);
+    protected readonly formErrors = signal<Record<string, string>>({});
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -169,6 +194,8 @@ export class UserRegistrationWizard {
     protected readonly showConfirmPassword = signal<boolean>(false);
 
     protected readonly genderOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly civilStatusOptions = signal<readonly SiauSelectOption[]>([]);
+    protected readonly userTypeOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly systemOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly roleOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly institutionTypeOptions = signal<readonly SiauSelectOption[]>([]);
@@ -321,7 +348,21 @@ export class UserRegistrationWizard {
 
     protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
-    protected readonly isFormDisabled = computed(() => this.isEditMode() && !this.editEnabled());
+    protected readonly isFormDisabled = computed(() =>
+        this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
+    );
+
+    protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
+        const errors = this.formErrors();
+        const stepFields = this.getStepValidationFields(this.activeStepId());
+
+        return Object.entries(errors)
+            .filter(([key]) => stepFields.includes(key))
+            .map(([key, message]) => ({
+                key,
+                message,
+            }));
+    });
 
     protected readonly modalTitle = computed(() => {
         if (!this.isEditMode()) {
@@ -333,7 +374,9 @@ export class UserRegistrationWizard {
 
     protected readonly modalSubtitle = computed(() => {
         if (!this.isEditMode()) {
-            return 'Complete todas las secciones requeridas para crear el acceso';
+            return this.form().expressCreation
+                ? 'Creación express activa: captura los datos mínimos y justifica el alta'
+                : 'Complete todas las secciones requeridas para crear el acceso';
         }
 
         const user = this.user();
@@ -347,17 +390,30 @@ export class UserRegistrationWizard {
 
     protected readonly modalIcon = computed(() => (this.isEditMode() ? 'user' : 'user-plus'));
 
-    protected readonly primaryButtonLabel = computed(() =>
-        this.isEditMode() ? 'Guardar cambios' : 'Registrar Usuario',
-    );
+    protected readonly primaryButtonLabel = computed(() => {
+        if (this.isSubmitting()) {
+            return this.isEditMode() ? 'Guardando...' : 'Registrando...';
+        }
 
-    protected readonly primaryButtonIcon = computed(() => (this.isEditMode() ? 'save' : 'user-plus'));
+        return this.isEditMode() ? 'Guardar cambios' : 'Registrar Usuario';
+    });
+
+    protected readonly primaryButtonIcon = computed(() => {
+        if (this.isSubmitting()) {
+            return 'loader-circle';
+        }
+
+        return this.isEditMode() ? 'save' : 'user-plus';
+    });
 
     constructor() {
-        this.loadCatalogos();
-
         effect(() => {
             const isOpen = this.open();
+
+            if (isOpen && !this.catalogosReady()) {
+                this.loadCatalogos();
+            }
+
             const mode = this.mode();
             const user = this.user();
             const detail = this.userDetail();
@@ -391,7 +447,7 @@ export class UserRegistrationWizard {
     }
 
     protected enableEditing(): void {
-        if (!this.isEditMode()) {
+        if (!this.isEditMode() || this.readonlyMode()) {
             return;
         }
 
@@ -399,14 +455,33 @@ export class UserRegistrationWizard {
     }
 
     protected goToStep(stepId: string): void {
-        if (this.isWizardStep(stepId)) {
-            this.activeStepId.set(stepId);
+        if (!this.isWizardStep(stepId)) {
+            return;
         }
+
+        if (this.isEditMode()) {
+            this.activeStepId.set(stepId);
+            return;
+        }
+
+        const current = this.activeStepId();
+        const currentIndex = this.stepOrder.indexOf(current);
+        const targetIndex = this.stepOrder.indexOf(stepId);
+
+        if (targetIndex > currentIndex && !this.validateStep(current)) {
+            return;
+        }
+
+        this.activeStepId.set(stepId);
     }
 
     protected nextStep(): void {
         const current = this.activeStepId();
         const currentIndex = this.stepOrder.indexOf(current);
+
+        if (!this.isEditMode() && !this.validateStep(current)) {
+            return;
+        }
 
         this.markCompleted(current);
 
@@ -424,36 +499,149 @@ export class UserRegistrationWizard {
     }
 
     protected closeWizard(): void {
+        if (this.isSubmitting()) {
+            return;
+        }
+
         this.closed.emit();
         this.resetWizard();
     }
 
     protected submit(): void {
-        if (this.isFormDisabled()) {
+        if (this.readonlyMode() || this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
-        this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
-        this.closed.emit();
-        this.resetWizard();
+        if (this.isEditMode()) {
+            this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+            this.closed.emit();
+            this.resetWizard();
+            return;
+        }
+
+        if (!this.validateAllSteps()) {
+            return;
+        }
+
+        let request: RegistroAdminRequest;
+
+        try {
+            request = this.buildCreateUserRequest();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Revisa la información capturada.';
+
+            this.formErrors.update((current) => ({
+                ...current,
+                submit: message,
+            }));
+            console.error(error);
+            return;
+        }
+
+        this.isSubmitting.set(true);
+
+        this.usersFacade
+            .createAdminUser(request)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isSubmitting.set(false)),
+            )
+            .subscribe({
+                next: () => {
+                    this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+                    this.closed.emit();
+                    this.resetWizard();
+                },
+                error: (error: unknown) => {
+                    const message =
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible registrar el usuario.';
+
+                    this.formErrors.update((current) => ({
+                        ...current,
+                        submit: message,
+                    }));
+
+                    console.error('Error registrando usuario.', error);
+                },
+            });
     }
 
     protected updateForm<K extends keyof UserRegistrationForm>(
         key: K,
         value: UserRegistrationForm[K] | string | null,
     ): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        const normalizedValue = this.normalizeFormInputValue(key, value);
+
+        this.form.update((current) => ({
+            ...current,
+            [key]: normalizedValue,
+        }));
+
+        this.clearFieldError(String(key));
+    }
+
+    protected toggleExpressCreation(checked: boolean): void {
+        if (this.isFormDisabled() || this.isSubmitting() || this.isEditMode()) {
             return;
         }
 
         this.form.update((current) => ({
             ...current,
-            [key]: value ?? '',
+            expressCreation: checked,
         }));
+
+        this.formErrors.set({});
+    }
+
+    protected toggleCommissionSection(checked: boolean): void {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        this.form.update((current) => ({
+            ...current,
+            commissionEnabled: checked,
+            commissionInstitutionType: checked ? current.commissionInstitutionType : '',
+            commissionInstitution: checked ? current.commissionInstitution : '',
+            commissionEntity: checked ? current.commissionEntity : '',
+            commissionMunicipality: checked ? current.commissionMunicipality : '',
+            commissionDependency: checked ? current.commissionDependency : '',
+            commissionDecentralizedBody: checked ? current.commissionDecentralizedBody : '',
+            commissionAdministrativeUnit: checked ? current.commissionAdministrativeUnit : '',
+            commissionAdmissionDate: checked ? current.commissionAdmissionDate : '',
+        }));
+
+        if (!checked) {
+            this.commissionMunicipalityOptions.set([]);
+            this.commissionInstitutionOptions.set([]);
+            this.commissionDependencyOptions.set([]);
+            this.commissionDecentralizedBodyOptions.set([]);
+            this.commissionAdministrativeUnitOptions.set([]);
+        }
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+
+            [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+                'commissionAdmissionDate',
+            ].forEach((key) => delete next[key]);
+
+            return next;
+        });
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -481,7 +669,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentEntity(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -513,7 +701,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentMunicipality(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -526,7 +714,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentInstitution(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -543,7 +731,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateAssignmentDecentralizedBody(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -557,7 +745,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionInstitutionType(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -587,7 +775,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionEntity(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -621,7 +809,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionMunicipality(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -634,7 +822,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionInstitution(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -654,7 +842,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionDependency(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -677,7 +865,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateCommissionDecentralizedBody(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -694,7 +882,7 @@ export class UserRegistrationWizard {
     }
 
     protected toggleProfile(profile: string): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -719,7 +907,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateSelectedSystem(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -733,7 +921,7 @@ export class UserRegistrationWizard {
     }
 
     protected updateSelectedRole(value: string | null): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -741,7 +929,7 @@ export class UserRegistrationWizard {
     }
 
     protected addAssignedProfile(): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -773,12 +961,14 @@ export class UserRegistrationWizard {
         };
 
         this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
+        this.roleOptions.set([]);
     }
 
     protected removeAssignedProfile(id: string): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -795,7 +985,7 @@ export class UserRegistrationWizard {
     }
 
     protected setAccountStatus(status: AccountStatus): void {
-        if (this.isFormDisabled()) {
+        if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
 
@@ -821,6 +1011,247 @@ export class UserRegistrationWizard {
             .trim();
     }
 
+    private buildCreateUserRequest(): RegistroAdminRequest {
+        const current = this.form();
+        const isExpress = current.expressCreation;
+        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
+        const password = this.toText(current.password);
+
+        if (!assignedProfile && !isExpress) {
+            throw new Error('Selecciona al menos un sistema y perfil.');
+        }
+
+        if (!password && !isExpress) {
+            throw new Error('Captura la contraseña.');
+        }
+
+        return {
+            datosPersonales: {
+                cuip: this.toNullableText(current.cuip),
+                curp: this.getRequiredOrOptionalText(
+                    current.curp,
+                    !isExpress,
+                    'Captura la CURP.',
+                ).toUpperCase(),
+                rfc: this.getRequiredOrOptionalText(
+                    current.rfc,
+                    !isExpress,
+                    'Captura el RFC.',
+                ).toUpperCase(),
+                nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
+                primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
+                segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
+                sexoId: isExpress
+                    ? this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1)
+                    : this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                fechaNacimiento: this.getRequiredOrOptionalText(
+                    current.birthDate,
+                    !isExpress,
+                    'Captura la fecha de nacimiento.',
+                ),
+                estadoCivilId: this.resolveDefaultCatalogId(this.civilStatusOptions(), 1),
+            },
+            adscripcion: {
+                estructuraId: this.resolveAssignmentStructureId(),
+                cargo: this.toNullableText(current.position)?.toUpperCase() ?? null,
+                funciones: this.toNullableText(current.functions),
+                numeroEmpleado: this.toNullableText(current.employeeNumber),
+                fechaInicio: this.toNullableText(current.admissionDate),
+            },
+            comision: this.buildCommissionRequest(),
+            medioContacto: {
+                correo: this.getRequiredOrOptionalText(
+                    current.email,
+                    !isExpress,
+                    'Captura el correo.',
+                ),
+                celular: this.getRequiredOrOptionalText(
+                    current.phone,
+                    !isExpress,
+                    'Captura el celular.',
+                ),
+            },
+            cuenta: {
+                password: password || null,
+                passwordHash: password || null,
+                tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+                sistemaId: assignedProfile
+                    ? this.resolveAssignedSystemId(assignedProfile)
+                    : this.resolveDefaultCatalogId(this.systemOptions(), 1),
+                perfilId: assignedProfile
+                    ? this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.')
+                    : this.resolveDefaultCatalogId(this.roleOptions(), 1),
+            },
+            comentario: isExpress
+                ? this.requireText(
+                    current.expressJustification,
+                    'Captura la justificación de la creación express.',
+                )
+                : this.toNullableText(current.expressJustification),
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-admin-${Date.now()}`,
+            },
+        };
+    }
+
+    private buildCommissionRequest(): RegistroAsignacion | null {
+        const current = this.form();
+
+        if (!current.commissionEnabled) {
+            return null;
+        }
+
+        return {
+            estructuraId: this.resolveCommissionStructureId(),
+            cargo: null,
+            funciones: null,
+            numeroEmpleado: null,
+            fechaInicio: this.requireText(
+                current.commissionAdmissionDate,
+                'Captura la fecha de ingreso de comisión.',
+            ),
+        };
+    }
+
+    private resolveAssignmentStructureId(): number {
+        const current = this.form();
+
+        return this.resolveStructureId(
+            [
+                current.administrativeUnit,
+                current.decentralizedBody,
+                current.institution,
+            ],
+            'Selecciona la institución, órgano o unidad de adscripción.',
+        );
+    }
+
+    private resolveCommissionStructureId(): number {
+        const current = this.form();
+
+        return this.resolveStructureId(
+            [
+                current.commissionAdministrativeUnit,
+                current.commissionDecentralizedBody,
+                current.commissionDependency,
+                current.commissionInstitution,
+            ],
+            'Selecciona la institución, dependencia, órgano o unidad de comisión.',
+        );
+    }
+
+    private resolveStructureId(values: readonly string[], errorMessage: string): number {
+        const value = values.map((item) => this.toCatalogId(item)).find((item) => item !== undefined);
+
+        if (!value) {
+            throw new Error(errorMessage);
+        }
+
+        return value;
+    }
+
+    private resolveAssignedSystemId(profile: AssignedSystemProfile): number {
+        const option = this.systemOptions().find(
+            (item) =>
+                item.value === profile.system ||
+                this.normalizeText(item.label) === this.normalizeText(profile.systemLabel) ||
+                this.normalizeText(item.value) === this.normalizeText(profile.system),
+        );
+
+        const metadata = this.optionMetadata(option);
+        const idFromMetadata = this.firstNumberValue(metadata, ['id', 'idSistema', 'sistemaId']);
+
+        if (idFromMetadata) {
+            return idFromMetadata;
+        }
+
+        return this.requireCatalogId(profile.system, 'Selecciona un sistema válido.');
+    }
+
+    private resolveDefaultCatalogId(options: readonly SiauSelectOption[], fallback: number): number {
+        const firstOption = options[0];
+
+        if (!firstOption) {
+            return fallback;
+        }
+
+        const id = this.toCatalogId(firstOption.value);
+
+        return id ?? fallback;
+    }
+
+    private requireCatalogId(value: string, errorMessage: string): number {
+        const id = this.toCatalogId(value);
+
+        if (!id) {
+            throw new Error(errorMessage);
+        }
+
+        return id;
+    }
+
+    private requireText(value: string, errorMessage: string): string {
+        const text = this.toText(value);
+
+        if (!text) {
+            throw new Error(errorMessage);
+        }
+
+        return text;
+    }
+
+    private getRequiredOrOptionalText(
+        value: string,
+        required: boolean,
+        errorMessage: string,
+    ): string {
+        return required ? this.requireText(value, errorMessage) : this.toText(value);
+    }
+
+    private resolveOptionalCatalogId(
+        value: string,
+        options: readonly SiauSelectOption[],
+        fallback: number,
+    ): number {
+        return this.toCatalogId(value) ?? this.resolveDefaultCatalogId(options, fallback);
+    }
+
+    private toNullableText(value: string | null | undefined): string | null {
+        const text = this.toText(value);
+
+        return text || null;
+    }
+
+    private hasText(value: unknown): boolean {
+        return this.toText(value).length > 0;
+    }
+
+    private resolveCurrentUserId(): number | null {
+        const rawUserId = this.authStorage.session()?.user.id;
+        const userId = Number(rawUserId);
+
+        return Number.isFinite(userId) && userId > 0 ? userId : null;
+    }
+
+    private optionMetadata(option: SiauSelectOption | undefined): Record<string, unknown> {
+        const metadata = (option as { metadata?: Record<string, unknown> } | undefined)?.metadata;
+
+        return this.toRecord(metadata);
+    }
+
+    private firstNumberValue(record: Record<string, unknown>, keys: readonly string[]): number | null {
+        for (const key of keys) {
+            const value = Number(record[key]);
+
+            if (Number.isFinite(value) && value > 0) {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
         const personalData = this.toRecord(datos['s1DatosPersonales']);
         const assignment = this.toRecord(datos['s2Adscripcion']);
@@ -844,6 +1275,16 @@ export class UserRegistrationWizard {
         const commissionEntity = commissionIsFederal
             ? ''
             : this.resolveSelectValue(this.firstValue(commission, ['estado', 'entidad', 'estadoId']), this.stateOptions);
+
+        const hasCommissionData =
+            this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||
+            this.hasText(this.firstValue(commission, ['estado', 'entidad', 'estadoId'])) ||
+            this.hasText(this.firstValue(commission, ['municipio', 'municipioAlcaldia', 'municipioId'])) ||
+            this.hasText(this.firstValue(commission, ['institucion', 'institucionId'])) ||
+            this.hasText(this.firstValue(commission, ['dependencia', 'dependenciaId'])) ||
+            this.hasText(this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
+            this.hasText(this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit'])) ||
+            this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso']));
 
         const nextForm: UserRegistrationForm = {
             ...INITIAL_FORM,
@@ -884,6 +1325,7 @@ export class UserRegistrationWizard {
             admissionDate: this.toDateInputValue(this.firstValue(assignment, ['fechaInicio', 'fechaIngreso'])),
             employeeNumber: this.toText(this.firstValue(assignment, ['numeroEmpleado', 'numEmpleado'])),
 
+            commissionEnabled: hasCommissionData,
             commissionInstitutionType,
             commissionEntity,
             commissionMunicipality: commissionIsFederal
@@ -908,6 +1350,7 @@ export class UserRegistrationWizard {
                 this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit']),
                 this.commissionAdministrativeUnitOptions,
             ),
+            commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
 
             email: this.toText(this.firstValue(contact, ['correo', 'email'])) || this.toText(datos['correo']) || user?.email || '',
             phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone'])),
@@ -919,6 +1362,8 @@ export class UserRegistrationWizard {
             password: '',
             confirmPassword: '',
             accountStatus: this.toAccountStatus(this.firstText([datos['estatus'], datos['estatusClave'], user?.status])),
+            expressCreation: false,
+            expressJustification: this.toText(datos['comentario']),
         };
 
         const assignedProfiles = this.toAssignedSystemProfiles(datos['s6Perfiles']);
@@ -952,7 +1397,15 @@ export class UserRegistrationWizard {
                 );
 
                 const rawRoleLabel = this.toText(
-                    this.firstValue(record, ['perfil', 'rol', 'perfilClave', 'rolClave', 'nombrePerfil', 'perfilNombre']),
+                    this.firstValue(record, [
+                        'descripcionPerfil',
+                        'perfil',
+                        'rol',
+                        'perfilClave',
+                        'rolClave',
+                        'nombrePerfil',
+                        'perfilNombre',
+                    ]),
                 );
 
                 const rawRoleId = this.toText(
@@ -1204,7 +1657,11 @@ export class UserRegistrationWizard {
             return 'suspended';
         }
 
-        if (normalizedValue.includes('inhabil') || normalizedValue.includes('inactivo') || normalizedValue.includes('baja')) {
+        if (
+            normalizedValue.includes('inhabil') ||
+            normalizedValue.includes('inactivo') ||
+            normalizedValue.includes('baja')
+        ) {
             return 'disabled';
         }
 
@@ -1226,6 +1683,8 @@ export class UserRegistrationWizard {
         this.completedSteps.set([]);
         this.editEnabled.set(true);
         this.form.set({ ...INITIAL_FORM, profiles: [] });
+        this.isSubmitting.set(false);
+        this.formErrors.set({});
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -1251,6 +1710,8 @@ export class UserRegistrationWizard {
     private loadCatalogos(): void {
         forkJoin({
             sexos: this.catalogosFacade.obtenerSexoOptions(),
+            estadosCivil: this.catalogosFacade.obtenerEstadoCivilOptions(),
+            tiposUsuario: this.catalogosFacade.obtenerTipoUsuarioOptions(),
             sistemas: this.catalogosFacade.obtenerSistemasOptions(),
             tiposInstitucion: this.catalogosFacade.obtenerTipoInstitucionOptions(),
             estados: this.catalogosFacade.obtenerEstadosOptions(),
@@ -1259,6 +1720,8 @@ export class UserRegistrationWizard {
             .subscribe({
                 next: (catalogos) => {
                     this.genderOptions.set(catalogos.sexos);
+                    this.civilStatusOptions.set(catalogos.estadosCivil);
+                    this.userTypeOptions.set(catalogos.tiposUsuario);
                     this.systemOptions.set(catalogos.sistemas);
                     this.roleOptions.set([]);
                     this.institutionTypeOptions.set(catalogos.tiposInstitucion);
@@ -1315,14 +1778,7 @@ export class UserRegistrationWizard {
                 this.normalizeText(option.label) === this.normalizeText(cleanSystem),
         );
 
-        const optionValue = this.toText(systemOption?.value);
-        const optionLabel = this.toText(systemOption?.label);
-
-        if (optionValue && Number.isNaN(Number(optionValue))) {
-            return optionValue;
-        }
-
-        return optionLabel || optionValue || cleanSystem;
+        return this.toText(systemOption?.value) || this.toText(systemOption?.label) || cleanSystem;
     }
 
     private loadMunicipalities(
@@ -1468,6 +1924,315 @@ export class UserRegistrationWizard {
         const label = option?.label ?? value;
 
         return this.normalizeText(label).includes('federal');
+    }
+
+    private validateAllSteps(): boolean {
+        for (const stepId of this.stepOrder) {
+            if (!this.validateStep(stepId)) {
+                this.activeStepId.set(stepId);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private validateStep(stepId: WizardStepId): boolean {
+        const current = this.form();
+        const isExpress = current.expressCreation;
+        const nextErrors: Record<string, string> = {};
+
+        if (stepId === 'personal-data') {
+            if (!isExpress || this.hasText(current.curp)) {
+                if (!this.hasText(current.curp)) {
+                    nextErrors['curp'] = 'La CURP es obligatoria.';
+                } else if (!this.isValidCurp(current.curp)) {
+                    nextErrors['curp'] = 'La CURP no tiene un formato válido.';
+                }
+            }
+
+            if (!isExpress || this.hasText(current.rfc)) {
+                if (!this.hasText(current.rfc)) {
+                    nextErrors['rfc'] = 'El RFC es obligatorio.';
+                } else if (!this.isValidRfc(current.rfc)) {
+                    nextErrors['rfc'] = 'El RFC no tiene un formato válido.';
+                }
+            }
+
+            if (!this.hasText(current.firstName)) {
+                nextErrors['firstName'] = 'El nombre es obligatorio.';
+            }
+
+            if (!this.hasText(current.lastName)) {
+                nextErrors['lastName'] = 'El primer apellido es obligatorio.';
+            }
+
+            if (!isExpress && !this.hasText(current.gender)) {
+                nextErrors['gender'] = 'El sexo es obligatorio.';
+            }
+
+            if (!isExpress || this.hasText(current.birthDate)) {
+                if (!this.hasText(current.birthDate)) {
+                    nextErrors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
+                } else if (!this.isAdult(current.birthDate)) {
+                    nextErrors['birthDate'] = 'El usuario debe ser mayor de edad.';
+                }
+            }
+        }
+
+        if (stepId === 'assignment') {
+            if (!this.hasText(current.institutionType)) {
+                nextErrors['institutionType'] = 'El tipo de institución es obligatorio.';
+            }
+
+            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.entity)) {
+                nextErrors['entity'] = 'La entidad es obligatoria.';
+            }
+
+            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.municipality)) {
+                nextErrors['municipality'] = 'El municipio o alcaldía es obligatorio.';
+            }
+
+            if (!this.hasText(current.institution)) {
+                nextErrors['institution'] = 'La institución es obligatoria.';
+            }
+
+            if (!this.hasText(current.admissionDate)) {
+                nextErrors['admissionDate'] = 'La fecha de ingreso es obligatoria.';
+            }
+
+            if (!this.hasText(current.employeeNumber)) {
+                nextErrors['employeeNumber'] = 'El número de empleado es obligatorio.';
+            }
+        }
+
+        if (stepId === 'commission') {
+            if (current.commissionEnabled) {
+                if (!this.hasText(current.commissionInstitutionType)) {
+                    nextErrors['commissionInstitutionType'] = 'El tipo de institución de comisión es obligatorio.';
+                }
+
+                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionEntity)) {
+                    nextErrors['commissionEntity'] = 'La entidad de comisión es obligatoria.';
+                }
+
+                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionMunicipality)) {
+                    nextErrors['commissionMunicipality'] = 'El municipio o alcaldía de comisión es obligatorio.';
+                }
+
+                if (!this.hasText(current.commissionInstitution)) {
+                    nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
+                }
+
+                if (!this.hasText(current.commissionAdmissionDate)) {
+                    nextErrors['commissionAdmissionDate'] = 'La fecha de ingreso de comisión es obligatoria.';
+                }
+            }
+        }
+
+        if (stepId === 'contact') {
+            const hasEmail = this.hasText(current.email);
+            const hasPhone = this.hasText(current.phone);
+
+            if (isExpress) {
+                if (!hasEmail && !hasPhone) {
+                    nextErrors['email'] = 'Captura correo electrónico o teléfono celular.';
+                    nextErrors['phone'] = 'Captura correo electrónico o teléfono celular.';
+                }
+            } else {
+                if (!hasEmail) {
+                    nextErrors['email'] = 'El correo electrónico es obligatorio.';
+                }
+
+                if (!hasPhone) {
+                    nextErrors['phone'] = 'El teléfono celular es obligatorio.';
+                }
+            }
+
+            if (hasEmail && !this.isValidEmail(current.email)) {
+                nextErrors['email'] = 'El correo electrónico no tiene un formato válido.';
+            }
+
+            if (hasPhone && !/^\d{10}$/.test(current.phone)) {
+                nextErrors['phone'] = 'El teléfono celular debe tener 10 dígitos.';
+            }
+        }
+
+        if (stepId === 'profiles' && !isExpress) {
+            if (this.assignedSystemProfiles().length === 0) {
+                nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
+            }
+        }
+
+        if (stepId === 'account' && !this.isEditMode()) {
+            if (isExpress && !this.hasText(current.expressJustification)) {
+                nextErrors['expressJustification'] = 'Justifica por qué se realizará la creación express.';
+            }
+
+            if (!isExpress && !this.hasText(current.password)) {
+                nextErrors['password'] = 'La contraseña es obligatoria.';
+            }
+
+            if (!isExpress && !this.hasText(current.confirmPassword)) {
+                nextErrors['confirmPassword'] = 'La confirmación de contraseña es obligatoria.';
+            }
+
+            if (
+                this.hasText(current.password) &&
+                this.hasText(current.confirmPassword) &&
+                current.password !== current.confirmPassword
+            ) {
+                nextErrors['confirmPassword'] = 'Las contraseñas no coinciden.';
+            }
+        }
+
+        this.formErrors.update((currentErrors) => {
+            const cleanErrors = { ...currentErrors };
+
+            this.getStepValidationFields(stepId).forEach((field) => {
+                delete cleanErrors[field];
+            });
+
+            return {
+                ...cleanErrors,
+                ...nextErrors,
+            };
+        });
+
+        return Object.keys(nextErrors).length === 0;
+    }
+
+    private getStepValidationFields(stepId: WizardStepId): readonly string[] {
+        const fieldsByStep: Record<WizardStepId, readonly string[]> = {
+            'personal-data': [
+                'curp',
+                'rfc',
+                'firstName',
+                'lastName',
+                'gender',
+                'birthDate',
+            ],
+            assignment: [
+                'institutionType',
+                'entity',
+                'municipality',
+                'institution',
+                'admissionDate',
+                'employeeNumber',
+            ],
+            commission: [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+                'commissionAdmissionDate',
+            ],
+            documents: [],
+            contact: [
+                'email',
+                'phone',
+            ],
+            profiles: [
+                'profiles',
+            ],
+            account: [
+                'password',
+                'confirmPassword',
+                'expressJustification',
+                'submit',
+            ],
+        };
+
+        return fieldsByStep[stepId];
+    }
+
+    private clearFieldError(key: string): void {
+        this.formErrors.update((current) => {
+            if (!current[key]) {
+                return current;
+            }
+
+            const next = { ...current };
+            delete next[key];
+
+            return next;
+        });
+    }
+
+    private normalizeFormInputValue<K extends keyof UserRegistrationForm>(
+        key: K,
+        value: UserRegistrationForm[K] | string | null,
+    ): UserRegistrationForm[K] {
+        if (key === 'expressCreation' || key === 'commissionEnabled') {
+            return Boolean(value) as UserRegistrationForm[K];
+        }
+
+        const textValue = this.toText(value);
+
+        if (this.shouldUppercaseField(key)) {
+            return textValue.toUpperCase() as UserRegistrationForm[K];
+        }
+
+        if (key === 'phone') {
+            return textValue.replace(/\D/g, '').slice(0, 10) as UserRegistrationForm[K];
+        }
+
+        return textValue as UserRegistrationForm[K];
+    }
+
+    private shouldUppercaseField(key: keyof UserRegistrationForm): boolean {
+        return [
+            'cuip',
+            'policeIdentificationKey',
+            'curp',
+            'rfc',
+            'firstName',
+            'lastName',
+            'secondLastName',
+            'position',
+            'functions',
+            'employeeNumber',
+            'username',
+            'expressJustification',
+        ].includes(key);
+    }
+
+    private isValidCurp(value: string): boolean {
+        const curp = this.toText(value).toUpperCase();
+
+        return /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/.test(curp);
+    }
+
+    private isValidRfc(value: string): boolean {
+        const rfc = this.toText(value).toUpperCase();
+
+        return /^([A-ZÑ&]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
+    }
+
+    private isValidEmail(value: string): boolean {
+        const email = this.toText(value);
+
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+    }
+
+    private isAdult(dateValue: string): boolean {
+        const birthDate = new Date(`${dateValue}T00:00:00`);
+
+        if (Number.isNaN(birthDate.getTime())) {
+            return false;
+        }
+
+        const today = new Date();
+
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        const dayDiff = today.getDate() - birthDate.getDate();
+
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+            age -= 1;
+        }
+
+        return age >= 18;
     }
 
     private normalizeText(value: string): string {

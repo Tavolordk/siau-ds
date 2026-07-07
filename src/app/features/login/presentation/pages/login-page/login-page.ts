@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
@@ -26,6 +26,18 @@ export class LoginPage {
     });
 
     constructor() {
+        let previousChallengeId: string | null = null;
+
+        effect(() => {
+            const currentChallengeId = this.captcha.challenge()?.id ?? null;
+
+            if (previousChallengeId && currentChallengeId && previousChallengeId !== currentChallengeId) {
+                this.form.controls.captcha.setValue('', { emitEvent: false });
+            }
+
+            previousChallengeId = currentChallengeId;
+        });
+
         this.captcha.load();
     }
 

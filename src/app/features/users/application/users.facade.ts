@@ -1,7 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { UsersApiRepository } from '../data-access/users-api.repository';
-import { UserDetailRecord, UsersPageResult, UsersQuery } from '../domain/models/user-record.model';
+import {
+    RegistroAdminRequest,
+    RegistroAdminResponse,
+    SolicitudOperacionRequest,
+    SolicitudOperacionResponse,
+    UserDetailRecord,
+    UsersPageResult,
+    UsersQuery,
+} from '../domain/models/user-record.model';
 
 @Injectable({ providedIn: 'root' })
 export class UsersFacade {
@@ -13,5 +21,21 @@ export class UsersFacade {
 
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.repository.getUserDetail(userId);
+    }
+
+    createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
+        return this.repository.createAdminUser(request);
+    }
+
+    darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.repository.darDeBajaUsuario(request);
+    }
+
+    suspenderUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.repository.suspenderUsuario(request);
+    }
+
+    reactivarUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+        return this.repository.reactivarUsuario(request);
     }
 }
