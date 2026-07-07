@@ -215,8 +215,9 @@ export class AuthFacade {
                     this.restartSessionMonitor();
                 },
                 error: (error: Error) => {
-                    this.sessionPromptErrorState.set(error.message);
-                    this.forceLocalLogout('Tu sesión no pudo renovarse. Inicia sesión nuevamente.');
+                    this.sessionPromptErrorState.set(
+                        error.message || 'Tu sesión no pudo renovarse. Intenta mantenerla nuevamente o cierra sesión.',
+                    );
                 },
             });
     }
@@ -231,6 +232,15 @@ export class AuthFacade {
 
     notifyAuthenticatedHttpActivity(): void {
         this.registerVisibleActivity();
+    }
+
+    notifyAuthenticatedRequestRejected(): void {
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
+        this.sessionRefreshInFlight = false;
+        this.showSessionPrompt();
     }
 
     private monitorAuthenticatedSession(): void {
@@ -290,7 +300,7 @@ export class AuthFacade {
                     this.lastActivityAt = Date.now();
                 },
                 error: () => {
-                    this.forceLocalLogout('Tu sesión expiró. Inicia sesión nuevamente.');
+                    this.showSessionPrompt();
                 },
             });
     }
