@@ -8,6 +8,7 @@ import {
     DEFAULT_AUTHENTICATED_ROUTE,
     SESSION_INACTIVITY_LIMIT_MS,
     SESSION_MONITOR_INTERVAL_MS,
+    SESSION_REFRESH_BEFORE_EXPIRY_MS,
     SESSION_TOKEN_REFRESH_INTERVAL_MS,
 } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model';
@@ -49,12 +50,7 @@ export class AuthFacade {
     };
 
     private readonly handleUserActivity = (): void => {
-        if (!this.isAuthenticated() || this.sessionPromptVisible() || this.isDocumentHidden()) {
-            return;
-        }
-
-        this.hiddenSinceAt = null;
-        this.lastActivityAt = Date.now();
+        this.registerVisibleActivity();
     };
 
     private readonly handleVisibilityChange = (): void => {
@@ -75,12 +71,7 @@ export class AuthFacade {
     };
 
     private readonly handleWindowFocus = (): void => {
-        if (!this.isAuthenticated() || this.sessionPromptVisible() || this.isDocumentHidden()) {
-            return;
-        }
-
-        this.hiddenSinceAt = null;
-        this.lastActivityAt = Date.now();
+        this.registerVisibleActivity();
     };
 
     private readonly handleWindowBlur = (): void => {
@@ -184,6 +175,8 @@ export class AuthFacade {
         this.sessionMonitorId = setInterval(() => {
             this.monitorAuthenticatedSession();
         }, SESSION_MONITOR_INTERVAL_MS);
+
+        this.monitorAuthenticatedSession();
     }
 
     stopSessionMonitor(): void {
@@ -236,8 +229,14 @@ export class AuthFacade {
         this.errorState.set(null);
     }
 
+    notifyAuthenticatedHttpActivity(): void {
+        this.registerVisibleActivity();
+    }
+
     private monitorAuthenticatedSession(): void {
-        if (!this.isAuthenticated()) {
+        const currentSession = this.session();
+
+        if (!currentSession || !this.isAuthenticated()) {
             this.stopSessionMonitor();
             return;
         }
@@ -248,21 +247,27 @@ export class AuthFacade {
 
         const now = Date.now();
         const inactiveForMs = now - this.lastActivityAt;
-        const refreshAgeMs = now - this.lastRefreshAt;
-        const refreshWindowReached = refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS;
         const pageHidden = this.isDocumentHidden();
         const hiddenForMs = this.hiddenSinceAt ? now - this.hiddenSinceAt : 0;
         const inactiveByNoMovement = inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS;
-        const inactiveByHiddenPage = pageHidden && refreshWindowReached;
-        const inactiveByLongHiddenPage = pageHidden && hiddenForMs >= SESSION_INACTIVITY_LIMIT_MS;
+        const inactiveByHiddenPage = pageHidden && hiddenForMs >= SESSION_INACTIVITY_LIMIT_MS;
+        const refreshWindowReached = this.shouldRefreshSession(currentSession, now);
 
-        if (inactiveByNoMovement || inactiveByHiddenPage || inactiveByLongHiddenPage) {
-            this.showSessionPrompt();
+        if (pageHidden) {
+            if (inactiveByHiddenPage || refreshWindowReached) {
+                this.showSessionPrompt();
+            }
+
             return;
         }
 
-        if (refreshWindowReached) {
+        if (refreshWindowReached && !inactiveByNoMovement) {
             this.refreshActiveSessionSilently();
+            return;
+        }
+
+        if (inactiveByNoMovement) {
+            this.showSessionPrompt();
         }
     }
 
@@ -282,11 +287,37 @@ export class AuthFacade {
                 next: (session) => {
                     this.storage.updateSession(session);
                     this.lastRefreshAt = Date.now();
+                    this.lastActivityAt = Date.now();
                 },
                 error: () => {
                     this.forceLocalLogout('Tu sesión expiró. Inicia sesión nuevamente.');
                 },
             });
+    }
+
+    private registerVisibleActivity(): void {
+        if (!this.isAuthenticated() || this.sessionPromptVisible() || this.isDocumentHidden()) {
+            return;
+        }
+
+        const now = Date.now();
+        this.hiddenSinceAt = null;
+        this.lastActivityAt = now;
+
+        const currentSession = this.session();
+
+        if (currentSession && this.shouldRefreshSession(currentSession, now)) {
+            this.refreshActiveSessionSilently();
+        }
+    }
+
+    private shouldRefreshSession(session: AuthSession, now = Date.now()): boolean {
+        const refreshAgeMs = now - this.lastRefreshAt;
+        const expiresAtMs = Date.parse(session.expiresAtUtc);
+        const tokenCloseToExpiry =
+            Number.isFinite(expiresAtMs) && expiresAtMs - now <= SESSION_REFRESH_BEFORE_EXPIRY_MS;
+
+        return refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS || tokenCloseToExpiry;
     }
 
     private handleLoginResult(result: AuthSession | PendingAuthChallenge): void {
