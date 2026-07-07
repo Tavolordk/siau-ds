@@ -27,6 +27,7 @@ import { UsersFacade } from '../../../application/users.facade';
 import {
     RegistroAdminRequest,
     RegistroAsignacion,
+    RegistroEspecialRequest,
     UserDetailRecord,
     UserRecord,
 } from '../../../domain/models/user-record.model';
@@ -107,6 +108,8 @@ interface ValidationMessage {
     readonly key: string;
     readonly message: string;
 }
+
+const DEFAULT_EXPRESS_PASSWORD = 'SSPC-PMex-2025';
 
 const INITIAL_FORM: UserRegistrationForm = {
     cuip: '',
@@ -523,10 +526,13 @@ export class UserRegistrationWizard {
             return;
         }
 
-        let request: RegistroAdminRequest;
+        const isExpress = this.form().expressCreation;
+        let saveRequest$: ReturnType<UsersFacade['createAdminUser']> | ReturnType<UsersFacade['createSpecialUser']>;
 
         try {
-            request = this.buildCreateUserRequest();
+            saveRequest$ = isExpress
+                ? this.usersFacade.createSpecialUser(this.buildCreateSpecialUserRequest())
+                : this.usersFacade.createAdminUser(this.buildCreateUserRequest());
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Revisa la información capturada.';
 
@@ -540,8 +546,7 @@ export class UserRegistrationWizard {
 
         this.isSubmitting.set(true);
 
-        this.usersFacade
-            .createAdminUser(request)
+        saveRequest$
             .pipe(
                 takeUntilDestroyed(this.destroyRef),
                 finalize(() => this.isSubmitting.set(false)),
@@ -1095,6 +1100,47 @@ export class UserRegistrationWizard {
         };
     }
 
+    private buildCreateSpecialUserRequest(): RegistroEspecialRequest {
+        const current = this.form();
+        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
+        const password = this.toText(current.password) || DEFAULT_EXPRESS_PASSWORD;
+
+        if (!assignedProfile) {
+            throw new Error('Selecciona al menos un sistema y perfil.');
+        }
+
+        return {
+            datosPersonales: {
+                nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
+                primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
+                sexoId: this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1),
+            },
+            adscripcion: {
+                estructuraId: this.resolveAssignmentStructureId(),
+            },
+            comision: this.buildSpecialCommissionRequest(),
+            medioContacto: {
+                correo: this.requireText(current.email, 'Captura el correo.'),
+                celular: this.requireText(current.phone, 'Captura el celular.'),
+            },
+            cuenta: {
+                password: password || null,
+                passwordHash: password || null,
+                tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+                sistemaId: this.resolveAssignedSystemId(assignedProfile),
+                perfilId: this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.'),
+            },
+            comentario: this.requireText(
+                current.expressJustification,
+                'Captura la justificación de la creación express.',
+            ),
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: `siau-especial-${Date.now()}`,
+            },
+        };
+    }
+
     private buildCommissionRequest(): RegistroAsignacion | null {
         const current = this.form();
 
@@ -1111,6 +1157,18 @@ export class UserRegistrationWizard {
                 current.commissionAdmissionDate,
                 'Captura la fecha de ingreso de comisión.',
             ),
+        };
+    }
+
+    private buildSpecialCommissionRequest(): { readonly estructuraId: number } | null {
+        const current = this.form();
+
+        if (!current.commissionEnabled) {
+            return null;
+        }
+
+        return {
+            estructuraId: this.resolveCommissionStructureId(),
         };
     }
 
@@ -2035,9 +2093,12 @@ export class UserRegistrationWizard {
             const hasPhone = this.hasText(current.phone);
 
             if (isExpress) {
-                if (!hasEmail && !hasPhone) {
-                    nextErrors['email'] = 'Captura correo electrónico o teléfono celular.';
-                    nextErrors['phone'] = 'Captura correo electrónico o teléfono celular.';
+                if (!hasEmail) {
+                    nextErrors['email'] = 'El correo electrónico es obligatorio para el registro especial.';
+                }
+
+                if (!hasPhone) {
+                    nextErrors['phone'] = 'El teléfono celular es obligatorio para el registro especial.';
                 }
             } else {
                 if (!hasEmail) {
@@ -2058,7 +2119,7 @@ export class UserRegistrationWizard {
             }
         }
 
-        if (stepId === 'profiles' && !isExpress) {
+        if (stepId === 'profiles') {
             if (this.assignedSystemProfiles().length === 0) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
             }

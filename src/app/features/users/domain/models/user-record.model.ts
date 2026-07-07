@@ -107,6 +107,46 @@ export interface RegistroAdminResponse {
     readonly mensaje: string | null;
     readonly datos: RegistroAdminData | null;
 }
+
+export interface RegistroEspecialDatosPersonales {
+    readonly nombres: string;
+    readonly primerApellido: string;
+    readonly sexoId: number;
+}
+
+export interface RegistroEspecialAsignacion {
+    readonly estructuraId: number;
+}
+
+export interface RegistroEspecialRequest {
+    readonly datosPersonales: RegistroEspecialDatosPersonales;
+    readonly adscripcion: RegistroEspecialAsignacion;
+    readonly comision: RegistroEspecialAsignacion | null;
+    readonly medioContacto: RegistroMedioContacto;
+    readonly cuenta: RegistroCuenta;
+    readonly comentario?: string | null;
+    readonly auditoria: RegistroAuditoria;
+}
+
+export interface RegistroEspecialData {
+    readonly usuarioId: number | null;
+    readonly personaId: number | null;
+    readonly cuenta: string | null;
+    readonly cuentaGenerada: string | null;
+    readonly nombreCompleto: string | null;
+    readonly correo: string | null;
+    readonly tipoUsuario: string | null;
+    readonly tipoInstitucion: string | null;
+    readonly sistema: string | null;
+    readonly curpProvisional: string | null;
+    readonly rfcProvisional: string | null;
+    readonly perfilIncompleto: boolean;
+}
+
+export interface RegistroEspecialResponse {
+    readonly mensaje: string | null;
+    readonly datos: RegistroEspecialData | null;
+}
 export interface SolicitudAuditoria {
     readonly usuarioEjecutorId: number | null;
     readonly correlationId: string;
