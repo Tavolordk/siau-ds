@@ -139,7 +139,7 @@ export class CatalogosApiRepository implements CatalogosRepository {
         }
 
         if (error.status === 401) {
-            return 'Tu sesión no es válida o expiró. Inicia sesión nuevamente.';
+            return 'No tienes permisos para consultar los catálogos.';
         }
 
         if (error.status === 403) {

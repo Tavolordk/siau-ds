@@ -1,6 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { EMPTY, catchError, throwError } from 'rxjs';
+import { catchError, throwError } from 'rxjs';
 import { AuthFacade } from '../auth/application/auth.facade';
 import { AuthStorage } from '../auth/data-access/auth.storage';
 
@@ -29,8 +29,9 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
     ).pipe(
         catchError((error: unknown) => {
             if (token && isSessionRejectedError(error) && !sessionManagementRequest) {
-                authFacade.notifyAuthenticatedRequestRejected();
-                return EMPTY;
+                // El facade decide si el 401 fue por sesion caducada (muestra modal)
+                // o por falta de permisos (propaga el error a la pantalla).
+                return authFacade.resolveUnauthorizedRequest(error);
             }
 
             return throwError(() => error);
@@ -39,7 +40,9 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
 };
 
 function isSessionRejectedError(error: unknown): boolean {
-    return error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403);
+    // Solo 401 indica sesión/token inválido. Un 403 significa falta de permisos
+    // sobre el recurso con una sesión válida, y no debe disparar el modal de sesión.
+    return error instanceof HttpErrorResponse && error.status === 401;
 }
 
 function isSessionManagementRequest(url: string): boolean {
