@@ -5,6 +5,8 @@ import { CONSULTAS_API_BASE_URL } from '../../../core/http/consultas-api-base-ur
 import {
     RegistroAdminRequest,
     RegistroAdminResponse,
+    RegistroEspecialRequest,
+    RegistroEspecialResponse,
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
     UserDetailRecord,
@@ -16,6 +18,7 @@ import {
 
 const USERS_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
+const REGISTRO_ESPECIAL_PATH = '/api/v1/registro/registro_especial';
 const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
 const SOLICITUD_SUSPENDER_PATH = '/api/v1/solicitudes/suspender';
 const SOLICITUD_REACTIVAR_PATH = '/api/v1/solicitudes/reactivar';
@@ -90,6 +93,17 @@ export class UsersApiRepository {
                 map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
                     this.handleError(error, 'No fue posible registrar el usuario.'),
+                ),
+            );
+    }
+
+    createSpecialUser(request: RegistroEspecialRequest): Observable<RegistroEspecialResponse> {
+        return this.http
+            .post<RegistroEspecialResponse>(`${this.baseUrl}${REGISTRO_ESPECIAL_PATH}`, request)
+            .pipe(
+                map((response) => response ?? { mensaje: null, datos: null }),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible registrar el usuario express.'),
                 ),
             );
     }
@@ -272,7 +286,7 @@ export class UsersApiRepository {
         }
 
         if (error.status === 401) {
-            return 'Tu sesión no es válida o expiró. Inicia sesión nuevamente.';
+            return 'No tienes permisos para consultar los catálogos.';
         }
 
         if (error.status === 403) {

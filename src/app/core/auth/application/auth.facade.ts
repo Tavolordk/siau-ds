@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, finalize, of, switchMap } from 'rxjs';
+import { catchError, EMPTY, finalize, Observable, of, switchMap, throwError } from 'rxjs';
 import { CaptchaFacade } from '../../captcha/application/captcha.facade';
 import { AuthApi } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
@@ -32,7 +32,6 @@ export class AuthFacade {
     private activityListenersRegistered = false;
     private lastActivityAt = Date.now();
     private lastRefreshAt = Date.now();
-    private hiddenSinceAt: number | null = null;
 
     private readonly activityEvents: readonly (keyof WindowEventMap)[] = [
         'click',
@@ -54,32 +53,22 @@ export class AuthFacade {
     };
 
     private readonly handleVisibilityChange = (): void => {
-        if (!this.isAuthenticated()) {
+        if (!this.isAuthenticated() || this.isDocumentHidden() || this.sessionPromptVisible()) {
             return;
         }
 
-        if (this.isDocumentHidden()) {
-            this.hiddenSinceAt = Date.now();
+        // Al volver a la pestaña: si ya se cumplió el límite de inactividad, mostrar el modal;
+        // si no, contar el regreso como actividad y renovar el token si hace falta.
+        if (Date.now() - this.lastActivityAt >= SESSION_INACTIVITY_LIMIT_MS) {
+            this.showSessionPrompt('inactividad-al-volver-a-pestana');
             return;
         }
 
-        this.hiddenSinceAt = null;
-
-        if (!this.sessionPromptVisible()) {
-            this.lastActivityAt = Date.now();
-        }
+        this.registerVisibleActivity();
     };
 
     private readonly handleWindowFocus = (): void => {
         this.registerVisibleActivity();
-    };
-
-    private readonly handleWindowBlur = (): void => {
-        if (!this.isAuthenticated()) {
-            return;
-        }
-
-        this.hiddenSinceAt = this.hiddenSinceAt ?? Date.now();
     };
 
     readonly loading = this.loadingState.asReadonly();
@@ -165,7 +154,6 @@ export class AuthFacade {
         const now = Date.now();
         this.lastActivityAt = now;
         this.lastRefreshAt = this.resolveSessionIssuedAt(this.session());
-        this.hiddenSinceAt = this.isDocumentHidden() ? now : null;
         this.registerActivityListeners();
 
         if (this.sessionMonitorId) {
@@ -187,7 +175,6 @@ export class AuthFacade {
 
         this.unregisterActivityListeners();
         this.sessionRefreshInFlight = false;
-        this.hiddenSinceAt = null;
     }
 
     keepSession(): void {
@@ -211,12 +198,12 @@ export class AuthFacade {
                     this.sessionPromptErrorState.set(null);
                     this.lastActivityAt = Date.now();
                     this.lastRefreshAt = Date.now();
-                    this.hiddenSinceAt = this.isDocumentHidden() ? Date.now() : null;
                     this.restartSessionMonitor();
                 },
                 error: (error: Error) => {
-                    this.sessionPromptErrorState.set(error.message);
-                    this.forceLocalLogout('Tu sesión no pudo renovarse. Inicia sesión nuevamente.');
+                    this.sessionPromptErrorState.set(
+                        error.message || 'Tu sesión no pudo renovarse. Intenta mantenerla nuevamente o cierra sesión.',
+                    );
                 },
             });
     }
@@ -233,6 +220,55 @@ export class AuthFacade {
         this.registerVisibleActivity();
     }
 
+    /**
+     * El backend responde 401 tanto por token vencido como por falta de permisos,
+     * asi que un 401 por si solo NO basta para mostrar el modal de sesion.
+     * Estrategia: 1) si el token sigue vigente localmente, es un 401 de permisos y
+     * se propaga el error a la pantalla; 2) si el token parece vencido o no se puede
+     * determinar, se confirma contra el backend con validateSession; solo si la
+     * sesion ya no esta activa se muestra el modal.
+     */
+    resolveUnauthorizedRequest(originalError: unknown): Observable<never> {
+        const currentSession = this.session();
+
+        if (!currentSession || !this.isAuthenticated()) {
+            return throwError(() => originalError);
+        }
+
+        const now = Date.now();
+        const expiresAtMs = this.resolveSessionExpiryMs(currentSession);
+        const tokenStillValid = expiresAtMs !== null && expiresAtMs - now > 30 * 1000;
+
+        if (tokenStillValid) {
+            // Token vigente: el 401 es por permisos, no por sesion caducada.
+            return throwError(() => originalError);
+        }
+
+        // Token vencido o expiracion indeterminada: confirmar con el backend.
+        return this.api.validateSession(currentSession).pipe(
+            switchMap((validation) => {
+                if (validation.active) {
+                    // La sesion sigue activa: era un 401 de permisos.
+                    return throwError(() => originalError);
+                }
+
+                this.sessionRefreshInFlight = false;
+                this.showSessionPrompt('sesion-caducada-confirmada-por-backend');
+                return EMPTY;
+            }),
+            catchError((validationError: unknown) => {
+                if (validationError === originalError) {
+                    return throwError(() => originalError);
+                }
+
+                // No se pudo validar la sesion: asumir caducidad y ofrecer renovarla.
+                this.sessionRefreshInFlight = false;
+                this.showSessionPrompt('401-sin-poder-validar-sesion');
+                return EMPTY;
+            }),
+        );
+    }
+
     private monitorAuthenticatedSession(): void {
         const currentSession = this.session();
 
@@ -247,34 +283,26 @@ export class AuthFacade {
 
         const now = Date.now();
         const inactiveForMs = now - this.lastActivityAt;
-        const pageHidden = this.isDocumentHidden();
-        const hiddenForMs = this.hiddenSinceAt ? now - this.hiddenSinceAt : 0;
-        const inactiveByNoMovement = inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS;
-        const inactiveByHiddenPage = pageHidden && hiddenForMs >= SESSION_INACTIVITY_LIMIT_MS;
-        const refreshWindowReached = this.shouldRefreshSession(currentSession, now);
 
-        if (pageHidden) {
-            if (inactiveByHiddenPage || refreshWindowReached) {
-                this.showSessionPrompt();
-            }
-
+        // El modal solo aparece cuando realmente se cumple el limite de inactividad.
+        // lastActivityAt solo se actualiza con actividad visible, asi que el tiempo
+        // con la pestana oculta cuenta como inactividad de forma natural.
+        if (inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS) {
+            this.showSessionPrompt(`inactividad-${Math.round(inactiveForMs / 1000)}s`);
             return;
         }
 
-        if (refreshWindowReached && !inactiveByNoMovement) {
+        // Mientras no se cumpla el limite, el usuario sigue "activo": renovar en silencio,
+        // incluso si la pestana esta oculta (el token no debe caducar por un cambio breve de pestana).
+        if (this.shouldRefreshSession(currentSession, now)) {
             this.refreshActiveSessionSilently();
-            return;
-        }
-
-        if (inactiveByNoMovement) {
-            this.showSessionPrompt();
         }
     }
 
     private refreshActiveSessionSilently(): void {
         const currentSession = this.session();
 
-        if (!currentSession || this.sessionRefreshInFlight || this.sessionPromptVisible() || this.isDocumentHidden()) {
+        if (!currentSession || this.sessionRefreshInFlight || this.sessionPromptVisible()) {
             return;
         }
 
@@ -287,10 +315,11 @@ export class AuthFacade {
                 next: (session) => {
                     this.storage.updateSession(session);
                     this.lastRefreshAt = Date.now();
-                    this.lastActivityAt = Date.now();
+                    // No reiniciar lastActivityAt aqui: el refresh automatico no es actividad
+                    // del usuario; de lo contrario el limite de inactividad nunca se cumpliria.
                 },
                 error: () => {
-                    this.forceLocalLogout('Tu sesión expiró. Inicia sesión nuevamente.');
+                    this.showSessionPrompt('fallo-refresh-silencioso');
                 },
             });
     }
@@ -301,7 +330,6 @@ export class AuthFacade {
         }
 
         const now = Date.now();
-        this.hiddenSinceAt = null;
         this.lastActivityAt = now;
 
         const currentSession = this.session();
@@ -313,11 +341,54 @@ export class AuthFacade {
 
     private shouldRefreshSession(session: AuthSession, now = Date.now()): boolean {
         const refreshAgeMs = now - this.lastRefreshAt;
-        const expiresAtMs = Date.parse(session.expiresAtUtc);
-        const tokenCloseToExpiry =
-            Number.isFinite(expiresAtMs) && expiresAtMs - now <= SESSION_REFRESH_BEFORE_EXPIRY_MS;
 
-        return refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS || tokenCloseToExpiry;
+        // Guarda anti-bucle: si acabamos de renovar hace menos de un minuto,
+        // no volver a renovar aunque expiresAtUtc parezca vencido (dato poco confiable).
+        if (refreshAgeMs < 60 * 1000) {
+            return false;
+        }
+
+        if (refreshAgeMs >= SESSION_TOKEN_REFRESH_INTERVAL_MS) {
+            return true;
+        }
+
+        const expiresAtMs = this.resolveSessionExpiryMs(session);
+
+        return expiresAtMs !== null && expiresAtMs - now <= SESSION_REFRESH_BEFORE_EXPIRY_MS;
+    }
+
+    private resolveSessionExpiryMs(session: AuthSession): number | null {
+        const parsed = this.parseUtcTimestamp(session.expiresAtUtc);
+
+        if (parsed !== null) {
+            return parsed;
+        }
+
+        // Fallback: calcular la expiración con issuedAt + expiresIn.
+        const issuedAt = Date.parse(session.issuedAt);
+
+        if (Number.isFinite(issuedAt) && Number.isFinite(session.expiresIn) && session.expiresIn > 0) {
+            return issuedAt + session.expiresIn * 1000;
+        }
+
+        return null;
+    }
+
+    private parseUtcTimestamp(value: string | null | undefined): number | null {
+        const raw = value?.trim();
+
+        if (!raw) {
+            return null;
+        }
+
+        // Si el backend manda la fecha UTC sin zona horaria ("2026-07-08T18:30:00"),
+        // Date.parse la interpreta como hora LOCAL (CDMX = UTC-6), haciendo que el token
+        // parezca vencido 6 horas antes. Normalizamos asumiendo UTC cuando no hay zona.
+        const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+        const normalized = hasTimezone ? raw : `${raw.replace(' ', 'T')}Z`;
+        const parsed = Date.parse(normalized);
+
+        return Number.isFinite(parsed) ? parsed : null;
     }
 
     private handleLoginResult(result: AuthSession | PendingAuthChallenge): void {
@@ -348,7 +419,8 @@ export class AuthFacade {
         void this.router.navigateByUrl('/login');
     }
 
-    private showSessionPrompt(): void {
+    private showSessionPrompt(reason = 'unspecified'): void {
+        console.warn(`[AuthFacade] Mostrando modal de sesión. Motivo: ${reason}`);
         this.sessionPromptErrorState.set(null);
         this.sessionPromptVisibleState.set(true);
     }
@@ -363,7 +435,6 @@ export class AuthFacade {
         });
 
         window.addEventListener('focus', this.handleWindowFocus, this.activityListenerOptions);
-        window.addEventListener('blur', this.handleWindowBlur, this.activityListenerOptions);
         document.addEventListener('visibilitychange', this.handleVisibilityChange, this.activityListenerOptions);
 
         this.activityListenersRegistered = true;
@@ -379,7 +450,6 @@ export class AuthFacade {
         });
 
         window.removeEventListener('focus', this.handleWindowFocus, this.activityListenerOptions);
-        window.removeEventListener('blur', this.handleWindowBlur, this.activityListenerOptions);
         document.removeEventListener('visibilitychange', this.handleVisibilityChange, this.activityListenerOptions);
 
         this.activityListenersRegistered = false;

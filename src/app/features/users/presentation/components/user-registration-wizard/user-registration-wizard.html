@@ -102,13 +102,8 @@
                 </div>
 
                 <div class="registration-wizard__grid">
-                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [required]="!form().expressCreation"
-                        [value]="form().cuip" (valueChange)="updateForm('cuip', $event)"
-                        [disabled]="isFormDisabled()" />
-
-                    <siau-input label="Clave Única de Identificación Policial" placeholder=""
-                        [value]="form().policeIdentificationKey"
-                        (valueChange)="updateForm('policeIdentificationKey', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
+                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="!form().expressCreation"
                         [maxLength]="18" [value]="form().curp" (valueChange)="updateForm('curp', $event)"
@@ -398,7 +393,7 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Correo o celular'
+                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Correo y celular'
                             : 'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
@@ -415,19 +410,20 @@
                 @if (form().expressCreation) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>En creación express basta con capturar <strong>correo electrónico o teléfono
+                    <span>Para el endpoint <strong>registro_especial</strong> captura <strong>correo electrónico y
+                            teléfono
                             celular</strong>.</span>
                 </div>
                 }
 
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
-                        [required]="!form().expressCreation" [value]="form().email"
-                        (valueChange)="updateForm('email', $event)" [disabled]="isFormDisabled()" />
+                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)"
+                        [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678"
-                        [required]="!form().expressCreation" [maxLength]="10" [value]="form().phone"
-                        (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="true" [maxLength]="10"
+                        [value]="form().phone" (valueChange)="updateForm('phone', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
                         (valueChange)="updateForm('extension', $event)" [disabled]="isFormDisabled()" />
@@ -448,8 +444,7 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Opcional express'
-                            : 'Campos obligatorios' }}</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder.length }}
                         </span>
@@ -465,14 +460,13 @@
                 @if (form().expressCreation) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Esta sección no bloquea el registro express. Si no agregas perfil, se enviarán los valores
-                        mínimos por defecto del contrato.</span>
+                    <span>Para registro express también debes agregar al menos un sistema y perfil.</span>
                 </div>
                 }
 
                 <div class="registration-wizard__profiles-panel">
                     <div class="registration-wizard__profiles-field-title">
-                        Sistemas y perfiles asignados @if (!form().expressCreation) { <span>*</span> }
+                        Sistemas y perfiles asignados <span>*</span>
                     </div>
 
                     <p class="registration-wizard__profiles-field-help">
@@ -515,11 +509,11 @@
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
-                                [disabled]="isFormDisabled() || isSubmitting()" />
+                                [required]="true" [disabled]="isFormDisabled() || isSubmitting()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
-                                [value]="selectedRole()" (valueChange)="updateSelectedRole($event)"
+                                [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
                                 [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem()" />
                             }
 

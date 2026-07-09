@@ -4,6 +4,8 @@ import { UsersApiRepository } from '../data-access/users-api.repository';
 import {
     RegistroAdminRequest,
     RegistroAdminResponse,
+    RegistroEspecialRequest,
+    RegistroEspecialResponse,
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
     UserDetailRecord,
@@ -25,6 +27,10 @@ export class UsersFacade {
 
     createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
         return this.repository.createAdminUser(request);
+    }
+
+    createSpecialUser(request: RegistroEspecialRequest): Observable<RegistroEspecialResponse> {
+        return this.repository.createSpecialUser(request);
     }
 
     darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
