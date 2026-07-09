@@ -994,6 +994,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.isEditMode()) {
+            this.form.update((current) => ({
+                ...current,
+                accountStatus: 'active',
+            }));
+
+            return;
+        }
+
         this.form.update((current) => ({
             ...current,
             accountStatus: status,
@@ -2302,5 +2311,16 @@ export class UserRegistrationWizard {
             .replace(/[\u0300-\u036f]/g, '')
             .trim()
             .toLowerCase();
+    }
+    protected isAccountStatusDisabled(status: AccountStatus): boolean {
+        if (this.isSubmitting() || this.isFormDisabled()) {
+            return true;
+        }
+
+        if (!this.isEditMode()) {
+            return status !== 'active';
+        }
+
+        return false;
     }
 }

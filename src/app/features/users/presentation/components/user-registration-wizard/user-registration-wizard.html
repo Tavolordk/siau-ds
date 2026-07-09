@@ -627,11 +627,14 @@
                         <div class="registration-wizard__account-status-grid">
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
-                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('active')">
+                                [disabled]="isAccountStatusDisabled('active')" (click)="setAccountStatus('active')">
                                 <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'active') {
                                     <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
                                     Activo
                                 </div>
+
                                 <div class="registration-wizard__status-card-text">
                                     El usuario puede ingresar al sistema desde el primer día
                                 </div>
@@ -639,10 +642,14 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
-                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('disabled')">
+                                [disabled]="isAccountStatusDisabled('disabled')" (click)="setAccountStatus('disabled')">
                                 <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'disabled') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
                                     Inhabilitado
                                 </div>
+
                                 <div class="registration-wizard__status-card-text">
                                     La cuenta se crea bloqueada de forma permanente
                                 </div>
@@ -650,10 +657,15 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'suspended'"
-                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('suspended')">
+                                [disabled]="isAccountStatusDisabled('suspended')"
+                                (click)="setAccountStatus('suspended')">
                                 <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'suspended') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
                                     Suspendido
                                 </div>
+
                                 <div class="registration-wizard__status-card-text">
                                     Acceso bloqueado temporalmente hasta resolución
                                 </div>
