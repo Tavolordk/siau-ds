@@ -634,7 +634,6 @@
                                     }
                                     Activo
                                 </div>
-
                                 <div class="registration-wizard__status-card-text">
                                     El usuario puede ingresar al sistema desde el primer día
                                 </div>
@@ -649,7 +648,6 @@
                                     }
                                     Inhabilitado
                                 </div>
-
                                 <div class="registration-wizard__status-card-text">
                                     La cuenta se crea bloqueada de forma permanente
                                 </div>
@@ -665,7 +663,6 @@
                                     }
                                     Suspendido
                                 </div>
-
                                 <div class="registration-wizard__status-card-text">
                                     Acceso bloqueado temporalmente hasta resolución
                                 </div>
@@ -740,4 +737,52 @@
             </footer>
         </form>
     </section>
+</siau-modal>
+
+<siau-modal [open]="saveSuccess() !== null" title="Usuario guardado correctamente"
+    subtitle="El registro fue procesado exitosamente" icon="circle-check" size="sm" headerBadge="Éxito"
+    (close)="closeSaveSuccessModal()">
+    @if (saveSuccess(); as success) {
+    <section class="registration-wizard__success-modal">
+        <div class="registration-wizard__success-icon" aria-hidden="true">
+            <siau-lucide-icon name="circle-check" size="44" strokeWidth="1.9" />
+        </div>
+
+        <div class="registration-wizard__success-heading">
+            <h3>{{ success.isExpress ? 'Creación express completada' : 'Creación de usuario completada' }}</h3>
+            <p>{{ success.message }}</p>
+        </div>
+
+        @if (success.fullName || success.account || success.system) {
+        <dl class="registration-wizard__success-detail">
+            @if (success.fullName) {
+            <div>
+                <dt>Nombre</dt>
+                <dd>{{ success.fullName }}</dd>
+            </div>
+            }
+
+            @if (success.account) {
+            <div>
+                <dt>Cuenta</dt>
+                <dd>{{ success.account }}</dd>
+            </div>
+            }
+
+            @if (success.system) {
+            <div>
+                <dt>Sistema</dt>
+                <dd>{{ success.system }}</dd>
+            </div>
+            }
+        </dl>
+        }
+
+        <button type="button" class="registration-wizard__button registration-wizard__button--primary"
+            (click)="closeSaveSuccessModal()">
+            <siau-lucide-icon name="check" size="14" strokeWidth="2" aria-hidden="true" />
+            Aceptar
+        </button>
+    </section>
+    }
 </siau-modal>

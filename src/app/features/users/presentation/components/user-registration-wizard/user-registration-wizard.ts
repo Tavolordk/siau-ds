@@ -26,8 +26,10 @@ import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/
 import { UsersFacade } from '../../../application/users.facade';
 import {
     RegistroAdminRequest,
+    RegistroAdminResponse,
     RegistroAsignacion,
     RegistroEspecialRequest,
+    RegistroEspecialResponse,
     UserDetailRecord,
     UserRecord,
 } from '../../../domain/models/user-record.model';
@@ -109,6 +111,15 @@ interface ValidationMessage {
     readonly message: string;
 }
 
+interface SaveSuccessModalState {
+    readonly message: string;
+    readonly userNumber: string;
+    readonly account: string;
+    readonly fullName: string;
+    readonly system: string;
+    readonly isExpress: boolean;
+}
+
 const DEFAULT_EXPRESS_PASSWORD = 'SSPC-PMex-2025';
 
 const INITIAL_FORM: UserRegistrationForm = {
@@ -187,6 +198,7 @@ export class UserRegistrationWizard {
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
     protected readonly isSubmitting = signal<boolean>(false);
     protected readonly formErrors = signal<Record<string, string>>({});
+    protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -510,6 +522,12 @@ export class UserRegistrationWizard {
         this.resetWizard();
     }
 
+    protected closeSaveSuccessModal(): void {
+        this.saveSuccess.set(null);
+        this.closed.emit();
+        this.resetWizard();
+    }
+
     protected submit(): void {
         if (this.readonlyMode() || this.isFormDisabled() || this.isSubmitting()) {
             return;
@@ -552,10 +570,9 @@ export class UserRegistrationWizard {
                 finalize(() => this.isSubmitting.set(false)),
             )
             .subscribe({
-                next: () => {
+                next: (response) => {
                     this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
-                    this.closed.emit();
-                    this.resetWizard();
+                    this.saveSuccess.set(this.buildSaveSuccessModalState(response, isExpress));
                 },
                 error: (error: unknown) => {
                     const message =
@@ -989,6 +1006,18 @@ export class UserRegistrationWizard {
         this.showConfirmPassword.update((value) => !value);
     }
 
+    protected isAccountStatusDisabled(status: AccountStatus): boolean {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return true;
+        }
+
+        if (!this.isEditMode()) {
+            return status !== 'active';
+        }
+
+        return false;
+    }
+
     protected setAccountStatus(status: AccountStatus): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
             return;
@@ -999,7 +1028,6 @@ export class UserRegistrationWizard {
                 ...current,
                 accountStatus: 'active',
             }));
-
             return;
         }
 
@@ -1023,6 +1051,22 @@ export class UserRegistrationWizard {
         ]
             .join(' ')
             .trim();
+    }
+
+    private buildSaveSuccessModalState(
+        response: RegistroAdminResponse | RegistroEspecialResponse,
+        isExpress: boolean,
+    ): SaveSuccessModalState {
+        const data = response.datos;
+
+        return {
+            message: this.toText(response.mensaje) || 'El usuario se guardó correctamente.',
+            userNumber: this.toText(data?.usuarioId),
+            account: this.toText(data?.cuentaGenerada) || this.toText(data?.cuenta),
+            fullName: this.toText(data?.nombreCompleto),
+            system: this.toText(data?.sistema),
+            isExpress,
+        };
     }
 
     private buildCreateUserRequest(): RegistroAdminRequest {
@@ -1752,6 +1796,7 @@ export class UserRegistrationWizard {
         this.form.set({ ...INITIAL_FORM, profiles: [] });
         this.isSubmitting.set(false);
         this.formErrors.set({});
+        this.saveSuccess.set(null);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -2311,16 +2356,5 @@ export class UserRegistrationWizard {
             .replace(/[\u0300-\u036f]/g, '')
             .trim()
             .toLowerCase();
-    }
-    protected isAccountStatusDisabled(status: AccountStatus): boolean {
-        if (this.isSubmitting() || this.isFormDisabled()) {
-            return true;
-        }
-
-        if (!this.isEditMode()) {
-            return status !== 'active';
-        }
-
-        return false;
     }
 }

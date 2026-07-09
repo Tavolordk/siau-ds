@@ -1442,3 +1442,113 @@
     align-items: flex-start;
   }
 }
+
+.registration-wizard__success-modal {
+  padding: 24px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  background:
+    radial-gradient(circle at top, rgba(44, 189, 122, 0.16), transparent 34%), rgb(241, 247, 251);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+}
+
+.registration-wizard__success-icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(26, 127, 82);
+  background: rgba(44, 189, 122, 0.12);
+  border: 1px solid rgba(44, 189, 122, 0.28);
+  box-shadow:
+    0 16px 34px rgba(26, 127, 82, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.registration-wizard__success-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.registration-wizard__success-heading h3 {
+  margin: 0;
+  color: rgb(27, 31, 74);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.registration-wizard__success-heading p {
+  margin: 0;
+  color: rgba(27, 31, 74, 0.62);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.registration-wizard__success-user {
+  width: 100%;
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+  border-radius: 16px;
+  border: 1px solid rgba(160, 178, 187, 0.45);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.registration-wizard__success-user span {
+  color: rgba(27, 31, 74, 0.52);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.registration-wizard__success-user strong {
+  color: rgb(27, 31, 74);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.registration-wizard__success-detail {
+  width: 100%;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.registration-wizard__success-detail div {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.registration-wizard__success-detail dt {
+  margin: 0 0 3px;
+  color: rgba(27, 31, 74, 0.46);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.registration-wizard__success-detail dd {
+  margin: 0;
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.registration-wizard__success-modal .registration-wizard__button {
+  width: 100%;
+  justify-content: center;
+}
