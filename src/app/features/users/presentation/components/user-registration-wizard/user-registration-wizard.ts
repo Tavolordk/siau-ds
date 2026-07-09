@@ -1206,10 +1206,7 @@ export class UserRegistrationWizard {
             cargo: null,
             funciones: null,
             numeroEmpleado: null,
-            fechaInicio: this.requireText(
-                current.commissionAdmissionDate,
-                'Captura la fecha de ingreso de comisión.',
-            ),
+            fechaInicio: this.toNullableText(current.commissionAdmissionDate),
         };
     }
 
@@ -2135,10 +2132,6 @@ export class UserRegistrationWizard {
                 if (!this.hasText(current.commissionInstitution)) {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
                 }
-
-                if (!this.hasText(current.commissionAdmissionDate)) {
-                    nextErrors['commissionAdmissionDate'] = 'La fecha de ingreso de comisión es obligatoria.';
-                }
             }
         }
 
@@ -2240,7 +2233,6 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
-                'commissionAdmissionDate',
             ],
             documents: [],
             contact: [

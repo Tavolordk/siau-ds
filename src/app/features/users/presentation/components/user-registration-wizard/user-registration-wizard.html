@@ -302,8 +302,7 @@
                         [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
 
-                    <siau-input label="Fecha de Ingreso" type="date" [required]="true"
-                        [value]="form().commissionAdmissionDate"
+                    <siau-input label="Fecha de Inicio" type="date" [value]="form().commissionAdmissionDate"
                         (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
                 }
