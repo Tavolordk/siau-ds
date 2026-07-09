@@ -102,9 +102,8 @@
                 </div>
 
                 <div class="registration-wizard__grid">
-                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [required]="!form().expressCreation"
-                        [value]="form().cuip" (valueChange)="updateForm('cuip', $event)"
-                        [disabled]="isFormDisabled()" />
+                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
+                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="!form().expressCreation"
                         [maxLength]="18" [value]="form().curp" (valueChange)="updateForm('curp', $event)"
