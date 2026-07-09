@@ -106,10 +106,6 @@
                         [value]="form().cuip" (valueChange)="updateForm('cuip', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Clave Única de Identificación Policial" placeholder=""
-                        [value]="form().policeIdentificationKey"
-                        (valueChange)="updateForm('policeIdentificationKey', $event)" [disabled]="isFormDisabled()" />
-
                     <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="!form().expressCreation"
                         [maxLength]="18" [value]="form().curp" (valueChange)="updateForm('curp', $event)"
                         [disabled]="isFormDisabled()" />
