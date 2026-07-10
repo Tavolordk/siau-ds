@@ -9,6 +9,9 @@ import {
     SESSION_INACTIVITY_LIMIT_MS,
     SESSION_MONITOR_INTERVAL_MS,
     SESSION_REFRESH_BEFORE_EXPIRY_MS,
+    SESSION_REFRESH_GIVE_UP_BEFORE_EXPIRY_MS,
+    SESSION_REFRESH_LOCK_TTL_MS,
+    SESSION_REFRESH_MAX_SILENT_FAILURES,
     SESSION_TOKEN_REFRESH_INTERVAL_MS,
 } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model';
@@ -29,6 +32,7 @@ export class AuthFacade {
 
     private sessionMonitorId: ReturnType<typeof setInterval> | null = null;
     private sessionRefreshInFlight = false;
+    private silentRefreshFailures = 0;
     private activityListenersRegistered = false;
     private lastActivityAt = Date.now();
     private lastRefreshAt = Date.now();
@@ -175,6 +179,7 @@ export class AuthFacade {
 
         this.unregisterActivityListeners();
         this.sessionRefreshInFlight = false;
+        this.silentRefreshFailures = 0;
     }
 
     keepSession(): void {
@@ -198,6 +203,7 @@ export class AuthFacade {
                     this.sessionPromptErrorState.set(null);
                     this.lastActivityAt = Date.now();
                     this.lastRefreshAt = Date.now();
+                    this.silentRefreshFailures = 0;
                     this.restartSessionMonitor();
                 },
                 error: (error: Error) => {
@@ -306,22 +312,59 @@ export class AuthFacade {
             return;
         }
 
+        // Los refresh tokens rotan: si otra pestaña ya está renovando, esperar.
+        // La sesión nueva llegará por el evento 'storage' y este intento se vuelve innecesario.
+        if (!this.storage.tryAcquireRefreshLock(SESSION_REFRESH_LOCK_TTL_MS)) {
+            return;
+        }
+
         this.sessionRefreshInFlight = true;
 
         this.api
             .refreshSession(currentSession)
-            .pipe(finalize(() => (this.sessionRefreshInFlight = false)))
+            .pipe(
+                finalize(() => {
+                    this.sessionRefreshInFlight = false;
+                    this.storage.releaseRefreshLock();
+                }),
+            )
             .subscribe({
                 next: (session) => {
                     this.storage.updateSession(session);
                     this.lastRefreshAt = Date.now();
+                    this.silentRefreshFailures = 0;
                     // No reiniciar lastActivityAt aqui: el refresh automatico no es actividad
                     // del usuario; de lo contrario el limite de inactividad nunca se cumpliria.
                 },
-                error: () => {
-                    this.showSessionPrompt('fallo-refresh-silencioso');
+                error: (error: Error) => {
+                    this.handleSilentRefreshFailure(error);
                 },
             });
+    }
+
+    /**
+     * Un fallo transitorio del refresh (blip de red, 5xx momentaneo) NO debe interrumpir
+     * a un usuario activo con el modal: el monitor reintenta en el siguiente tick (30s).
+     * Solo se muestra el modal si acumulamos varios fallos consecutivos o si el token
+     * ya esta practicamente vencido y no queda margen para reintentar.
+     */
+    private handleSilentRefreshFailure(error: Error): void {
+        this.silentRefreshFailures += 1;
+
+        const currentSession = this.session();
+        const expiresAtMs = currentSession ? this.resolveSessionExpiryMs(currentSession) : null;
+        const tokenAboutToDie =
+            expiresAtMs !== null && expiresAtMs - Date.now() <= SESSION_REFRESH_GIVE_UP_BEFORE_EXPIRY_MS;
+
+        if (this.silentRefreshFailures >= SESSION_REFRESH_MAX_SILENT_FAILURES || tokenAboutToDie) {
+            this.silentRefreshFailures = 0;
+            this.showSessionPrompt(`fallo-refresh-silencioso: ${error.message}`);
+            return;
+        }
+
+        console.warn(
+            `[AuthFacade] Refresh silencioso falló (intento ${this.silentRefreshFailures}/${SESSION_REFRESH_MAX_SILENT_FAILURES}), se reintentará. Detalle: ${error.message}`,
+        );
     }
 
     private registerVisibleActivity(): void {
@@ -340,6 +383,15 @@ export class AuthFacade {
     }
 
     private shouldRefreshSession(session: AuthSession, now = Date.now()): boolean {
+        // issuedAt se reescribe en cada renovación (también las hechas por OTRA pestaña,
+        // que llegan por el evento 'storage'). Tomar el valor más reciente evita que esta
+        // pestaña intente renovar con un refresh token que otra pestaña ya consumió.
+        const issuedAtMs = this.resolveSessionIssuedAt(session);
+
+        if (issuedAtMs > this.lastRefreshAt) {
+            this.lastRefreshAt = issuedAtMs;
+        }
+
         const refreshAgeMs = now - this.lastRefreshAt;
 
         // Guarda anti-bucle: si acabamos de renovar hace menos de un minuto,
