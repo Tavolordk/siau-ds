@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
@@ -13,7 +13,7 @@ import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-b
     templateUrl: './login-page.html',
     styleUrl: './login-page.scss',
 })
-export class LoginPage {
+export class LoginPage implements OnDestroy {
     private readonly formBuilder = inject(FormBuilder);
 
     protected readonly auth = inject(AuthFacade);
@@ -39,6 +39,10 @@ export class LoginPage {
         });
 
         this.captcha.load();
+    }
+
+    ngOnDestroy(): void {
+        this.captcha.deactivate();
     }
 
     protected submit(): void {

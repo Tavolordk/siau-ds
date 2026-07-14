@@ -1,6 +1,19 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, EMPTY, finalize, Observable, of, switchMap, throwError } from 'rxjs';
+import {
+    catchError,
+    defer,
+    EMPTY,
+    finalize,
+    firstValueFrom,
+    from,
+    Observable,
+    of,
+    shareReplay,
+    switchMap,
+    tap,
+    throwError,
+} from 'rxjs';
 import { CaptchaFacade } from '../../captcha/application/captcha.facade';
 import { AuthApi } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
@@ -32,6 +45,7 @@ export class AuthFacade {
 
     private sessionMonitorId: ReturnType<typeof setInterval> | null = null;
     private sessionRefreshInFlight = false;
+    private sessionRefreshRequest$: Observable<AuthSession> | null = null;
     private silentRefreshFailures = 0;
     private activityListenersRegistered = false;
     private lastActivityAt = Date.now();
@@ -178,7 +192,9 @@ export class AuthFacade {
         }
 
         this.unregisterActivityListeners();
-        this.sessionRefreshInFlight = false;
+        if (!this.sessionRefreshRequest$) {
+            this.sessionRefreshInFlight = false;
+        }
         this.silentRefreshFailures = 0;
     }
 
@@ -193,12 +209,10 @@ export class AuthFacade {
         this.sessionPromptLoadingState.set(true);
         this.sessionPromptErrorState.set(null);
 
-        this.api
-            .refreshSession(currentSession)
+        this.refreshSessionSafely()
             .pipe(finalize(() => this.sessionPromptLoadingState.set(false)))
             .subscribe({
-                next: (session) => {
-                    this.storage.updateSession(session);
+                next: () => {
                     this.sessionPromptVisibleState.set(false);
                     this.sessionPromptErrorState.set(null);
                     this.lastActivityAt = Date.now();
@@ -306,33 +320,13 @@ export class AuthFacade {
     }
 
     private refreshActiveSessionSilently(): void {
-        const currentSession = this.session();
-
-        if (!currentSession || this.sessionRefreshInFlight || this.sessionPromptVisible()) {
+        if (!this.session() || this.sessionRefreshInFlight || this.sessionPromptVisible()) {
             return;
         }
 
-        // Los refresh tokens rotan: si otra pestaña ya está renovando, esperar.
-        // La sesión nueva llegará por el evento 'storage' y este intento se vuelve innecesario.
-        if (!this.storage.tryAcquireRefreshLock(SESSION_REFRESH_LOCK_TTL_MS)) {
-            return;
-        }
-
-        this.sessionRefreshInFlight = true;
-
-        this.api
-            .refreshSession(currentSession)
-            .pipe(
-                finalize(() => {
-                    this.sessionRefreshInFlight = false;
-                    this.storage.releaseRefreshLock();
-                }),
-            )
+        this.refreshSessionSafely()
             .subscribe({
-                next: (session) => {
-                    this.storage.updateSession(session);
-                    this.lastRefreshAt = Date.now();
-                    this.silentRefreshFailures = 0;
+                next: () => {
                     // No reiniciar lastActivityAt aqui: el refresh automatico no es actividad
                     // del usuario; de lo contrario el limite de inactividad nunca se cumpliria.
                 },
@@ -340,6 +334,78 @@ export class AuthFacade {
                     this.handleSilentRefreshFailure(error);
                 },
             });
+    }
+
+    /**
+     * Punto único de renovación. Todas las rutas (automática, actividad y modal)
+     * comparten exactamente la misma petición dentro de esta pestaña.
+     *
+     * El candado de AuthStorage serializa también las pestañas. Una vez obtenido,
+     * se vuelve a leer localStorage: si otra pestaña ya renovó, se adopta esa sesión
+     * y NO se reutiliza el refresh token anterior.
+     */
+    private refreshSessionSafely(): Observable<AuthSession> {
+        if (this.sessionRefreshRequest$) {
+            return this.sessionRefreshRequest$;
+        }
+
+        const sessionAtRequestTime = this.storage.readLatestSession();
+
+        if (!sessionAtRequestTime) {
+            return throwError(() => new Error('No hay una sesión activa para renovar.'));
+        }
+
+        const originalSessionFingerprint = this.createRefreshFingerprint(sessionAtRequestTime);
+        this.sessionRefreshInFlight = true;
+
+        const request$ = defer(() =>
+            from(
+                this.storage.runWithRefreshLock(SESSION_REFRESH_LOCK_TTL_MS, async () => {
+                    const latestSession = this.storage.readLatestSession();
+
+                    if (!latestSession) {
+                        throw new Error('La sesión fue cerrada antes de poder renovarla.');
+                    }
+
+                    // Mientras esta pestaña esperaba el candado, otra pudo renovar.
+                    // En ese caso su sesión ya contiene el refresh token vigente.
+                    if (this.createRefreshFingerprint(latestSession) !== originalSessionFingerprint) {
+                        return latestSession;
+                    }
+
+                    return firstValueFrom(this.api.refreshSession(latestSession));
+                }),
+            ),
+        ).pipe(
+            tap((session) => {
+                const currentSession = this.storage.readLatestSession();
+
+                // No restaurar una sesión que el usuario ya cerró mientras el PATCH
+                // estaba en curso.
+                if (!currentSession || currentSession.sid !== sessionAtRequestTime.sid) {
+                    throw new Error('La sesión ya no está activa.');
+                }
+
+                if (this.createRefreshFingerprint(currentSession) !== this.createRefreshFingerprint(session)) {
+                    this.storage.updateSession(session);
+                }
+
+                this.lastRefreshAt = this.resolveSessionIssuedAt(session);
+                this.silentRefreshFailures = 0;
+            }),
+            finalize(() => {
+                this.sessionRefreshInFlight = false;
+                this.sessionRefreshRequest$ = null;
+            }),
+            shareReplay({ bufferSize: 1, refCount: false }),
+        );
+
+        this.sessionRefreshRequest$ = request$;
+        return request$;
+    }
+
+    private createRefreshFingerprint(session: AuthSession): string {
+        return `${session.sid}|${session.refreshToken}|${session.issuedAt}`;
     }
 
     /**

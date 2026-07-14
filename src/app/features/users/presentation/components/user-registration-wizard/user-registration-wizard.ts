@@ -57,6 +57,7 @@ interface UserRegistrationForm {
     secondLastName: string;
     birthDate: string;
     gender: string;
+    civilStatus: string;
 
     institutionType: string;
     entity: string;
@@ -133,6 +134,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     secondLastName: '',
     birthDate: '',
     gender: '',
+    civilStatus: '',
 
     institutionType: '',
     entity: '',
@@ -1037,35 +1039,12 @@ export class UserRegistrationWizard {
         this.showConfirmPassword.update((value) => !value);
     }
 
-    protected isAccountStatusDisabled(status: AccountStatus): boolean {
-        if (this.isFormDisabled() || this.isSubmitting()) {
-            return true;
-        }
-
-        if (!this.isEditMode()) {
-            return status !== 'active';
-        }
-
-        return false;
+    protected isAccountStatusDisabled(_status: AccountStatus): boolean {
+        return true;
     }
 
-    protected setAccountStatus(status: AccountStatus): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
-            return;
-        }
-
-        if (!this.isEditMode()) {
-            this.form.update((current) => ({
-                ...current,
-                accountStatus: 'active',
-            }));
-            return;
-        }
-
-        this.form.update((current) => ({
-            ...current,
-            accountStatus: status,
-        }));
+    protected setAccountStatus(_status: AccountStatus): void {
+        return;
     }
 
     protected getStepIcon(step: SiauStep): string {
@@ -1138,7 +1117,9 @@ export class UserRegistrationWizard {
                     !isExpress,
                     'Captura la fecha de nacimiento.',
                 ),
-                estadoCivilId: this.resolveDefaultCatalogId(this.civilStatusOptions(), 1),
+                estadoCivilId: isExpress
+                    ? this.resolveOptionalCatalogId(current.civilStatus, this.civilStatusOptions(), 1)
+                    : this.requireCatalogId(current.civilStatus, 'Selecciona el estado civil.'),
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -1241,9 +1222,9 @@ export class UserRegistrationWizard {
                 'Captura la fecha de nacimiento.',
             ),
 
-            estadoCivilId: this.resolveDefaultCatalogId(
-                this.civilStatusOptions(),
-                1,
+            estadoCivilId: this.requireCatalogId(
+                current.civilStatus,
+                'Selecciona el estado civil.',
             ),
 
             cuip: this.toNullableText(current.cuip),
@@ -1565,6 +1546,10 @@ export class UserRegistrationWizard {
             secondLastName: this.toText(this.firstValue(personalData, ['segundoApellido', 'apellidoMaterno'])),
             birthDate: this.toDateInputValue(this.firstValue(personalData, ['fechaNacimiento'])),
             gender: this.resolveSelectValue(this.firstValue(personalData, ['sexo', 'sexoId']), this.genderOptions),
+            civilStatus: this.resolveSelectValue(
+                this.firstValue(personalData, ['estadoCivil', 'estadoCivilId']),
+                this.civilStatusOptions,
+            ),
 
             institutionType,
             entity: assignmentEntity,
@@ -2238,6 +2223,10 @@ export class UserRegistrationWizard {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
+            if (!isExpress && !this.hasText(current.civilStatus)) {
+                nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
+            }
+
             if (!isExpress || this.hasText(current.birthDate)) {
                 if (!this.hasText(current.birthDate)) {
                     nextErrors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
@@ -2376,6 +2365,7 @@ export class UserRegistrationWizard {
                 'firstName',
                 'lastName',
                 'gender',
+                'civilStatus',
                 'birthDate',
             ],
             assignment: [

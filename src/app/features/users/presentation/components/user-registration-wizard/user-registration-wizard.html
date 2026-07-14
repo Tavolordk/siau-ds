@@ -128,6 +128,11 @@
                         [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
+                    <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
+                        [required]="!form().expressCreation" [options]="civilStatusOptions()"
+                        [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
+                        [disabled]="isFormDisabled()" />
+
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
                         [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
                         [disabled]="isFormDisabled()" />
@@ -616,13 +621,12 @@
 
                     <div class="registration-wizard__account-status-block">
                         <div class="registration-wizard__field-label">
-                            {{ isEditMode() ? 'Estatus de la cuenta' : 'Estatus inicial de la cuenta' }}
+                            Estatus de la cuenta
                         </div>
 
                         <p class="registration-wizard__account-status-help">
-                            {{ isEditMode()
-                            ? 'Selecciona el estado operativo que tendrá la cuenta.'
-                            : 'Define el estado operativo con el que se creará la cuenta.' }}
+                            El estatus se muestra únicamente como referencia y no puede modificarse desde este
+                            formulario.
                         </p>
 
                         <div class="registration-wizard__account-status-grid">
