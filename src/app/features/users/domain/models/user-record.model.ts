@@ -75,6 +75,7 @@ export interface RegistroCuenta {
     readonly tipoUsuarioId: number;
     readonly sistemaId: number;
     readonly perfilId: number;
+    readonly estadoCuentaId?: number;
 }
 
 export interface RegistroAuditoria {
@@ -169,3 +170,29 @@ export interface SolicitudOperacionResponse {
     readonly mensaje: string | null;
     readonly datos: SolicitudOperacionData | null;
 }
+
+export interface ActualizarAdminPerfil {
+    readonly idSistema: number;
+    readonly idPerfil: number;
+}
+
+export interface ActualizarAdminRequest {
+    readonly usuarioId: number;
+    readonly curp: string;
+    readonly rfc: string;
+    readonly nombres: string;
+    readonly primerApellido: string;
+    readonly segundoApellido: string | null;
+    readonly sexoId: number;
+    readonly fechaNacimiento: string;
+    readonly estadoCivilId: number;
+    readonly cuip: string | null;
+    readonly adscripcion: RegistroAsignacion;
+    readonly comision: RegistroAsignacion | null;
+    readonly contacto: RegistroMedioContacto;
+    readonly perfiles: readonly ActualizarAdminPerfil[];
+    readonly nuevaCuenta: null;
+    readonly auditoria: RegistroAuditoria;
+}
+
+export type ActualizarAdminResponse = RegistroAdminResponse;

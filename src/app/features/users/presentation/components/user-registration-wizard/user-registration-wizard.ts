@@ -25,6 +25,7 @@ import {
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
 import {
+    ActualizarAdminRequest,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroAsignacion,
@@ -534,9 +535,39 @@ export class UserRegistrationWizard {
         }
 
         if (this.isEditMode()) {
-            this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
-            this.closed.emit();
-            this.resetWizard();
+            if (!this.validateAllSteps()) {
+                return;
+            }
+
+            let updateRequest: ActualizarAdminRequest;
+
+            try {
+                updateRequest = this.buildUpdateUserRequest();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Revisa la información capturada.';
+                this.formErrors.update((current) => ({ ...current, submit: message }));
+                return;
+            }
+
+            this.isSubmitting.set(true);
+            this.usersFacade.updateAdminUser(updateRequest)
+                .pipe(
+                    takeUntilDestroyed(this.destroyRef),
+                    finalize(() => this.isSubmitting.set(false)),
+                )
+                .subscribe({
+                    next: (response) => {
+                        this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+                        this.saveSuccess.set(this.buildSaveSuccessModalState(response, false));
+                    },
+                    error: (error: unknown) => {
+                        const message = error instanceof Error
+                            ? error.message
+                            : 'No fue posible actualizar el usuario.';
+                        this.formErrors.update((current) => ({ ...current, submit: message }));
+                        console.error('Error actualizando usuario.', error);
+                    },
+                });
             return;
         }
 
@@ -1079,7 +1110,7 @@ export class UserRegistrationWizard {
             throw new Error('Selecciona al menos un sistema y perfil.');
         }
 
-        if (!password && !isExpress) {
+        if (!password && !isExpress && !this.isEditMode()) {
             throw new Error('Captura la contraseña.');
         }
 
@@ -1151,6 +1182,133 @@ export class UserRegistrationWizard {
                 correlationId: `siau-admin-${Date.now()}`,
             },
         };
+    }
+
+    private buildUpdateUserRequest(): ActualizarAdminRequest {
+        const userId =
+            this.user()?.userId ??
+            this.userDetail()?.userId;
+
+        const current = this.form();
+        const assignedProfiles = this.assignedSystemProfiles();
+
+        if (!userId || userId <= 0) {
+            throw new Error(
+                'No fue posible identificar al usuario que se desea actualizar.',
+            );
+        }
+
+        if (assignedProfiles.length === 0) {
+            throw new Error(
+                'Selecciona al menos un sistema y perfil.',
+            );
+        }
+
+        return {
+            usuarioId: userId,
+
+            curp: this.requireText(
+                current.curp,
+                'Captura la CURP.',
+            ).toUpperCase(),
+
+            rfc: this.requireText(
+                current.rfc,
+                'Captura el RFC.',
+            ).toUpperCase(),
+
+            nombres: this.requireText(
+                current.firstName,
+                'Captura el nombre.',
+            ).toUpperCase(),
+
+            primerApellido: this.requireText(
+                current.lastName,
+                'Captura el primer apellido.',
+            ).toUpperCase(),
+
+            segundoApellido:
+                this.toNullableText(current.secondLastName)
+                    ?.toUpperCase() ?? null,
+
+            sexoId: this.requireCatalogId(
+                current.gender,
+                'Selecciona el sexo.',
+            ),
+
+            fechaNacimiento: this.requireText(
+                current.birthDate,
+                'Captura la fecha de nacimiento.',
+            ),
+
+            estadoCivilId: this.resolveDefaultCatalogId(
+                this.civilStatusOptions(),
+                1,
+            ),
+
+            cuip: this.toNullableText(current.cuip),
+
+            adscripcion: {
+                estructuraId: this.resolveAssignmentStructureId(),
+
+                cargo:
+                    this.toNullableText(current.position)
+                        ?.toUpperCase() ?? null,
+
+                funciones: this.toNullableText(
+                    current.functions,
+                ),
+
+                numeroEmpleado: this.toNullableText(
+                    current.employeeNumber,
+                ),
+
+                fechaInicio: this.toNullableText(
+                    current.admissionDate,
+                ),
+            },
+
+            comision: this.buildCommissionRequest(),
+
+            contacto: {
+                correo: this.requireText(
+                    current.email,
+                    'Captura el correo.',
+                ),
+
+                celular: this.requireText(
+                    current.phone,
+                    'Captura el celular.',
+                ),
+            },
+
+            perfiles: assignedProfiles.map((profile) => ({
+                idSistema: this.resolveAssignedSystemId(profile),
+
+                idPerfil: this.requireCatalogId(
+                    profile.role,
+                    'Selecciona un perfil válido.',
+                ),
+            })),
+
+            nuevaCuenta: null,
+
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId(),
+                correlationId: 'SIAU-FRONT',
+            },
+        };
+    }
+
+    private resolveAccountStatusId(status: AccountStatus): number {
+        switch (status) {
+            case 'disabled':
+                return 2;
+            case 'suspended':
+                return 3;
+            default:
+                return 1;
+        }
     }
 
     private buildCreateSpecialUserRequest(): RegistroEspecialRequest {

@@ -572,7 +572,7 @@
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Contraseña @if (!form().expressCreation) { <span>*</span> }
+                                Contraseña @if (!form().expressCreation && !isEditMode()) { <span>*</span> }
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
@@ -593,7 +593,7 @@
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Confirmar contraseña @if (!form().expressCreation) { <span>*</span> }
+                                Confirmar contraseña @if (!form().expressCreation && !isEditMode()) { <span>*</span> }
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
@@ -616,11 +616,13 @@
 
                     <div class="registration-wizard__account-status-block">
                         <div class="registration-wizard__field-label">
-                            Estatus inicial de la cuenta
+                            {{ isEditMode() ? 'Estatus de la cuenta' : 'Estatus inicial de la cuenta' }}
                         </div>
 
                         <p class="registration-wizard__account-status-help">
-                            Define el estado operativo con el que se creará la cuenta.
+                            {{ isEditMode()
+                            ? 'Selecciona el estado operativo que tendrá la cuenta.'
+                            : 'Define el estado operativo con el que se creará la cuenta.' }}
                         </p>
 
                         <div class="registration-wizard__account-status-grid">
