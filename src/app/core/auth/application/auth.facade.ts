@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
     catchError,
@@ -50,6 +50,7 @@ export class AuthFacade {
     private activityListenersRegistered = false;
     private lastActivityAt = Date.now();
     private lastRefreshAt = Date.now();
+    private observedExternalSessionClosure = 0;
 
     private readonly activityEvents: readonly (keyof WindowEventMap)[] = [
         'click',
@@ -101,6 +102,19 @@ export class AuthFacade {
     readonly userInitials = computed(() => this.session()?.user.initials ?? null);
     readonly userName = computed(() => this.session()?.user.name ?? 'Usuario');
     readonly userRole = computed(() => this.session()?.user.role ?? 'Usuario');
+
+    constructor() {
+        effect(() => {
+            const closureVersion = this.storage.externalSessionClosure();
+
+            if (closureVersion <= this.observedExternalSessionClosure) {
+                return;
+            }
+
+            this.observedExternalSessionClosure = closureVersion;
+            this.forceLocalLogout('La sesión se cerró en otra pestaña.');
+        });
+    }
 
     login(request: LoginRequest): void {
         this.loadingState.set(true);

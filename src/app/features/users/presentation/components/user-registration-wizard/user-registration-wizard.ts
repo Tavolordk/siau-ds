@@ -31,6 +31,7 @@ import {
     RegistroAsignacion,
     RegistroEspecialRequest,
     RegistroEspecialResponse,
+    RegistroMedioContacto,
     UserDetailRecord,
     UserRecord,
 } from '../../../domain/models/user-record.model';
@@ -123,6 +124,16 @@ interface SaveSuccessModalState {
 }
 
 const DEFAULT_EXPRESS_PASSWORD = 'SSPC-PMex-2025';
+
+const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
+    'personal-data',
+    'assignment',
+    'commission',
+    'documents',
+    'contact',
+    'profiles',
+    'account',
+];
 
 const INITIAL_FORM: UserRegistrationForm = {
     cuip: '',
@@ -238,6 +249,25 @@ export class UserRegistrationWizard {
         this.isFederalInstitutionValue(this.form().commissionInstitutionType),
     );
 
+    protected readonly emailRequired = computed(() => !this.hasText(this.form().phone));
+    protected readonly phoneRequired = computed(() => !this.hasText(this.form().email));
+
+    protected readonly hasAssignedSiauProfile = computed(() =>
+        this.assignedSystemProfiles().some((profile) =>
+            this.isSiauSystem(profile.system, profile.systemLabel),
+        ),
+    );
+
+    protected readonly availableSystemOptions = computed<readonly SiauSelectOption[]>(() => {
+        if (!this.hasAssignedSiauProfile()) {
+            return this.systemOptions();
+        }
+
+        return this.systemOptions().filter(
+            (option) => !this.isSiauSystem(option.value, option.label),
+        );
+    });
+
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
 
@@ -246,12 +276,35 @@ export class UserRegistrationWizard {
         }
 
         const catalogRoleOptions = this.roleOptions();
+        const sourceOptions = catalogRoleOptions.length > 0
+            ? catalogRoleOptions
+            : this.findDetailRoleOptionsForSystem(system);
 
-        if (catalogRoleOptions.length > 0) {
-            return catalogRoleOptions;
+        return sourceOptions.filter(
+            (option) => !this.isRoleAlreadyAssigned(system, option),
+        );
+    });
+
+    protected readonly canAddSelectedProfile = computed(() => {
+        const system = this.selectedSystem();
+        const role = this.selectedRole();
+
+        if (!system || !role) {
+            return false;
         }
 
-        return this.findDetailRoleOptionsForSystem(system);
+        if (
+            this.isSiauSystem(system) &&
+            this.assignedSystemProfiles().some((profile) =>
+                this.isSiauSystem(profile.system, profile.systemLabel),
+            )
+        ) {
+            return false;
+        }
+
+        const roleOption = this.availableRoleOptions().find((option) => option.value === role);
+
+        return Boolean(roleOption) && !this.isRoleAlreadyAssigned(system, roleOption!);
     });
 
     protected readonly shouldShowRoleSelect = computed(() => true);
@@ -285,20 +338,19 @@ export class UserRegistrationWizard {
         },
     ];
 
-    protected readonly stepOrder: readonly WizardStepId[] = [
-        'personal-data',
-        'assignment',
-        'commission',
-        'documents',
-        'contact',
-        'profiles',
-        'account',
-    ];
+    protected readonly stepOrder = computed<readonly WizardStepId[]>(() => {
+        const isNormalCreation = this.mode() === 'create' && !this.form().expressCreation;
+
+        return isNormalCreation
+            ? ALL_WIZARD_STEPS.filter((stepId) => stepId !== 'account')
+            : ALL_WIZARD_STEPS;
+    });
 
     protected readonly steps = computed<readonly SiauStep[]>(() => {
         const completed = this.completedSteps();
+        const visibleSteps = this.stepOrder();
 
-        return [
+        return ([
             {
                 id: 'personal-data',
                 label: 'Datos Personales',
@@ -341,11 +393,13 @@ export class UserRegistrationWizard {
                 icon: 'key-round',
                 completed: completed.includes('account'),
             },
-        ];
+        ] satisfies SiauStep[]).filter((step) =>
+            visibleSteps.includes(step.id as WizardStepId),
+        );
     });
 
     protected readonly activeIndex = computed(() => {
-        return this.stepOrder.indexOf(this.activeStepId());
+        return this.stepOrder().indexOf(this.activeStepId());
     });
 
     protected readonly activeStepNumber = computed(() => this.activeIndex() + 1);
@@ -353,7 +407,7 @@ export class UserRegistrationWizard {
     protected readonly stepProgressSegments = computed(() => {
         const activeNumber = this.activeStepNumber();
 
-        return this.stepOrder.map((_, index) => ({
+        return this.stepOrder().map((_, index) => ({
             id: `segment-${index + 1}`,
             active: index < activeNumber,
         }));
@@ -361,7 +415,7 @@ export class UserRegistrationWizard {
 
     protected readonly headerBadge = computed(() => {
         const prefix = this.isEditMode() ? 'Edición' : 'Registro';
-        return `${prefix} · ${this.activeIndex() + 1}/${this.stepOrder.length} secciones`;
+        return `${prefix} · ${this.activeIndex() + 1}/${this.stepOrder().length} secciones`;
     });
 
     protected readonly isEditMode = computed(() => this.mode() === 'edit');
@@ -483,8 +537,13 @@ export class UserRegistrationWizard {
         }
 
         const current = this.activeStepId();
-        const currentIndex = this.stepOrder.indexOf(current);
-        const targetIndex = this.stepOrder.indexOf(stepId);
+        const stepOrder = this.stepOrder();
+        const currentIndex = stepOrder.indexOf(current);
+        const targetIndex = stepOrder.indexOf(stepId);
+
+        if (targetIndex < 0) {
+            return;
+        }
 
         if (targetIndex > currentIndex && !this.validateStep(current)) {
             return;
@@ -495,7 +554,8 @@ export class UserRegistrationWizard {
 
     protected nextStep(): void {
         const current = this.activeStepId();
-        const currentIndex = this.stepOrder.indexOf(current);
+        const stepOrder = this.stepOrder();
+        const currentIndex = stepOrder.indexOf(current);
 
         if (!this.isEditMode() && !this.validateStep(current)) {
             return;
@@ -503,16 +563,17 @@ export class UserRegistrationWizard {
 
         this.markCompleted(current);
 
-        if (currentIndex < this.stepOrder.length - 1) {
-            this.activeStepId.set(this.stepOrder[currentIndex + 1]);
+        if (currentIndex < stepOrder.length - 1) {
+            this.activeStepId.set(stepOrder[currentIndex + 1]);
         }
     }
 
     protected previousStep(): void {
         const currentIndex = this.activeIndex();
+        const stepOrder = this.stepOrder();
 
         if (currentIndex > 0) {
-            this.activeStepId.set(this.stepOrder[currentIndex - 1]);
+            this.activeStepId.set(stepOrder[currentIndex - 1]);
         }
     }
 
@@ -559,7 +620,7 @@ export class UserRegistrationWizard {
                 )
                 .subscribe({
                     next: (response) => {
-                        this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+                        this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
                         this.saveSuccess.set(this.buildSaveSuccessModalState(response, false));
                     },
                     error: (error: unknown) => {
@@ -604,7 +665,7 @@ export class UserRegistrationWizard {
             )
             .subscribe({
                 next: (response) => {
-                    this.stepOrder.forEach((stepId) => this.markCompleted(stepId));
+                    this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
                     this.saveSuccess.set(this.buildSaveSuccessModalState(response, isExpress));
                 },
                 error: (error: unknown) => {
@@ -638,6 +699,12 @@ export class UserRegistrationWizard {
             [key]: normalizedValue,
         }));
 
+        if (key === 'email' || key === 'phone') {
+            this.clearFieldError('email');
+            this.clearFieldError('phone');
+            return;
+        }
+
         this.clearFieldError(String(key));
     }
 
@@ -650,6 +717,10 @@ export class UserRegistrationWizard {
             ...current,
             expressCreation: checked,
         }));
+
+        if (!checked && this.activeStepId() === 'account') {
+            this.activeStepId.set('profiles');
+        }
 
         this.formErrors.set({});
     }
@@ -958,7 +1029,7 @@ export class UserRegistrationWizard {
     }
 
     protected isLastStep(): boolean {
-        return this.activeIndex() === this.stepOrder.length - 1;
+        return this.activeIndex() === this.stepOrder().length - 1;
     }
 
     protected updateSelectedSystem(value: string | null): void {
@@ -995,6 +1066,19 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (
+            this.isSiauSystem(system) &&
+            this.assignedSystemProfiles().some((profile) =>
+                this.isSiauSystem(profile.system, profile.systemLabel),
+            )
+        ) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles: 'SIAU solo permite un perfil por usuario. Elimina el perfil actual para elegir otro.',
+            }));
+            return;
+        }
+
         const systemOption = this.systemOptions().find(
             (item) =>
                 item.value === system ||
@@ -1004,6 +1088,15 @@ export class UserRegistrationWizard {
         const roleOption = this.availableRoleOptions().find((item) => item.value === role);
 
         if (!systemOption || !roleOption) {
+            return;
+        }
+
+
+        if (this.isRoleAlreadyAssigned(system, roleOption)) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles: 'Ese perfil ya está agregado para el sistema seleccionado.',
+            }));
             return;
         }
 
@@ -1028,7 +1121,6 @@ export class UserRegistrationWizard {
         }
 
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
-        this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(this.assignedSystemProfiles()));
     }
 
     protected togglePasswordVisibility(): void {
@@ -1089,10 +1181,6 @@ export class UserRegistrationWizard {
             throw new Error('Selecciona al menos un sistema y perfil.');
         }
 
-        if (!password && !isExpress && !this.isEditMode()) {
-            throw new Error('Captura la contraseña.');
-        }
-
         return {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
@@ -1129,18 +1217,7 @@ export class UserRegistrationWizard {
                 fechaInicio: this.toNullableText(current.admissionDate),
             },
             comision: this.buildCommissionRequest(),
-            medioContacto: {
-                correo: this.getRequiredOrOptionalText(
-                    current.email,
-                    !isExpress,
-                    'Captura el correo.',
-                ),
-                celular: this.getRequiredOrOptionalText(
-                    current.phone,
-                    !isExpress,
-                    'Captura el celular.',
-                ),
-            },
+            medioContacto: this.buildContactRequest(),
             cuenta: {
                 password: password || null,
                 passwordHash: password || null,
@@ -1251,17 +1328,7 @@ export class UserRegistrationWizard {
 
             comision: this.buildCommissionRequest(),
 
-            contacto: {
-                correo: this.requireText(
-                    current.email,
-                    'Captura el correo.',
-                ),
-
-                celular: this.requireText(
-                    current.phone,
-                    'Captura el celular.',
-                ),
-            },
+            contacto: this.buildContactRequest(),
 
             perfiles: assignedProfiles.map((profile) => ({
                 idSistema: this.resolveAssignedSystemId(profile),
@@ -1311,10 +1378,7 @@ export class UserRegistrationWizard {
                 estructuraId: this.resolveAssignmentStructureId(),
             },
             comision: this.buildSpecialCommissionRequest(),
-            medioContacto: {
-                correo: this.requireText(current.email, 'Captura el correo.'),
-                celular: this.requireText(current.phone, 'Captura el celular.'),
-            },
+            medioContacto: this.buildContactRequest(),
             cuenta: {
                 password: password || null,
                 passwordHash: password || null,
@@ -1346,6 +1410,21 @@ export class UserRegistrationWizard {
             funciones: null,
             numeroEmpleado: null,
             fechaInicio: this.toNullableText(current.commissionAdmissionDate),
+        };
+    }
+
+    private buildContactRequest(): RegistroMedioContacto {
+        const current = this.form();
+        const correo = this.normalizeEmail(current.email);
+        const celular = this.toText(current.phone);
+
+        if (!correo && !celular) {
+            throw new Error('Captura al menos un medio de contacto: correo o teléfono celular.');
+        }
+
+        return {
+            correo: correo || null,
+            celular: celular || null,
         };
     }
 
@@ -1500,28 +1579,42 @@ export class UserRegistrationWizard {
     }
 
     private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
-        const personalData = this.toRecord(datos['s1DatosPersonales']);
-        const assignment = this.toRecord(datos['s2Adscripcion']);
-        const commission = this.toRecord(datos['s3Comision']);
-        const contact = this.toRecord(datos['s5Contacto']);
+        const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
+        const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
+        const commission = this.toSectionRecord(datos, ['s3Comision', 'comision']);
+        const contact = this.toSectionRecord(datos, ['s5Contacto', 'medioContacto', 'contacto']);
 
-        const institutionType = this.resolveSelectValue(
-            this.firstValue(assignment, ['tipoInstitucion', 'tipoInstitucionId']),
+        const institutionType = this.resolveRecordSelectValue(
+            assignment,
+            ['tipoInstitucionId', 'idTipoInstitucion'],
+            ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
             this.institutionTypeOptions,
         );
         const assignmentIsFederal = this.isFederalInstitutionValue(institutionType);
         const assignmentEntity = assignmentIsFederal
             ? ''
-            : this.resolveSelectValue(this.firstValue(assignment, ['estado', 'entidad', 'estadoId']), this.stateOptions);
+            : this.resolveRecordSelectValue(
+                assignment,
+                ['estadoId', 'entidadId', 'idEstado'],
+                ['estado', 'entidad', 'estadoNombre'],
+                this.stateOptions,
+            );
 
-        const commissionInstitutionType = this.resolveSelectValue(
-            this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId']),
+        const commissionInstitutionType = this.resolveRecordSelectValue(
+            commission,
+            ['tipoInstitucionId', 'idTipoInstitucion'],
+            ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
             this.institutionTypeOptions,
         );
         const commissionIsFederal = this.isFederalInstitutionValue(commissionInstitutionType);
         const commissionEntity = commissionIsFederal
             ? ''
-            : this.resolveSelectValue(this.firstValue(commission, ['estado', 'entidad', 'estadoId']), this.stateOptions);
+            : this.resolveRecordSelectValue(
+                commission,
+                ['estadoId', 'entidadId', 'idEstado'],
+                ['estado', 'entidad', 'estadoNombre'],
+                this.stateOptions,
+            );
 
         const hasCommissionData =
             this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||
@@ -1531,7 +1624,8 @@ export class UserRegistrationWizard {
             this.hasText(this.firstValue(commission, ['dependencia', 'dependenciaId'])) ||
             this.hasText(this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
             this.hasText(this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit'])) ||
-            this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso']));
+            this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])) ||
+            this.hasText(this.firstValue(commission, ['estructuraId', 'estructuraOrgId']));
 
         const nextForm: UserRegistrationForm = {
             ...INITIAL_FORM,
@@ -1555,20 +1649,28 @@ export class UserRegistrationWizard {
             entity: assignmentEntity,
             municipality: assignmentIsFederal
                 ? ''
-                : this.resolveSelectValue(
-                    this.firstValue(assignment, ['municipio', 'municipioAlcaldia', 'municipioId']),
+                : this.resolveRecordSelectValue(
+                    assignment,
+                    ['municipioId', 'municipioAlcaldiaId', 'idMunicipio'],
+                    ['municipio', 'municipioAlcaldia', 'municipioNombre'],
                     this.municipalityOptions,
                 ),
-            institution: this.resolveSelectValue(
-                this.firstValue(assignment, ['institucion', 'institucionId']),
+            institution: this.resolveRecordSelectValue(
+                assignment,
+                ['institucionId', 'idInstitucion', 'estructuraId'],
+                ['institucion', 'institucionNombre', 'estructura'],
                 this.institutionOptions,
             ),
-            decentralizedBody: this.resolveSelectValue(
-                this.firstValue(assignment, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody']),
+            decentralizedBody: this.resolveRecordSelectValue(
+                assignment,
+                ['organoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado'],
+                ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
                 this.decentralizedBodyOptions,
             ),
-            administrativeUnit: this.resolveSelectValue(
-                this.firstValue(assignment, ['unidadAdministrativa', 'administrativeUnit']),
+            administrativeUnit: this.resolveRecordSelectValue(
+                assignment,
+                ['unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa'],
+                ['unidadAdministrativa', 'administrativeUnit'],
                 this.administrativeUnitOptions,
             ),
             position: this.toText(this.firstValue(assignment, ['cargo', 'puesto'])),
@@ -1581,30 +1683,42 @@ export class UserRegistrationWizard {
             commissionEntity,
             commissionMunicipality: commissionIsFederal
                 ? ''
-                : this.resolveSelectValue(
-                    this.firstValue(commission, ['municipio', 'municipioAlcaldia', 'municipioId']),
+                : this.resolveRecordSelectValue(
+                    commission,
+                    ['municipioId', 'municipioAlcaldiaId', 'idMunicipio'],
+                    ['municipio', 'municipioAlcaldia', 'municipioNombre'],
                     this.commissionMunicipalityOptions,
                 ),
-            commissionInstitution: this.resolveSelectValue(
-                this.firstValue(commission, ['institucion', 'institucionId']),
+            commissionInstitution: this.resolveRecordSelectValue(
+                commission,
+                ['institucionId', 'idInstitucion', 'estructuraId'],
+                ['institucion', 'institucionNombre', 'estructura'],
                 this.commissionInstitutionOptions,
             ),
-            commissionDependency: this.resolveSelectValue(
-                this.firstValue(commission, ['dependencia', 'dependenciaId']),
+            commissionDependency: this.resolveRecordSelectValue(
+                commission,
+                ['dependenciaId', 'idDependencia'],
+                ['dependencia', 'dependenciaNombre'],
                 this.commissionDependencyOptions,
             ),
-            commissionDecentralizedBody: this.resolveSelectValue(
-                this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody']),
+            commissionDecentralizedBody: this.resolveRecordSelectValue(
+                commission,
+                ['organoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado'],
+                ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
                 this.commissionDecentralizedBodyOptions,
             ),
-            commissionAdministrativeUnit: this.resolveSelectValue(
-                this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit']),
+            commissionAdministrativeUnit: this.resolveRecordSelectValue(
+                commission,
+                ['unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa'],
+                ['unidadAdministrativa', 'administrativeUnit'],
                 this.commissionAdministrativeUnitOptions,
             ),
             commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
 
-            email: this.toText(this.firstValue(contact, ['correo', 'email'])) || this.toText(datos['correo']) || user?.email || '',
-            phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone'])),
+            email: this.resolveHydratedEmail(contact, datos, user),
+            phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone']))
+                .replace(/\D/g, '')
+                .slice(0, 10),
             extension: this.toText(this.firstValue(contact, ['extension'])),
 
             profiles: [],
@@ -1620,7 +1734,7 @@ export class UserRegistrationWizard {
         const assignedProfiles = this.toAssignedSystemProfiles(datos['s6Perfiles']);
 
         this.activeStepId.set('personal-data');
-        this.completedSteps.set([...this.stepOrder]);
+        this.completedSteps.set([...this.stepOrder()]);
         this.editEnabled.set(false);
         this.form.set(nextForm);
         this.selectedSystem.set('');
@@ -1628,6 +1742,7 @@ export class UserRegistrationWizard {
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set(assignedProfiles);
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
+        this.loadHydratedAssignmentCatalogs(nextForm);
     }
 
     private toAssignedSystemProfiles(value: unknown): AssignedSystemProfile[] {
@@ -1793,6 +1908,53 @@ export class UserRegistrationWizard {
         return matchedKey ? roleOptionsBySystem[matchedKey] ?? [] : [];
     }
 
+    private isSiauSystem(systemValue: string, systemLabel = ''): boolean {
+        const cleanValue = this.toText(systemValue);
+        const option = this.systemOptions().find(
+            (item) =>
+                item.value === cleanValue ||
+                this.normalizeText(item.value) === this.normalizeText(cleanValue) ||
+                this.normalizeText(item.label) === this.normalizeText(cleanValue),
+        );
+        const candidates = [cleanValue, systemLabel, option?.label ?? '', option?.value ?? ''];
+
+        return candidates.some((candidate) => {
+            const normalized = this.normalizeText(candidate);
+
+            return normalized === 'siau' ||
+                normalized.includes('siau') ||
+                normalized.includes('sistema integral de administracion de usuarios');
+        });
+    }
+
+    private isRoleAlreadyAssigned(system: string, roleOption: SiauSelectOption): boolean {
+        const systemOption = this.systemOptions().find(
+            (option) =>
+                option.value === system ||
+                this.normalizeText(option.value) === this.normalizeText(system) ||
+                this.normalizeText(option.label) === this.normalizeText(system),
+        );
+
+        return this.assignedSystemProfiles().some((profile) => {
+            const sameSystem =
+                profile.system === system ||
+                this.normalizeText(profile.system) === this.normalizeText(system) ||
+                this.normalizeText(profile.systemLabel) === this.normalizeText(system) ||
+                this.normalizeText(profile.system) === this.normalizeText(systemOption?.value ?? '') ||
+                this.normalizeText(profile.systemLabel) === this.normalizeText(systemOption?.label ?? '');
+
+            if (!sameSystem) {
+                return false;
+            }
+
+            return (
+                profile.role === roleOption.value ||
+                this.normalizeText(profile.role) === this.normalizeText(roleOption.value) ||
+                this.normalizeText(profile.roleLabel) === this.normalizeText(roleOption.label)
+            );
+        });
+    }
+
     private resolveSelectValue(
         rawValue: unknown,
         target: WritableSignal<readonly SiauSelectOption[]>,
@@ -1824,6 +1986,98 @@ export class UserRegistrationWizard {
         ]);
 
         return textValue;
+    }
+
+    private resolveRecordSelectValue(
+        record: Record<string, unknown>,
+        idKeys: readonly string[],
+        labelKeys: readonly string[],
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): string {
+        const rawIdValue = this.firstValue(record, idKeys);
+        const rawLabelValue = this.firstValue(record, labelKeys);
+        const nestedValue = this.toRecord(rawLabelValue);
+        const idValue = this.toText(rawIdValue) || this.toText(
+            this.firstValue(nestedValue, ['id', 'value', ...idKeys]),
+        );
+        const labelValue = this.toText(
+            this.firstValue(nestedValue, ['descripcion', 'nombre', 'label', ...labelKeys]),
+        ) || this.toText(rawLabelValue);
+
+        if (!idValue) {
+            return this.resolveSelectValue(labelValue, target);
+        }
+
+        const options = target();
+        const matchedOption = options.find(
+            (option) =>
+                option.value === idValue ||
+                this.normalizeText(option.value) === this.normalizeText(idValue) ||
+                (labelValue && this.normalizeText(option.label) === this.normalizeText(labelValue)),
+        );
+
+        if (matchedOption) {
+            return matchedOption.value;
+        }
+
+        target.set(this.mergeSelectOptions(
+            [{ value: idValue, label: labelValue || idValue }],
+            options,
+        ));
+
+        return idValue;
+    }
+
+    private resolveHydratedEmail(
+        contact: Record<string, unknown>,
+        datos: Record<string, unknown>,
+        user: UserRecord | null,
+    ): string {
+        const candidates = [
+            this.firstValue(contact, ['correo', 'email']),
+            datos['correo'],
+            user?.email,
+        ];
+
+        for (const candidate of candidates) {
+            const email = this.normalizeEmail(candidate);
+            const normalized = this.normalizeText(email);
+
+            if (!email || ['sin correo', 'no registrado', 'no capturado'].includes(normalized)) {
+                continue;
+            }
+
+            return email;
+        }
+
+        return '';
+    }
+
+    private toSectionRecord(
+        source: Record<string, unknown>,
+        keys: readonly string[],
+    ): Record<string, unknown> {
+        for (const key of keys) {
+            const value = source[key];
+
+            if (Array.isArray(value)) {
+                const firstRecord = value
+                    .map((item) => this.toRecord(item))
+                    .find((item) => Object.keys(item).length > 0);
+
+                if (firstRecord) {
+                    return firstRecord;
+                }
+            }
+
+            const record = this.toRecord(value);
+
+            if (Object.keys(record).length > 0) {
+                return record;
+            }
+        }
+
+        return {};
     }
 
     private firstValue(record: Record<string, unknown>, keys: readonly string[]): unknown {
@@ -1955,8 +2209,57 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
     }
 
+    private loadHydratedAssignmentCatalogs(form: UserRegistrationForm): void {
+        if (!this.isFederalInstitutionValue(form.institutionType) && form.entity) {
+            this.loadMunicipalities(form.entity, this.municipalityOptions);
+        }
+
+        if (form.institutionType) {
+            this.loadAssignmentInstitutions();
+        }
+
+        if (form.institution) {
+            this.loadAssignmentChildren(form.institution, this.decentralizedBodyOptions);
+            this.loadAssignmentChildren(form.institution, this.administrativeUnitOptions);
+        }
+
+        if (form.decentralizedBody) {
+            this.loadAssignmentChildren(form.decentralizedBody, this.administrativeUnitOptions);
+        }
+
+        if (!form.commissionEnabled) {
+            return;
+        }
+
+        if (!this.isFederalInstitutionValue(form.commissionInstitutionType) && form.commissionEntity) {
+            this.loadMunicipalities(form.commissionEntity, this.commissionMunicipalityOptions);
+        }
+
+        if (form.commissionInstitutionType) {
+            this.loadCommissionInstitutions();
+        }
+
+        if (form.commissionInstitution) {
+            this.loadCommissionChildren(form.commissionInstitution, this.commissionDependencyOptions);
+            this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions);
+            this.loadCommissionChildren(form.commissionInstitution, this.commissionAdministrativeUnitOptions);
+        }
+
+        if (form.commissionDependency) {
+            this.loadCommissionChildren(form.commissionDependency, this.commissionDecentralizedBodyOptions);
+            this.loadCommissionChildren(form.commissionDependency, this.commissionAdministrativeUnitOptions);
+        }
+
+        if (form.commissionDecentralizedBody) {
+            this.loadCommissionChildren(
+                form.commissionDecentralizedBody,
+                this.commissionAdministrativeUnitOptions,
+            );
+        }
+    }
+
     private isWizardStep(value: string): value is WizardStepId {
-        return this.stepOrder.includes(value as WizardStepId);
+        return ALL_WIZARD_STEPS.includes(value as WizardStepId);
     }
 
     private loadCatalogos(): void {
@@ -2048,9 +2351,8 @@ export class UserRegistrationWizard {
             .obtenerMunicipiosOptions(estadoId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (options) => target.set(options),
+                next: (options) => target.set(this.mergeSelectOptions(options, target())),
                 error: (error: unknown) => {
-                    target.set([]);
                     console.error('Error cargando municipios.', error);
                 },
             });
@@ -2149,12 +2451,32 @@ export class UserRegistrationWizard {
             })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (options) => target.set(options),
+                next: (options) => target.set(this.mergeSelectOptions(options, target())),
                 error: (error: unknown) => {
-                    target.set([]);
                     console.error('Error cargando estructura orgánica.', error);
                 },
             });
+    }
+
+    private mergeSelectOptions(
+        preferredOptions: readonly SiauSelectOption[],
+        preservedOptions: readonly SiauSelectOption[],
+    ): readonly SiauSelectOption[] {
+        const result = [...preferredOptions];
+
+        preservedOptions.forEach((preservedOption) => {
+            const alreadyExists = result.some(
+                (option) =>
+                    option.value === preservedOption.value ||
+                    this.normalizeText(option.value) === this.normalizeText(preservedOption.value),
+            );
+
+            if (!alreadyExists) {
+                result.push(preservedOption);
+            }
+        });
+
+        return result;
     }
 
     private toCatalogId(value: string | null | undefined): number | undefined {
@@ -2179,7 +2501,7 @@ export class UserRegistrationWizard {
     }
 
     private validateAllSteps(): boolean {
-        for (const stepId of this.stepOrder) {
+        for (const stepId of this.stepOrder()) {
             if (!this.validateStep(stepId)) {
                 this.activeStepId.set(stepId);
                 return false;
@@ -2286,22 +2608,8 @@ export class UserRegistrationWizard {
             const hasEmail = this.hasText(current.email);
             const hasPhone = this.hasText(current.phone);
 
-            if (isExpress) {
-                if (!hasEmail) {
-                    nextErrors['email'] = 'El correo electrónico es obligatorio para el registro especial.';
-                }
-
-                if (!hasPhone) {
-                    nextErrors['phone'] = 'El teléfono celular es obligatorio para el registro especial.';
-                }
-            } else {
-                if (!hasEmail) {
-                    nextErrors['email'] = 'El correo electrónico es obligatorio.';
-                }
-
-                if (!hasPhone) {
-                    nextErrors['phone'] = 'El teléfono celular es obligatorio.';
-                }
+            if (!hasEmail && !hasPhone) {
+                nextErrors['email'] = 'Captura al menos un medio de contacto: correo o teléfono celular.';
             }
 
             if (hasEmail && !this.isValidEmail(current.email)) {
@@ -2322,14 +2630,6 @@ export class UserRegistrationWizard {
         if (stepId === 'account' && !this.isEditMode()) {
             if (isExpress && !this.hasText(current.expressJustification)) {
                 nextErrors['expressJustification'] = 'Justifica por qué se realizará la creación express.';
-            }
-
-            if (!isExpress && !this.hasText(current.password)) {
-                nextErrors['password'] = 'La contraseña es obligatoria.';
-            }
-
-            if (!isExpress && !this.hasText(current.confirmPassword)) {
-                nextErrors['confirmPassword'] = 'La confirmación de contraseña es obligatoria.';
             }
 
             if (
@@ -2432,6 +2732,10 @@ export class UserRegistrationWizard {
             return textValue.replace(/\D/g, '').slice(0, 10) as UserRegistrationForm[K];
         }
 
+        if (key === 'email') {
+            return this.normalizeEmail(textValue) as UserRegistrationForm[K];
+        }
+
         return textValue as UserRegistrationForm[K];
     }
 
@@ -2465,9 +2769,16 @@ export class UserRegistrationWizard {
     }
 
     private isValidEmail(value: string): boolean {
-        const email = this.toText(value);
+        const email = this.normalizeEmail(value);
 
         return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+    }
+
+    private normalizeEmail(value: unknown): string {
+        return this.toText(value)
+            .normalize('NFKC')
+            .replace(/[\u0000-\u001F\u007F-\u009F\u00A0\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, '')
+            .trim();
     }
 
     private isAdult(dateValue: string): boolean {

@@ -30,9 +30,11 @@ export class AuthStorage {
 
     private readonly sessionState = signal<AuthSession | null>(this.readSessionFromStorage());
     private readonly challengeState = signal<PendingAuthChallenge | null>(this.readChallengeFromStorage());
+    private readonly externalSessionClosureState = signal(0);
 
     readonly session = this.sessionState.asReadonly();
     readonly challenge = this.challengeState.asReadonly();
+    readonly externalSessionClosure = this.externalSessionClosureState.asReadonly();
 
     constructor() {
         // Cada pestaña adopta inmediatamente la sesión más nueva. Esto es indispensable
@@ -40,7 +42,14 @@ export class AuthStorage {
         if (typeof window !== 'undefined') {
             window.addEventListener('storage', (event: StorageEvent) => {
                 if (event.key === SESSION_KEY || event.key === null) {
-                    this.sessionState.set(this.readSessionFromStorage());
+                    const previousSession = this.sessionState();
+                    const nextSession = this.readSessionFromStorage();
+
+                    this.sessionState.set(nextSession);
+
+                    if (previousSession && !nextSession) {
+                        this.externalSessionClosureState.update((version) => version + 1);
+                    }
                 }
 
                 if (event.key === CHALLENGE_KEY || event.key === null) {

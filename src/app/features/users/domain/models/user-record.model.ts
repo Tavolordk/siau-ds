@@ -65,8 +65,8 @@ export interface RegistroAsignacion {
 }
 
 export interface RegistroMedioContacto {
-    readonly correo: string;
-    readonly celular: string;
+    readonly correo: string | null;
+    readonly celular: string | null;
 }
 
 export interface RegistroCuenta {

@@ -19,11 +19,11 @@
             <div class="registration-wizard__sidebar-progress">
                 <div class="registration-wizard__sidebar-progress-text">
                     <span>Progreso</span>
-                    <strong>{{ activeStepNumber() }}/{{ stepOrder.length }}</strong>
+                    <strong>{{ activeStepNumber() }}/{{ stepOrder().length }}</strong>
                 </div>
 
                 <div class="registration-wizard__sidebar-progress-track">
-                    <span [style.width.%]="(activeStepNumber() / stepOrder.length) * 100"></span>
+                    <span [style.width.%]="(activeStepNumber() / stepOrder().length) * 100"></span>
                 </div>
             </div>
         </aside>
@@ -90,7 +90,7 @@
                         <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Mínimos express' :
                             'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -155,7 +155,7 @@
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -226,7 +226,7 @@
                     </div>
 
                     <span class="registration-wizard__section-count">
-                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        {{ activeStepNumber() }} / {{ stepOrder().length }}
                     </span>
 
                     <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -327,7 +327,7 @@
                     </div>
 
                     <span class="registration-wizard__section-count">
-                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        {{ activeStepNumber() }} / {{ stepOrder().length }}
                     </span>
 
                     <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -397,10 +397,9 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Correo y celular'
-                            : 'Campos obligatorios' }}</span>
+                        <span class="registration-wizard__required-pill">Correo o celular</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -411,22 +410,19 @@
                     </div>
                 </div>
 
-                @if (form().expressCreation) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Para el endpoint <strong>registro_especial</strong> captura <strong>correo electrónico y
-                            teléfono
-                            celular</strong>.</span>
+                    <span>Captura al menos un medio de contacto: <strong>correo electrónico o teléfono celular</strong>.
+                        Puedes registrar ambos si están disponibles.</span>
                 </div>
-                }
 
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
-                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)"
+                        [required]="emailRequired()" [value]="form().email" (valueChange)="updateForm('email', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="true" [maxLength]="10"
-                        [value]="form().phone" (valueChange)="updateForm('phone', $event)"
+                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
+                        [maxLength]="10" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
@@ -450,7 +446,7 @@
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -476,6 +472,14 @@
                     <p class="registration-wizard__profiles-field-help">
                         Cada usuario puede tener múltiples sistemas con su respectivo perfil de acceso.
                     </p>
+
+                    @if (hasAssignedSiauProfile()) {
+                    <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                        <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>SIAU ya tiene un perfil asignado. Para seleccionar otro, primero elimina el perfil SIAU
+                            actual.</span>
+                    </div>
+                    }
 
                     @if (assignedSystemProfiles().length === 0) {
                     <div class="registration-wizard__profiles-empty">
@@ -511,7 +515,7 @@
                         <div class="registration-wizard__profiles-add-title">Agregar sistema</div>
 
                         <div class="registration-wizard__profiles-add-grid">
-                            <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
+                            <siau-select label="Sistema" placeholder="" [options]="availableSystemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
                                 [required]="true" [disabled]="isFormDisabled() || isSubmitting()" />
 
@@ -524,7 +528,7 @@
                             <div class="registration-wizard__profiles-add-action">
                                 <button type="button"
                                     class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
-                                    [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem() || !selectedRole() || !availableRoleOptions().length"
+                                    [disabled]="isFormDisabled() || isSubmitting() || !canAddSelectedProfile()"
                                     (click)="addAssignedProfile()">
                                     <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
                                     Agregar
@@ -552,7 +556,7 @@
                         <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Justificación
                             requerida' : 'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -716,14 +720,14 @@
                 </button>
 
                 <div class="registration-wizard__dots" aria-hidden="true">
-                    @for (step of stepOrder; track step; let index = $index) {
+                    @for (step of stepOrder(); track step; let index = $index) {
                     <span [class.registration-wizard__dot--active]="index === activeIndex()"></span>
                     }
                 </div>
 
                 <div class="registration-wizard__actions">
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                        [disabled]="activeIndex() === stepOrder.length - 1 || isSubmitting()" (click)="nextStep()">
+                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting()" (click)="nextStep()">
                         Siguiente
                         <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
                     </button>
