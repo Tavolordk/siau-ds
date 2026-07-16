@@ -20,7 +20,10 @@ import { AuthStorage } from '../data-access/auth.storage';
 import {
     DEFAULT_AUTHENTICATED_ROUTE,
     SESSION_INACTIVITY_LIMIT_MS,
+    SESSION_INACTIVITY_PROMPT_MS,
+    SESSION_MIN_REFRESH_INTERVAL_MS,
     SESSION_MONITOR_INTERVAL_MS,
+    SESSION_REFRESH_AFTER_IDLE_MS,
     SESSION_REFRESH_BEFORE_EXPIRY_MS,
     SESSION_REFRESH_GIVE_UP_BEFORE_EXPIRY_MS,
     SESSION_REFRESH_LOCK_TTL_MS,
@@ -51,6 +54,7 @@ export class AuthFacade {
     private lastActivityAt = Date.now();
     private lastRefreshAt = Date.now();
     private observedExternalSessionClosure = 0;
+    private observedExternalTabTakeover = 0;
 
     private readonly activityEvents: readonly (keyof WindowEventMap)[] = [
         'click',
@@ -76,9 +80,9 @@ export class AuthFacade {
             return;
         }
 
-        // Al volver a la pestaña: si ya se cumplió el límite de inactividad, mostrar el modal;
-        // si no, contar el regreso como actividad y renovar el token si hace falta.
-        if (Date.now() - this.lastActivityAt >= SESSION_INACTIVITY_LIMIT_MS) {
+        // Al volver a la pestaña, mostrar el aviso con margen antes de que venza
+        // el límite; si todavía hay tiempo, renovar al registrar el regreso.
+        if (this.hasReachedInactivityPrompt(Date.now() - this.lastActivityAt)) {
             this.showSessionPrompt('inactividad-al-volver-a-pestana');
             return;
         }
@@ -113,6 +117,17 @@ export class AuthFacade {
 
             this.observedExternalSessionClosure = closureVersion;
             this.forceLocalLogout('La sesión se cerró en otra pestaña.');
+        });
+
+        effect(() => {
+            const takeoverVersion = this.storage.externalTabTakeover();
+
+            if (takeoverVersion <= this.observedExternalTabTakeover) {
+                return;
+            }
+
+            this.observedExternalTabTakeover = takeoverVersion;
+            this.forceTabTakeoverLogout();
         });
     }
 
@@ -318,10 +333,9 @@ export class AuthFacade {
         const now = Date.now();
         const inactiveForMs = now - this.lastActivityAt;
 
-        // El modal solo aparece cuando realmente se cumple el limite de inactividad.
-        // lastActivityAt solo se actualiza con actividad visible, asi que el tiempo
-        // con la pestana oculta cuenta como inactividad de forma natural.
-        if (inactiveForMs >= SESSION_INACTIVITY_LIMIT_MS) {
+        // Mostrar el modal antes del límite para que el usuario pueda renovar mientras
+        // el token todavía está vigente. El tiempo con la pestaña oculta también cuenta.
+        if (this.hasReachedInactivityPrompt(inactiveForMs)) {
             this.showSessionPrompt(`inactividad-${Math.round(inactiveForMs / 1000)}s`);
             return;
         }
@@ -453,13 +467,31 @@ export class AuthFacade {
         }
 
         const now = Date.now();
+        const inactiveForMs = now - this.lastActivityAt;
+
+        if (this.hasReachedInactivityPrompt(inactiveForMs)) {
+            this.showSessionPrompt('inactividad-detectada-al-regresar');
+            return;
+        }
+
         this.lastActivityAt = now;
 
         const currentSession = this.session();
+        const refreshAgeMs = now - this.lastRefreshAt;
+        const returnedAfterIdle =
+            inactiveForMs >= SESSION_REFRESH_AFTER_IDLE_MS &&
+            refreshAgeMs >= SESSION_MIN_REFRESH_INTERVAL_MS;
 
-        if (currentSession && this.shouldRefreshSession(currentSession, now)) {
+        if (currentSession && (returnedAfterIdle || this.shouldRefreshSession(currentSession, now))) {
             this.refreshActiveSessionSilently();
         }
+    }
+
+    private hasReachedInactivityPrompt(inactiveForMs: number): boolean {
+        return inactiveForMs >= Math.min(
+            SESSION_INACTIVITY_PROMPT_MS,
+            SESSION_INACTIVITY_LIMIT_MS,
+        );
     }
 
     private shouldRefreshSession(session: AuthSession, now = Date.now()): boolean {
@@ -476,7 +508,7 @@ export class AuthFacade {
 
         // Guarda anti-bucle: si acabamos de renovar hace menos de un minuto,
         // no volver a renovar aunque expiresAtUtc parezca vencido (dato poco confiable).
-        if (refreshAgeMs < 60 * 1000) {
+        if (refreshAgeMs < SESSION_MIN_REFRESH_INTERVAL_MS) {
             return false;
         }
 
@@ -548,6 +580,16 @@ export class AuthFacade {
         this.sessionPromptErrorState.set(null);
         this.storage.clearAll();
         this.errorState.set(message);
+        void this.router.navigateByUrl('/login');
+    }
+
+    private forceTabTakeoverLogout(): void {
+        this.stopSessionMonitor();
+        this.sessionPromptVisibleState.set(false);
+        this.sessionPromptLoadingState.set(false);
+        this.sessionPromptErrorState.set(null);
+        this.storage.clearLocalAuthState();
+        this.errorState.set('Esta pestaña se cerró porque la sesión se abrió en otra pestaña.');
         void this.router.navigateByUrl('/login');
     }
 

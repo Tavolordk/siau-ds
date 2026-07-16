@@ -6,8 +6,14 @@ export const DEFAULT_AUTHENTICATED_ROUTE = '/solicitudes';
 // Después de validar el flujo, regresar este valor a 13 * 60 * 1000.
 export const SESSION_TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 export const SESSION_REFRESH_BEFORE_EXPIRY_MS = 5 * 60 * 1000;
-// Si pasan 15 minutos sin actividad visible del usuario, se muestra el modal.
+// La sesión admite hasta 15 minutos sin actividad visible del usuario.
 export const SESSION_INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+// Mostrar el aviso a los 8 minutos para renovarla antes de que el backend la invalide.
+export const SESSION_INACTIVITY_PROMPT_MS = 8 * 60 * 1000;
+// Al volver después de esta pausa, renovar inmediatamente sin esperar al monitor.
+export const SESSION_REFRESH_AFTER_IDLE_MS = 2 * 60 * 1000;
+// Evita disparar renovaciones consecutivas por movimientos repetidos del usuario.
+export const SESSION_MIN_REFRESH_INTERVAL_MS = 60 * 1000;
 
 // Frecuencia ligera para revisar inactividad, pestaña oculta y refresh automático.
 export const SESSION_MONITOR_INTERVAL_MS = 30 * 1000;

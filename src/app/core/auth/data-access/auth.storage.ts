@@ -4,6 +4,13 @@ import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model'
 const SESSION_KEY = 'siau.auth.session';
 const CHALLENGE_KEY = 'siau.auth.challenge';
 const REFRESH_LOCK_KEY = 'siau.auth.refresh-lock';
+const ACTIVE_TAB_KEY = 'siau.auth.active-tab';
+
+interface ActiveTabRecord {
+    tabId: string;
+    claimedAt: number;
+    nonce: string;
+}
 
 interface RefreshLockRecord {
     owner: string;
@@ -31,31 +38,50 @@ export class AuthStorage {
     private readonly sessionState = signal<AuthSession | null>(this.readSessionFromStorage());
     private readonly challengeState = signal<PendingAuthChallenge | null>(this.readChallengeFromStorage());
     private readonly externalSessionClosureState = signal(0);
+    private readonly externalTabTakeoverState = signal(0);
 
     readonly session = this.sessionState.asReadonly();
     readonly challenge = this.challengeState.asReadonly();
     readonly externalSessionClosure = this.externalSessionClosureState.asReadonly();
+    readonly externalTabTakeover = this.externalTabTakeoverState.asReadonly();
 
     constructor() {
-        // Cada pestaña adopta inmediatamente la sesión más nueva. Esto es indispensable
-        // porque el backend rota el refresh token después de cada renovación.
         if (typeof window !== 'undefined') {
             window.addEventListener('storage', (event: StorageEvent) => {
+                if (event.key === ACTIVE_TAB_KEY || event.key === null) {
+                    this.handleActiveTabChange();
+                }
+
                 if (event.key === SESSION_KEY || event.key === null) {
                     const previousSession = this.sessionState();
                     const nextSession = this.readSessionFromStorage();
 
-                    this.sessionState.set(nextSession);
+                    if (!nextSession) {
+                        this.sessionState.set(null);
 
-                    if (previousSession && !nextSession) {
-                        this.externalSessionClosureState.update((version) => version + 1);
+                        if (previousSession) {
+                            this.externalSessionClosureState.update((version) => version + 1);
+                        }
+                    } else if (this.isCurrentTabOwner()) {
+                        // Solo la pestaña propietaria puede adoptar tokens renovados.
+                        // Una pestaña expulsada nunca debe recuperar la sesión por un
+                        // cambio posterior de localStorage.
+                        this.sessionState.set(nextSession);
                     }
                 }
 
                 if (event.key === CHALLENGE_KEY || event.key === null) {
-                    this.challengeState.set(this.readChallengeFromStorage());
+                    if (this.isCurrentTabOwner() || !this.readSessionFromStorage()) {
+                        this.challengeState.set(this.readChallengeFromStorage());
+                    }
                 }
             });
+
+            // Si la nueva pestaña encuentra una sesión existente, toma su propiedad.
+            // El cambio en ACTIVE_TAB_KEY expulsa inmediatamente a la pestaña anterior.
+            if (this.sessionState()) {
+                this.claimTabOwnership();
+            }
         }
     }
 
@@ -87,6 +113,11 @@ export class AuthStorage {
      * para no reutilizar un token que otra pestaña ya cambió.
      */
     readLatestSession(): AuthSession | null {
+        if (!this.isCurrentTabOwner()) {
+            this.sessionState.set(null);
+            return null;
+        }
+
         const latestSession = this.readSessionFromStorage();
         this.sessionState.set(latestSession);
         return latestSession;
@@ -103,23 +134,72 @@ export class AuthStorage {
     }
 
     saveSession(session: AuthSession): void {
+        this.claimTabOwnership();
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         this.sessionState.set(session);
         this.clearChallenge();
     }
 
     updateSession(session: AuthSession): void {
-        this.saveSession(session);
+        if (!this.isCurrentTabOwner()) {
+            this.sessionState.set(null);
+            return;
+        }
+
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        this.sessionState.set(session);
     }
 
     clearSession(): void {
-        localStorage.removeItem(SESSION_KEY);
+        if (this.isCurrentTabOwner()) {
+            localStorage.removeItem(SESSION_KEY);
+            this.releaseTabOwnership();
+        }
+
         this.sessionState.set(null);
     }
 
     clearAll(): void {
         this.clearSession();
         this.clearChallenge();
+    }
+
+    clearLocalAuthState(): void {
+        this.sessionState.set(null);
+        this.challengeState.set(null);
+    }
+
+    private handleActiveTabChange(): void {
+        const activeTab = this.readActiveTab();
+
+        if (!activeTab || activeTab.tabId === this.tabId || !this.sessionState()) {
+            return;
+        }
+
+        this.clearLocalAuthState();
+        this.externalTabTakeoverState.update((version) => version + 1);
+    }
+
+    private claimTabOwnership(): void {
+        const record: ActiveTabRecord = {
+            tabId: this.tabId,
+            claimedAt: Date.now(),
+            nonce: this.createUniqueId('owner'),
+        };
+
+        localStorage.setItem(ACTIVE_TAB_KEY, JSON.stringify(record));
+    }
+
+    private releaseTabOwnership(): void {
+        const activeTab = this.readActiveTab();
+
+        if (activeTab?.tabId === this.tabId) {
+            localStorage.removeItem(ACTIVE_TAB_KEY);
+        }
+    }
+
+    private isCurrentTabOwner(): boolean {
+        return this.readActiveTab()?.tabId === this.tabId;
     }
 
     private async runWithLocalStorageLock<T>(ttlMs: number, operation: () => Promise<T>): Promise<T> {
@@ -190,6 +270,10 @@ export class AuthStorage {
 
     private readRefreshLock(): RefreshLockRecord | null {
         return this.readJson<RefreshLockRecord>(REFRESH_LOCK_KEY);
+    }
+
+    private readActiveTab(): ActiveTabRecord | null {
+        return this.readJson<ActiveTabRecord>(ACTIVE_TAB_KEY);
     }
 
     private readSessionFromStorage(): AuthSession | null {
