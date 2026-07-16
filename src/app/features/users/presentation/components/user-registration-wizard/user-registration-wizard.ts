@@ -29,6 +29,7 @@ import {
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroAsignacion,
+    RegistroCuenta,
     RegistroEspecialRequest,
     RegistroEspecialResponse,
     RegistroMedioContacto,
@@ -123,7 +124,8 @@ interface SaveSuccessModalState {
     readonly isExpress: boolean;
 }
 
-const DEFAULT_EXPRESS_PASSWORD = 'SSPC-PMex-2025';
+const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
+const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
 
 const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
     'personal-data',
@@ -249,8 +251,8 @@ export class UserRegistrationWizard {
         this.isFederalInstitutionValue(this.form().commissionInstitutionType),
     );
 
-    protected readonly emailRequired = computed(() => !this.hasText(this.form().phone));
-    protected readonly phoneRequired = computed(() => !this.hasText(this.form().email));
+    protected readonly emailRequired = computed(() => true);
+    protected readonly phoneRequired = computed(() => true);
 
     protected readonly hasAssignedSiauProfile = computed(() =>
         this.assignedSystemProfiles().some((profile) =>
@@ -258,20 +260,18 @@ export class UserRegistrationWizard {
         ),
     );
 
-    protected readonly availableSystemOptions = computed<readonly SiauSelectOption[]>(() => {
-        if (!this.hasAssignedSiauProfile()) {
-            return this.systemOptions();
-        }
-
-        return this.systemOptions().filter(
-            (option) => !this.isSiauSystem(option.value, option.label),
-        );
-    });
+    protected readonly isSelectedSiauBlocked = computed(() =>
+        this.hasAssignedSiauProfile() && this.isSiauSystem(this.selectedSystem()),
+    );
 
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
 
         if (!system) {
+            return [];
+        }
+
+        if (this.isSelectedSiauBlocked()) {
             return [];
         }
 
@@ -293,12 +293,7 @@ export class UserRegistrationWizard {
             return false;
         }
 
-        if (
-            this.isSiauSystem(system) &&
-            this.assignedSystemProfiles().some((profile) =>
-                this.isSiauSystem(profile.system, profile.systemLabel),
-            )
-        ) {
+        if (this.isSelectedSiauBlocked()) {
             return false;
         }
 
@@ -1072,10 +1067,6 @@ export class UserRegistrationWizard {
                 this.isSiauSystem(profile.system, profile.systemLabel),
             )
         ) {
-            this.formErrors.update((current) => ({
-                ...current,
-                profiles: 'SIAU solo permite un perfil por usuario. Elimina el perfil actual para elegir otro.',
-            }));
             return;
         }
 
@@ -1093,10 +1084,6 @@ export class UserRegistrationWizard {
 
 
         if (this.isRoleAlreadyAssigned(system, roleOption)) {
-            this.formErrors.update((current) => ({
-                ...current,
-                profiles: 'Ese perfil ya está agregado para el sistema seleccionado.',
-            }));
             return;
         }
 
@@ -1175,9 +1162,8 @@ export class UserRegistrationWizard {
         const current = this.form();
         const isExpress = current.expressCreation;
         const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
-        const password = this.toText(current.password);
 
-        if (!assignedProfile && !isExpress) {
+        if (!assignedProfile) {
             throw new Error('Selecciona al menos un sistema y perfil.');
         }
 
@@ -1218,23 +1204,13 @@ export class UserRegistrationWizard {
             },
             comision: this.buildCommissionRequest(),
             medioContacto: this.buildContactRequest(),
-            cuenta: {
-                password: password || null,
-                passwordHash: password || null,
-                tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
-                sistemaId: assignedProfile
-                    ? this.resolveAssignedSystemId(assignedProfile)
-                    : this.resolveDefaultCatalogId(this.systemOptions(), 1),
-                perfilId: assignedProfile
-                    ? this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.')
-                    : this.resolveDefaultCatalogId(this.roleOptions(), 1),
-            },
+            cuenta: this.buildAccountRequest(assignedProfile),
             comentario: isExpress
                 ? this.requireText(
                     current.expressJustification,
                     'Captura la justificación de la creación express.',
                 )
-                : this.toNullableText(current.expressJustification),
+                : this.toText(current.expressJustification),
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
                 correlationId: `siau-admin-${Date.now()}`,
@@ -1362,7 +1338,6 @@ export class UserRegistrationWizard {
     private buildCreateSpecialUserRequest(): RegistroEspecialRequest {
         const current = this.form();
         const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
-        const password = this.toText(current.password) || DEFAULT_EXPRESS_PASSWORD;
 
         if (!assignedProfile) {
             throw new Error('Selecciona al menos un sistema y perfil.');
@@ -1379,13 +1354,7 @@ export class UserRegistrationWizard {
             },
             comision: this.buildSpecialCommissionRequest(),
             medioContacto: this.buildContactRequest(),
-            cuenta: {
-                password: password || null,
-                passwordHash: password || null,
-                tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
-                sistemaId: this.resolveAssignedSystemId(assignedProfile),
-                perfilId: this.requireCatalogId(assignedProfile.role, 'Selecciona un perfil válido.'),
-            },
+            cuenta: this.buildAccountRequest(assignedProfile),
             comentario: this.requireText(
                 current.expressJustification,
                 'Captura la justificación de la creación express.',
@@ -1413,18 +1382,33 @@ export class UserRegistrationWizard {
         };
     }
 
+    private buildAccountRequest(assignedProfile: AssignedSystemProfile): RegistroCuenta {
+        const password = this.toText(this.form().password) || DEFAULT_ACCOUNT_PASSWORD;
+
+        return {
+            password,
+            passwordHash: DEFAULT_ACCOUNT_PASSWORD_HASH,
+            tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+            sistemaId: this.resolveAssignedSystemId(assignedProfile),
+            perfilId: this.requireCatalogId(
+                assignedProfile.role,
+                'Selecciona un perfil válido.',
+            ),
+        };
+    }
+
     private buildContactRequest(): RegistroMedioContacto {
         const current = this.form();
         const correo = this.normalizeEmail(current.email);
         const celular = this.toText(current.phone);
 
-        if (!correo && !celular) {
-            throw new Error('Captura al menos un medio de contacto: correo o teléfono celular.');
+        if (!correo || !celular) {
+            throw new Error('Captura el correo electrónico y el teléfono celular.');
         }
 
         return {
-            correo: correo || null,
-            celular: celular || null,
+            correo,
+            celular,
         };
     }
 
@@ -2608,8 +2592,12 @@ export class UserRegistrationWizard {
             const hasEmail = this.hasText(current.email);
             const hasPhone = this.hasText(current.phone);
 
-            if (!hasEmail && !hasPhone) {
-                nextErrors['email'] = 'Captura al menos un medio de contacto: correo o teléfono celular.';
+            if (!hasEmail) {
+                nextErrors['email'] = 'El correo electrónico es obligatorio.';
+            }
+
+            if (!hasPhone) {
+                nextErrors['phone'] = 'El teléfono celular es obligatorio.';
             }
 
             if (hasEmail && !this.isValidEmail(current.email)) {

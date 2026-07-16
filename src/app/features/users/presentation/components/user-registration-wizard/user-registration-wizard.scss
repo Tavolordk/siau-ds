@@ -1271,18 +1271,29 @@
 .registration-wizard__profiles-add-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: start;
   gap: 12px;
 }
 
 .registration-wizard__profiles-add-action {
   display: flex;
-  align-items: end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--siau-space-2);
+}
+
+.registration-wizard__profiles-add-action::before {
+  content: 'Acción';
+  visibility: hidden;
+  color: var(--siau-color-primary-500);
+  font-size: var(--siau-text-sm);
+  font-weight: var(--siau-font-weight-semibold);
+  line-height: normal;
 }
 
 .registration-wizard__button--add {
   min-width: 96px;
-  height: 41px;
+  height: 2.65rem;
 }
 
 .registration-wizard__button--add:disabled {
@@ -1298,6 +1309,10 @@
 
   .registration-wizard__profiles-add-action {
     width: 100%;
+  }
+
+  .registration-wizard__profiles-add-action::before {
+    display: none;
   }
 
   .registration-wizard__button--add {

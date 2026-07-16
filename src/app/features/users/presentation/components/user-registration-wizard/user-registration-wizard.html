@@ -66,7 +66,8 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Solo serán obligatorios nombre, primer apellido, adscripción y correo o celular. Al final
+                        <small>Solo serán obligatorios nombre, primer apellido, adscripción, correo y teléfono celular.
+                            Al final
                             deberás capturar una justificación.</small>
                     </span>
                 </label>
@@ -397,7 +398,7 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">Correo o celular</span>
+                        <span class="registration-wizard__required-pill">Correo y celular obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
@@ -412,8 +413,7 @@
 
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Captura al menos un medio de contacto: <strong>correo electrónico o teléfono celular</strong>.
-                        Puedes registrar ambos si están disponibles.</span>
+                    <span>El <strong>correo electrónico y el teléfono celular son obligatorios</strong>.</span>
                 </div>
 
                 <div class="registration-wizard__grid">
@@ -515,14 +515,15 @@
                         <div class="registration-wizard__profiles-add-title">Agregar sistema</div>
 
                         <div class="registration-wizard__profiles-add-grid">
-                            <siau-select label="Sistema" placeholder="" [options]="availableSystemOptions()"
+                            <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
                                 [required]="true" [disabled]="isFormDisabled() || isSubmitting()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
-                                [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem()" />
+                                [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem() || isSelectedSiauBlocked()"
+                                [hint]="isSelectedSiauBlocked() ? 'Elimina el perfil SIAU actual antes de agregar otro.' : null" />
                             }
 
                             <div class="registration-wizard__profiles-add-action">
