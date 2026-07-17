@@ -576,7 +576,8 @@
                             </label>
 
                             <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
-                                [value]="form().username" [disabled]="isFormDisabled() || isSubmitting()"
+                                [value]="form().username"
+                                [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                 (input)="updateForm('username', $any($event.target).value)" />
                         </div>
 
@@ -589,12 +590,12 @@
                                 <input [type]="showPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Mínimo 8 caracteres" [value]="form().password"
-                                    [disabled]="isFormDisabled() || isSubmitting()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                     (input)="updateForm('password', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting()" (click)="togglePasswordVisibility()"
-                                    aria-label="Mostrar u ocultar contraseña">
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                    (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
                                     <siau-lucide-icon [name]="showPassword() ? 'eye-off' : 'eye'" size="16"
                                         strokeWidth="2" aria-hidden="true" />
                                 </button>
@@ -610,11 +611,11 @@
                                 <input [type]="showConfirmPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Repite la contraseña" [value]="form().confirmPassword"
-                                    [disabled]="isFormDisabled() || isSubmitting()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                     (input)="updateForm('confirmPassword', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                     (click)="toggleConfirmPasswordVisibility()"
                                     aria-label="Mostrar u ocultar confirmación de contraseña">
                                     <siau-lucide-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" size="16"
