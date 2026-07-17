@@ -18,6 +18,7 @@ export class CaptchaFacade implements OnDestroy {
     private readonly remainingSecondsState = signal(0);
 
     private expirationTimerId: ReturnType<typeof setInterval> | null = null;
+    private active = false;
 
     readonly challenge = this.challengeState.asReadonly();
     readonly loading = this.loadingState.asReadonly();
@@ -31,10 +32,11 @@ export class CaptchaFacade implements OnDestroy {
     readonly expirationLabel = computed(() => this.formatRemainingTime(this.remainingSeconds()));
 
     ngOnDestroy(): void {
-        this.stopExpirationTimer();
+        this.deactivate();
     }
 
     load(options?: CaptchaGenerationOptions): void {
+        this.active = true;
         this.loadingState.set(true);
         this.errorState.set(null);
 
@@ -43,11 +45,19 @@ export class CaptchaFacade implements OnDestroy {
             .pipe(finalize(() => this.loadingState.set(false)))
             .subscribe({
                 next: (challenge) => {
+                    if (!this.active) {
+                        return;
+                    }
+
                     this.challengeState.set(challenge);
                     this.errorState.set(null);
                     this.startExpirationTimer(challenge);
                 },
                 error: (error: Error) => {
+                    if (!this.active) {
+                        return;
+                    }
+
                     this.challengeState.set(null);
                     this.remainingSecondsState.set(0);
                     this.stopExpirationTimer();
@@ -57,7 +67,24 @@ export class CaptchaFacade implements OnDestroy {
     }
 
     refresh(options?: CaptchaGenerationOptions): void {
+        if (!this.active) {
+            return;
+        }
+
         this.load(options);
+    }
+
+    /**
+     * Detiene por completo el captcha al abandonar la pantalla de inicio de sesión.
+     * CaptchaFacade es singleton, por lo que Angular no ejecuta ngOnDestroy al cambiar
+     * de ruta y debemos finalizar explícitamente su temporizador.
+     */
+    deactivate(): void {
+        this.active = false;
+        this.stopExpirationTimer();
+        this.challengeState.set(null);
+        this.remainingSecondsState.set(0);
+        this.errorState.set(null);
     }
 
     verifyAnswer(answer: string): Observable<CaptchaVerification> {
@@ -127,7 +154,7 @@ export class CaptchaFacade implements OnDestroy {
     }
 
     private refreshExpiredCaptcha(): void {
-        if (this.loadingState() || this.verifyingState()) {
+        if (!this.active || this.loadingState() || this.verifyingState()) {
             return;
         }
 

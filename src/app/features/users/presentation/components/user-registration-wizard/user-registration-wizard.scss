@@ -1271,18 +1271,29 @@
 .registration-wizard__profiles-add-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: start;
   gap: 12px;
 }
 
 .registration-wizard__profiles-add-action {
   display: flex;
-  align-items: end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--siau-space-2);
+}
+
+.registration-wizard__profiles-add-action::before {
+  content: 'Acción';
+  visibility: hidden;
+  color: var(--siau-color-primary-500);
+  font-size: var(--siau-text-sm);
+  font-weight: var(--siau-font-weight-semibold);
+  line-height: normal;
 }
 
 .registration-wizard__button--add {
   min-width: 96px;
-  height: 41px;
+  height: 2.65rem;
 }
 
 .registration-wizard__button--add:disabled {
@@ -1300,6 +1311,10 @@
     width: 100%;
   }
 
+  .registration-wizard__profiles-add-action::before {
+    display: none;
+  }
+
   .registration-wizard__button--add {
     width: 100%;
   }
@@ -1312,6 +1327,152 @@
     flex-wrap: wrap;
   }
 }
+
+/* =========================================================
+   CONSULTA DE CURP EN RENAPO
+========================================================= */
+
+.registration-wizard__curp-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.registration-wizard__curp-unlock {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(27, 31, 74, 0.68);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.registration-wizard__curp-unlock input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.registration-wizard__curp-unlock-check {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border: 1px solid rgba(98, 116, 142, 0.55);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.registration-wizard__curp-unlock input:checked + .registration-wizard__curp-unlock-check {
+  border-color: rgb(27, 31, 74);
+  background: rgb(27, 31, 74);
+}
+
+.registration-wizard__curp-unlock input:focus-visible + .registration-wizard__curp-unlock-check {
+  box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.12);
+}
+
+.registration-wizard__curp-unlock:has(input:disabled) {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.registration-wizard__renapo-status {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border: 1px solid rgba(160, 178, 187, 0.42);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  color: rgb(27, 31, 74);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.registration-wizard__renapo-status-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 9px;
+  background: rgba(27, 31, 74, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-wizard__renapo-status > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.registration-wizard__renapo-status strong {
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.registration-wizard__renapo-status span:not(.registration-wizard__renapo-status-icon) {
+  color: rgba(27, 31, 74, 0.65);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.registration-wizard__renapo-status--loading
+  .registration-wizard__renapo-status-icon
+  siau-lucide-icon {
+  display: inline-flex;
+  animation: registration-wizard-renapo-spin 900ms linear infinite;
+}
+
+.registration-wizard__renapo-status--success {
+  border-color: rgba(26, 127, 82, 0.28);
+  background: rgba(44, 189, 122, 0.08);
+  color: rgb(26, 127, 82);
+}
+
+.registration-wizard__renapo-status--success .registration-wizard__renapo-status-icon {
+  background: rgba(44, 189, 122, 0.13);
+}
+
+.registration-wizard__renapo-status--warning {
+  border-color: rgba(173, 111, 20, 0.3);
+  background: rgba(245, 177, 61, 0.09);
+  color: rgb(146, 88, 9);
+}
+
+.registration-wizard__renapo-status--warning .registration-wizard__renapo-status-icon {
+  background: rgba(245, 177, 61, 0.15);
+}
+
+.registration-wizard__renapo-status--error {
+  border-color: rgba(159, 45, 66, 0.27);
+  background: rgba(159, 45, 66, 0.07);
+  color: rgb(139, 35, 55);
+}
+
+.registration-wizard__renapo-status--error .registration-wizard__renapo-status-icon {
+  background: rgba(159, 45, 66, 0.12);
+}
+
+@keyframes registration-wizard-renapo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* =========================================================
    CREACIÓN EXPRESS
 ========================================================= */
@@ -1441,4 +1602,114 @@
   .registration-wizard__express-toggle {
     align-items: flex-start;
   }
+}
+
+.registration-wizard__success-modal {
+  padding: 24px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  background:
+    radial-gradient(circle at top, rgba(44, 189, 122, 0.16), transparent 34%), rgb(241, 247, 251);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+}
+
+.registration-wizard__success-icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(26, 127, 82);
+  background: rgba(44, 189, 122, 0.12);
+  border: 1px solid rgba(44, 189, 122, 0.28);
+  box-shadow:
+    0 16px 34px rgba(26, 127, 82, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.registration-wizard__success-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.registration-wizard__success-heading h3 {
+  margin: 0;
+  color: rgb(27, 31, 74);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.registration-wizard__success-heading p {
+  margin: 0;
+  color: rgba(27, 31, 74, 0.62);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.registration-wizard__success-user {
+  width: 100%;
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+  border-radius: 16px;
+  border: 1px solid rgba(160, 178, 187, 0.45);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.registration-wizard__success-user span {
+  color: rgba(27, 31, 74, 0.52);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.registration-wizard__success-user strong {
+  color: rgb(27, 31, 74);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.registration-wizard__success-detail {
+  width: 100%;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.registration-wizard__success-detail div {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.registration-wizard__success-detail dt {
+  margin: 0 0 3px;
+  color: rgba(27, 31, 74, 0.46);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.registration-wizard__success-detail dd {
+  margin: 0;
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.registration-wizard__success-modal .registration-wizard__button {
+  width: 100%;
+  justify-content: center;
 }

@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, throwError } from 'rxjs';
 import { CONSULTAS_API_BASE_URL } from '../../../core/http/consultas-api-base-url.token';
 import {
+    ActualizarAdminRequest,
+    ActualizarAdminResponse,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroEspecialRequest,
@@ -19,6 +21,7 @@ import {
 const USERS_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
 const REGISTRO_ESPECIAL_PATH = '/api/v1/registro/registro_especial';
+const ACTUALIZAR_ADMIN_PATH = '/api/v1/solicitudes/actualizar_admin';
 const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
 const SOLICITUD_SUSPENDER_PATH = '/api/v1/solicitudes/suspender';
 const SOLICITUD_REACTIVAR_PATH = '/api/v1/solicitudes/reactivar';
@@ -80,63 +83,144 @@ export class UsersApiRepository {
                 params: this.toHttpParams(query),
             })
             .pipe(
-                map((response) => this.unwrapResponse(response, 'No fue posible consultar usuarios.')),
+                map((response) =>
+                    this.unwrapResponse(
+                        response,
+                        'No fue posible consultar usuarios.',
+                    ),
+                ),
                 map((response) => this.toUsersPageResult(response, query)),
-                catchError((error: unknown) => this.handleError(error, 'No fue posible consultar usuarios.')),
-            );
-    }
-
-    createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
-        return this.http
-            .post<RegistroAdminResponse>(`${this.baseUrl}${REGISTRO_ADMIN_PATH}`, request)
-            .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible registrar el usuario.'),
+                    this.handleError(
+                        error,
+                        'No fue posible consultar usuarios.',
+                    ),
                 ),
             );
     }
 
-    createSpecialUser(request: RegistroEspecialRequest): Observable<RegistroEspecialResponse> {
+    createAdminUser(
+        request: RegistroAdminRequest,
+    ): Observable<RegistroAdminResponse> {
         return this.http
-            .post<RegistroEspecialResponse>(`${this.baseUrl}${REGISTRO_ESPECIAL_PATH}`, request)
+            .post<RegistroAdminResponse>(
+                `${this.baseUrl}${REGISTRO_ADMIN_PATH}`,
+                request,
+            )
             .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible registrar el usuario express.'),
+                    this.handleError(
+                        error,
+                        'No fue posible registrar el usuario.',
+                    ),
                 ),
             );
     }
 
-    darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+    createSpecialUser(
+        request: RegistroEspecialRequest,
+    ): Observable<RegistroEspecialResponse> {
         return this.http
-            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_BAJA_PATH}`, request)
+            .post<RegistroEspecialResponse>(
+                `${this.baseUrl}${REGISTRO_ESPECIAL_PATH}`,
+                request,
+            )
             .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible dar de baja al usuario.'),
+                    this.handleError(
+                        error,
+                        'No fue posible registrar el usuario express.',
+                    ),
                 ),
             );
     }
 
-    suspenderUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+    updateAdminUser(
+        request: ActualizarAdminRequest,
+    ): Observable<ActualizarAdminResponse> {
         return this.http
-            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_SUSPENDER_PATH}`, request)
+            .patch<ActualizarAdminResponse>(
+                `${this.baseUrl}${ACTUALIZAR_ADMIN_PATH}`,
+                request,
+            )
             .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible inhabilitar al usuario.'),
+                    this.handleError(
+                        error,
+                        'No fue posible actualizar el usuario.',
+                    ),
                 ),
             );
     }
 
-    reactivarUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
+    darDeBajaUsuario(
+        request: SolicitudOperacionRequest,
+    ): Observable<SolicitudOperacionResponse> {
         return this.http
-            .patch<SolicitudOperacionResponse>(`${this.baseUrl}${SOLICITUD_REACTIVAR_PATH}`, request)
+            .patch<SolicitudOperacionResponse>(
+                `${this.baseUrl}${SOLICITUD_BAJA_PATH}`,
+                request,
+            )
             .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible habilitar al usuario.'),
+                    this.handleError(
+                        error,
+                        'No fue posible dar de baja al usuario.',
+                    ),
+                ),
+            );
+    }
+
+    suspenderUsuario(
+        request: SolicitudOperacionRequest,
+    ): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(
+                `${this.baseUrl}${SOLICITUD_SUSPENDER_PATH}`,
+                request,
+            )
+            .pipe(
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
+                catchError((error: unknown) =>
+                    this.handleError(
+                        error,
+                        'No fue posible inhabilitar al usuario.',
+                    ),
+                ),
+            );
+    }
+
+    reactivarUsuario(
+        request: SolicitudOperacionRequest,
+    ): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(
+                `${this.baseUrl}${SOLICITUD_REACTIVAR_PATH}`,
+                request,
+            )
+            .pipe(
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
+                catchError((error: unknown) =>
+                    this.handleError(
+                        error,
+                        'No fue posible habilitar al usuario.',
+                    ),
                 ),
             );
     }
@@ -144,23 +228,43 @@ export class UsersApiRepository {
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.http
             .get<ApiResponseDto<UserDetailResponseDto>>(
-                `${this.baseUrl}${USERS_PATH}/${encodeURIComponent(String(userId))}`,
+                `${this.baseUrl}${USERS_PATH}/${encodeURIComponent(
+                    String(userId),
+                )}`,
             )
             .pipe(
-                map((response) => this.unwrapResponse(response, 'No fue posible consultar el detalle del usuario.')),
+                map((response) =>
+                    this.unwrapResponse(
+                        response,
+                        'No fue posible consultar el detalle del usuario.',
+                    ),
+                ),
                 map((response) => ({
                     userId,
                     datos: response.datos ?? {},
                 })),
                 catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible consultar el detalle del usuario.'),
+                    this.handleError(
+                        error,
+                        'No fue posible consultar el detalle del usuario.',
+                    ),
                 ),
             );
     }
 
-    private toUsersPageResult(response: UsersResponseDto, query: UsersQuery): UsersPageResult {
-        const usuarios = (response.usuarios ?? []).map((user) => this.toUserRecord(user));
-        const paginacion = this.toPagination(response.paginacion, query, usuarios.length);
+    private toUsersPageResult(
+        response: UsersResponseDto,
+        query: UsersQuery,
+    ): UsersPageResult {
+        const usuarios = (response.usuarios ?? []).map((user) =>
+            this.toUserRecord(user),
+        );
+
+        const paginacion = this.toPagination(
+            response.paginacion,
+            query,
+            usuarios.length,
+        );
 
         return {
             usuarios,
@@ -170,15 +274,35 @@ export class UsersApiRepository {
 
     private toUserRecord(user: UserListItemDto): UserRecord {
         const userId = this.toNumber(user.usuarioId, 0);
-        const username = this.normalizeText(user.nombreUsuario) || `usuario-${userId}`;
-        const fullName = this.normalizeText(user.nombreCompleto) || 'Sin nombre';
-        const email = this.normalizeText(user.correo) || 'Sin correo';
-        const role = this.normalizeText(user.rol) || this.normalizeText(user.rolClave) || 'Sin rol';
+
+        const username =
+            this.normalizeText(user.nombreUsuario) || `usuario-${userId}`;
+
+        const fullName =
+            this.normalizeText(user.nombreCompleto) || 'Sin nombre';
+
+        const email =
+            this.normalizeText(user.correo) || 'Sin correo';
+
+        const role =
+            this.normalizeText(user.rol) ||
+            this.normalizeText(user.rolClave) ||
+            'Sin rol';
+
         const roleKey = this.normalizeText(user.rolClave);
-        const status = this.normalizeText(user.estatus) || this.normalizeText(user.estatusClave) || 'Sin estatus';
+
+        const status =
+            this.normalizeText(user.estatus) ||
+            this.normalizeText(user.estatusClave) ||
+            'Sin estatus';
+
         const statusKey = this.normalizeText(user.estatusClave);
-        const rnpsp = this.normalizeText(user.rnpsp) || 'No registrado';
-        const trust = this.normalizeText(user.cConfianza) || 'No capturado';
+
+        const rnpsp =
+            this.normalizeText(user.rnpsp) || 'No registrado';
+
+        const trust =
+            this.normalizeText(user.cConfianza) || 'No capturado';
 
         return {
             userId,
@@ -201,12 +325,26 @@ export class UsersApiRepository {
         query: UsersQuery,
         currentCount: number,
     ): UserPagination {
-        const currentPage = this.toNumber(pagination?.paginaActual, query.pagina ?? 1);
-        const pageSize = this.toNumber(pagination?.porPagina, query.porPagina ?? currentCount);
-        const totalRecords = this.toNumber(pagination?.totalRegistros, currentCount);
+        const currentPage = this.toNumber(
+            pagination?.paginaActual,
+            query.pagina ?? 1,
+        );
+
+        const pageSize = this.toNumber(
+            pagination?.porPagina,
+            query.porPagina ?? currentCount,
+        );
+
+        const totalRecords = this.toNumber(
+            pagination?.totalRegistros,
+            currentCount,
+        );
+
         const totalPages = this.toNumber(
             pagination?.totalPaginas,
-            pageSize > 0 ? Math.max(1, Math.ceil(totalRecords / pageSize)) : 1,
+            pageSize > 0
+                ? Math.max(1, Math.ceil(totalRecords / pageSize))
+                : 1,
         );
 
         return {
@@ -221,7 +359,11 @@ export class UsersApiRepository {
         let params = new HttpParams();
 
         Object.entries(query).forEach(([key, value]) => {
-            if (value !== undefined && value !== null && value !== '') {
+            if (
+                value !== undefined &&
+                value !== null &&
+                value !== ''
+            ) {
                 params = params.set(key, String(value));
             }
         });
@@ -229,37 +371,68 @@ export class UsersApiRepository {
         return params;
     }
 
-    private unwrapResponse<T>(response: ApiResponseDto<T>, fallbackMessage: string): T {
+    private unwrapResponse<T>(
+        response: ApiResponseDto<T>,
+        fallbackMessage: string,
+    ): T {
         if (response.success && response.data) {
             return response.data;
         }
 
         const apiMessage =
-            response.errors?.find((error) => error.detail || error.message)?.detail ??
-            response.errors?.find((error) => error.message)?.message ??
+            response.errors?.find(
+                (error) => error.detail || error.message,
+            )?.detail ??
+            response.errors?.find(
+                (error) => error.message,
+            )?.message ??
             fallbackMessage;
 
         throw new Error(apiMessage);
     }
 
-    private handleError(error: unknown, fallbackMessage: string): Observable<never> {
-        if (error instanceof Error && !(error instanceof HttpErrorResponse)) {
+    private handleError(
+        error: unknown,
+        fallbackMessage: string,
+    ): Observable<never> {
+        if (
+            error instanceof Error &&
+            !(error instanceof HttpErrorResponse)
+        ) {
             return throwError(() => error);
         }
 
         if (error instanceof HttpErrorResponse) {
-            return throwError(() => new Error(this.getHttpErrorMessage(error, fallbackMessage)));
+            return throwError(
+                () =>
+                    new Error(
+                        this.getHttpErrorMessage(
+                            error,
+                            fallbackMessage,
+                        ),
+                    ),
+            );
         }
 
         return throwError(() => new Error(fallbackMessage));
     }
 
-    private getHttpErrorMessage(error: HttpErrorResponse, fallbackMessage: string): string {
+    private getHttpErrorMessage(
+        error: HttpErrorResponse,
+        fallbackMessage: string,
+    ): string {
         const apiError = error.error as
-            | { mensaje?: string; message?: string; error?: string; errors?: readonly ApiErrorDto[] }
+            | {
+                mensaje?: string;
+                message?: string;
+                error?: string;
+                errors?: readonly ApiErrorDto[];
+            }
             | null;
 
-        const responseError = apiError?.errors?.find((item) => item.detail || item.message);
+        const responseError = apiError?.errors?.find(
+            (item) => item.detail || item.message,
+        );
 
         if (responseError?.detail) {
             return responseError.detail;
@@ -300,11 +473,18 @@ export class UsersApiRepository {
         return fallbackMessage;
     }
 
-    private normalizeText(value: string | null | undefined): string {
+    private normalizeText(
+        value: string | null | undefined,
+    ): string {
         return String(value ?? '').trim();
     }
 
-    private toNumber(value: number | null | undefined, fallback: number): number {
-        return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+    private toNumber(
+        value: number | null | undefined,
+        fallback: number,
+    ): number {
+        return typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : fallback;
     }
 }

@@ -172,6 +172,11 @@ export class UserManagementPage {
     }
 
     protected openBajaModal(user: UserRecord): void {
+        if (this.isCurrentSessionUser(user)) {
+            this.errorMessage.set('No puedes dar de baja la cuenta con la que tienes la sesión activa.');
+            return;
+        }
+
         this.bajaTargetUser.set(user);
         this.bajaComment.set('');
         this.bajaCommentError.set(null);
@@ -215,6 +220,11 @@ export class UserManagementPage {
 
         if (!user || !userId) {
             this.bajaCommentError.set('No se puede dar de baja porque el usuario no tiene identificador interno.');
+            return;
+        }
+
+        if (this.isCurrentSessionUser(user)) {
+            this.bajaCommentError.set('No puedes dar de baja la cuenta con la que tienes la sesión activa.');
             return;
         }
 
@@ -262,6 +272,11 @@ export class UserManagementPage {
     }
 
     protected openStatusModal(user: UserRecord): void {
+        if (this.isCurrentSessionUser(user)) {
+            this.errorMessage.set('No puedes inhabilitar la cuenta con la que tienes la sesión activa.');
+            return;
+        }
+
         this.statusTargetUser.set(user);
         this.statusComment.set('');
         this.statusCommentError.set(null);
@@ -305,6 +320,11 @@ export class UserManagementPage {
 
         if (!user || !userId) {
             this.statusCommentError.set('No se puede procesar la operación porque el usuario no tiene identificador interno.');
+            return;
+        }
+
+        if (this.isCurrentSessionUser(user)) {
+            this.statusCommentError.set('No puedes cambiar el estatus de la cuenta con la que tienes la sesión activa.');
             return;
         }
 
@@ -427,7 +447,11 @@ export class UserManagementPage {
     }
 
     protected shouldShowStatusButton(user: UserRecord): boolean {
-        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
+        if (
+            this.isCurrentSessionUser(user) ||
+            this.isUserBaja(user) ||
+            this.isUserInactiveNonReactivable(user)
+        ) {
             return false;
         }
 
@@ -435,11 +459,36 @@ export class UserManagementPage {
     }
 
     protected shouldShowDeleteButton(user: UserRecord): boolean {
-        if (this.isUserBaja(user) || this.isUserSuspended(user) || this.isUserInactiveNonReactivable(user)) {
+        if (
+            this.isCurrentSessionUser(user) ||
+            this.isUserBaja(user) ||
+            this.isUserSuspended(user) ||
+            this.isUserInactiveNonReactivable(user)
+        ) {
             return false;
         }
 
         return true;
+    }
+
+    protected isCurrentSessionUser(user: UserRecord): boolean {
+        const sessionUser = this.authStorage.session()?.user;
+
+        if (!sessionUser) {
+            return false;
+        }
+
+        const currentUserId = this.toPositiveNumber(sessionUser.id);
+        const targetUserId = this.resolveTargetUserId(user);
+
+        if (currentUserId && targetUserId) {
+            return currentUserId === targetUserId;
+        }
+
+        const currentUsername = this.normalizeForCompare(sessionUser.username);
+        const targetUsername = this.normalizeForCompare(user.username);
+
+        return Boolean(currentUsername) && currentUsername === targetUsername;
     }
 
     protected isUserBaja(user: UserRecord): boolean {

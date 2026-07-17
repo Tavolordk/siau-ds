@@ -9,17 +9,21 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
     const authFacade = inject(AuthFacade);
     const token = authStorage.session()?.accessToken;
     const sessionManagementRequest = isSessionManagementRequest(request.url);
+    const refreshTokenRequest = isRefreshTokenRequest(request.url, request.method);
 
     const headers: Record<string, string> = {
         'X-Trace-Id': createTraceId(),
     };
 
-    if (token) {
+    // El endpoint PATCH /api/v1/tokens se autentica con el refreshToken del body.
+    // No enviamos además el access token, para que un Bearer próximo a vencer no
+    // interfiera con una renovación válida.
+    if (token && !refreshTokenRequest) {
         headers['Authorization'] = `Bearer ${token}`;
+    }
 
-        if (!sessionManagementRequest) {
-            authFacade.notifyAuthenticatedHttpActivity();
-        }
+    if (token && !sessionManagementRequest) {
+        authFacade.notifyAuthenticatedHttpActivity();
     }
 
     return next(
@@ -59,4 +63,13 @@ function createTraceId(): string {
     }
 
     return `siau-web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isRefreshTokenRequest(url: string, method: string): boolean {
+    if (method.toUpperCase() !== 'PATCH') {
+        return false;
+    }
+
+    const cleanUrl = url.split('?')[0].replace(/\/+$/, '');
+    return cleanUrl.endsWith('/api/v1/tokens');
 }

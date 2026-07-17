@@ -19,11 +19,11 @@
             <div class="registration-wizard__sidebar-progress">
                 <div class="registration-wizard__sidebar-progress-text">
                     <span>Progreso</span>
-                    <strong>{{ activeStepNumber() }}/{{ stepOrder.length }}</strong>
+                    <strong>{{ activeStepNumber() }}/{{ stepOrder().length }}</strong>
                 </div>
 
                 <div class="registration-wizard__sidebar-progress-track">
-                    <span [style.width.%]="(activeStepNumber() / stepOrder.length) * 100"></span>
+                    <span [style.width.%]="(activeStepNumber() / stepOrder().length) * 100"></span>
                 </div>
             </div>
         </aside>
@@ -66,7 +66,8 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Solo serán obligatorios nombre, primer apellido, adscripción y correo o celular. Al final
+                        <small>Solo serán obligatorios nombre, primer apellido, adscripción, correo y teléfono celular.
+                            Al final
                             deberás capturar una justificación.</small>
                     </span>
                 </label>
@@ -90,7 +91,7 @@
                         <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Mínimos express' :
                             'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -105,9 +106,28 @@
                     <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
                         (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="!form().expressCreation"
-                        [maxLength]="18" [value]="form().curp" (valueChange)="updateForm('curp', $event)"
-                        [disabled]="isFormDisabled()" />
+                    <div class="registration-wizard__curp-field">
+                        <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
+                            [required]="!form().expressCreation" [maxLength]="18" [value]="form().curp"
+                            [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
+                            (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
+
+                        @if (showCurpUnlock()) {
+                        <label class="registration-wizard__curp-unlock">
+                            <input type="checkbox" [checked]="curpUnlockChecked()"
+                                [disabled]="isFormDisabled() || isSubmitting() || renapoLookupStatus() === 'loading'"
+                                (change)="toggleCurpUnlock($any($event.target).checked)" />
+
+                            <span class="registration-wizard__curp-unlock-check" aria-hidden="true">
+                                @if (curpUnlockChecked()) {
+                                <siau-lucide-icon name="check" size="11" strokeWidth="2.6" aria-hidden="true" />
+                                }
+                            </span>
+
+                            <span>Desbloquear CURP para consultar otra</span>
+                        </label>
+                        }
+                    </div>
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="!form().expressCreation"
                         [maxLength]="13" [value]="form().rfc" (valueChange)="updateForm('rfc', $event)"
@@ -115,23 +135,46 @@
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
-                        (valueChange)="updateForm('secondLastName', $event)" [disabled]="isFormDisabled()" />
+                        (valueChange)="updateForm('secondLastName', $event)"
+                        [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-select label="Sexo" placeholder="" [required]="!form().expressCreation"
                         [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
+                    <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
+                        [required]="!form().expressCreation" [options]="civilStatusOptions()"
+                        [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
+                        [disabled]="isFormDisabled()" />
+
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
                         [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" />
                 </div>
+
+                @if (renapoLookupStatus() !== 'idle') {
+                <div class="registration-wizard__renapo-status"
+                    [class.registration-wizard__renapo-status--loading]="renapoLookupStatus() === 'loading'"
+                    [class.registration-wizard__renapo-status--success]="renapoLookupStatus() === 'success'"
+                    [class.registration-wizard__renapo-status--warning]="renapoLookupStatus() === 'not-found'"
+                    [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'">
+                    <span class="registration-wizard__renapo-status-icon">
+                        <siau-lucide-icon [name]="renapoStatusIcon()" size="17" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div>
+                        <strong>{{ renapoStatusTitle() }}</strong>
+                        <span>{{ renapoMessage() }}</span>
+                    </div>
+                </div>
+                }
             </section>
             }
 
@@ -150,7 +193,7 @@
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -221,7 +264,7 @@
                     </div>
 
                     <span class="registration-wizard__section-count">
-                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        {{ activeStepNumber() }} / {{ stepOrder().length }}
                     </span>
 
                     <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -302,8 +345,7 @@
                         [disabled]="isFormDisabled() || !form().commissionInstitution"
                         (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
 
-                    <siau-input label="Fecha de Ingreso" type="date" [required]="true"
-                        [value]="form().commissionAdmissionDate"
+                    <siau-input label="Fecha de Inicio" type="date" [value]="form().commissionAdmissionDate"
                         (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
                 }
@@ -323,7 +365,7 @@
                     </div>
 
                     <span class="registration-wizard__section-count">
-                        {{ activeStepNumber() }} / {{ stepOrder.length }}
+                        {{ activeStepNumber() }} / {{ stepOrder().length }}
                     </span>
 
                     <div class="registration-wizard__progress-strip" aria-hidden="true">
@@ -393,10 +435,9 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Correo y celular'
-                            : 'Campos obligatorios' }}</span>
+                        <span class="registration-wizard__required-pill">Correo y celular obligatorios</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -407,22 +448,18 @@
                     </div>
                 </div>
 
-                @if (form().expressCreation) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Para el endpoint <strong>registro_especial</strong> captura <strong>correo electrónico y
-                            teléfono
-                            celular</strong>.</span>
+                    <span>El <strong>correo electrónico y el teléfono celular son obligatorios</strong>.</span>
                 </div>
-                }
 
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
-                        [required]="true" [value]="form().email" (valueChange)="updateForm('email', $event)"
+                        [required]="emailRequired()" [value]="form().email" (valueChange)="updateForm('email', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="true" [maxLength]="10"
-                        [value]="form().phone" (valueChange)="updateForm('phone', $event)"
+                    <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
+                        [maxLength]="10" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
@@ -446,7 +483,7 @@
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -472,6 +509,14 @@
                     <p class="registration-wizard__profiles-field-help">
                         Cada usuario puede tener múltiples sistemas con su respectivo perfil de acceso.
                     </p>
+
+                    @if (hasAssignedSiauProfile()) {
+                    <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                        <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>SIAU ya tiene un perfil asignado. Para seleccionar otro, primero elimina el perfil SIAU
+                            actual.</span>
+                    </div>
+                    }
 
                     @if (assignedSystemProfiles().length === 0) {
                     <div class="registration-wizard__profiles-empty">
@@ -514,13 +559,14 @@
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
-                                [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem()" />
+                                [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem() || isSelectedSiauBlocked()"
+                                [hint]="isSelectedSiauBlocked() ? 'Elimina el perfil SIAU actual antes de agregar otro.' : null" />
                             }
 
                             <div class="registration-wizard__profiles-add-action">
                                 <button type="button"
                                     class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
-                                    [disabled]="isFormDisabled() || isSubmitting() || !selectedSystem() || !selectedRole() || !availableRoleOptions().length"
+                                    [disabled]="isFormDisabled() || isSubmitting() || !canAddSelectedProfile()"
                                     (click)="addAssignedProfile()">
                                     <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
                                     Agregar
@@ -548,7 +594,7 @@
                         <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Justificación
                             requerida' : 'Campos obligatorios' }}</span>
                         <span class="registration-wizard__section-count">
-                            {{ activeStepNumber() }} / {{ stepOrder.length }}
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
                     </div>
 
@@ -567,25 +613,26 @@
                             </label>
 
                             <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
-                                [value]="form().username" [disabled]="isFormDisabled() || isSubmitting()"
+                                [value]="form().username"
+                                [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                 (input)="updateForm('username', $any($event.target).value)" />
                         </div>
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Contraseña @if (!form().expressCreation) { <span>*</span> }
+                                Contraseña @if (!form().expressCreation && !isEditMode()) { <span>*</span> }
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
                                 <input [type]="showPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Mínimo 8 caracteres" [value]="form().password"
-                                    [disabled]="isFormDisabled() || isSubmitting()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                     (input)="updateForm('password', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting()" (click)="togglePasswordVisibility()"
-                                    aria-label="Mostrar u ocultar contraseña">
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                    (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
                                     <siau-lucide-icon [name]="showPassword() ? 'eye-off' : 'eye'" size="16"
                                         strokeWidth="2" aria-hidden="true" />
                                 </button>
@@ -594,18 +641,18 @@
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Confirmar contraseña @if (!form().expressCreation) { <span>*</span> }
+                                Confirmar contraseña @if (!form().expressCreation && !isEditMode()) { <span>*</span> }
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
                                 <input [type]="showConfirmPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Repite la contraseña" [value]="form().confirmPassword"
-                                    [disabled]="isFormDisabled() || isSubmitting()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                     (input)="updateForm('confirmPassword', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
                                     (click)="toggleConfirmPasswordVisibility()"
                                     aria-label="Mostrar u ocultar confirmación de contraseña">
                                     <siau-lucide-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" size="16"
@@ -617,19 +664,22 @@
 
                     <div class="registration-wizard__account-status-block">
                         <div class="registration-wizard__field-label">
-                            Estatus inicial de la cuenta
+                            Estatus de la cuenta
                         </div>
 
                         <p class="registration-wizard__account-status-help">
-                            Define el estado operativo con el que se creará la cuenta.
+                            El estatus se muestra únicamente como referencia y no puede modificarse desde este
+                            formulario.
                         </p>
 
                         <div class="registration-wizard__account-status-grid">
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
-                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('active')">
+                                [disabled]="isAccountStatusDisabled('active')" (click)="setAccountStatus('active')">
                                 <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'active') {
                                     <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
                                     Activo
                                 </div>
                                 <div class="registration-wizard__status-card-text">
@@ -639,8 +689,11 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
-                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('disabled')">
+                                [disabled]="isAccountStatusDisabled('disabled')" (click)="setAccountStatus('disabled')">
                                 <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'disabled') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
                                     Inhabilitado
                                 </div>
                                 <div class="registration-wizard__status-card-text">
@@ -650,8 +703,12 @@
 
                             <button type="button" class="registration-wizard__status-card"
                                 [class.registration-wizard__status-card--selected]="form().accountStatus === 'suspended'"
-                                [disabled]="isFormDisabled() || isSubmitting()" (click)="setAccountStatus('suspended')">
+                                [disabled]="isAccountStatusDisabled('suspended')"
+                                (click)="setAccountStatus('suspended')">
                                 <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'suspended') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
                                     Suspendido
                                 </div>
                                 <div class="registration-wizard__status-card-text">
@@ -702,14 +759,14 @@
                 </button>
 
                 <div class="registration-wizard__dots" aria-hidden="true">
-                    @for (step of stepOrder; track step; let index = $index) {
+                    @for (step of stepOrder(); track step; let index = $index) {
                     <span [class.registration-wizard__dot--active]="index === activeIndex()"></span>
                     }
                 </div>
 
                 <div class="registration-wizard__actions">
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                        [disabled]="activeIndex() === stepOrder.length - 1 || isSubmitting()" (click)="nextStep()">
+                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting()" (click)="nextStep()">
                         Siguiente
                         <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
                     </button>
@@ -728,4 +785,52 @@
             </footer>
         </form>
     </section>
+</siau-modal>
+
+<siau-modal [open]="saveSuccess() !== null" title="Usuario guardado correctamente"
+    subtitle="El registro fue procesado exitosamente" icon="circle-check" size="sm" headerBadge="Éxito"
+    (close)="closeSaveSuccessModal()">
+    @if (saveSuccess(); as success) {
+    <section class="registration-wizard__success-modal">
+        <div class="registration-wizard__success-icon" aria-hidden="true">
+            <siau-lucide-icon name="circle-check" size="44" strokeWidth="1.9" />
+        </div>
+
+        <div class="registration-wizard__success-heading">
+            <h3>{{ success.isExpress ? 'Creación express completada' : 'Creación de usuario completada' }}</h3>
+            <p>{{ success.message }}</p>
+        </div>
+
+        @if (success.fullName || success.account || success.system) {
+        <dl class="registration-wizard__success-detail">
+            @if (success.fullName) {
+            <div>
+                <dt>Nombre</dt>
+                <dd>{{ success.fullName }}</dd>
+            </div>
+            }
+
+            @if (success.account) {
+            <div>
+                <dt>Cuenta</dt>
+                <dd>{{ success.account }}</dd>
+            </div>
+            }
+
+            @if (success.system) {
+            <div>
+                <dt>Sistema</dt>
+                <dd>{{ success.system }}</dd>
+            </div>
+            }
+        </dl>
+        }
+
+        <button type="button" class="registration-wizard__button registration-wizard__button--primary"
+            (click)="closeSaveSuccessModal()">
+            <siau-lucide-icon name="check" size="14" strokeWidth="2" aria-hidden="true" />
+            Aceptar
+        </button>
+    </section>
+    }
 </siau-modal>
