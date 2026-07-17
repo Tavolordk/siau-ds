@@ -15,10 +15,11 @@ import {
     throwError,
 } from 'rxjs';
 import { CaptchaFacade } from '../../captcha/application/captcha.facade';
-import { AuthApi } from '../data-access/auth.api';
+import { AuthApi, AuthHttpError } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
 import {
     DEFAULT_AUTHENTICATED_ROUTE,
+    SESSION_INACTIVITY_COUNTDOWN_MS,
     SESSION_INACTIVITY_LIMIT_MS,
     SESSION_INACTIVITY_PROMPT_MS,
     SESSION_MIN_REFRESH_INTERVAL_MS,
@@ -45,8 +46,11 @@ export class AuthFacade {
     private readonly sessionPromptVisibleState = signal(false);
     private readonly sessionPromptLoadingState = signal(false);
     private readonly sessionPromptErrorState = signal<string | null>(null);
+    private readonly sessionPromptRemainingSecondsState = signal(0);
 
     private sessionMonitorId: ReturnType<typeof setInterval> | null = null;
+    private sessionPromptCountdownId: ReturnType<typeof setInterval> | null = null;
+    private sessionPromptDeadlineAt: number | null = null;
     private sessionRefreshInFlight = false;
     private sessionRefreshRequest$: Observable<AuthSession> | null = null;
     private silentRefreshFailures = 0;
@@ -76,12 +80,15 @@ export class AuthFacade {
     };
 
     private readonly handleVisibilityChange = (): void => {
-        if (!this.isAuthenticated() || this.isDocumentHidden() || this.sessionPromptVisible()) {
+        if (!this.isAuthenticated() || this.isDocumentHidden()) {
             return;
         }
 
-        // Al volver a la pestaña, mostrar el aviso con margen antes de que venza
-        // el límite; si todavía hay tiempo, renovar al registrar el regreso.
+        if (this.sessionPromptVisible()) {
+            this.updateSessionPromptCountdown();
+            return;
+        }
+
         if (this.hasReachedInactivityPrompt(Date.now() - this.lastActivityAt)) {
             this.showSessionPrompt('inactividad-al-volver-a-pestana');
             return;
@@ -91,6 +98,11 @@ export class AuthFacade {
     };
 
     private readonly handleWindowFocus = (): void => {
+        if (this.sessionPromptVisible()) {
+            this.updateSessionPromptCountdown();
+            return;
+        }
+
         this.registerVisibleActivity();
     };
 
@@ -99,6 +111,14 @@ export class AuthFacade {
     readonly sessionPromptVisible = this.sessionPromptVisibleState.asReadonly();
     readonly sessionPromptLoading = this.sessionPromptLoadingState.asReadonly();
     readonly sessionPromptError = this.sessionPromptErrorState.asReadonly();
+    readonly sessionPromptRemainingSeconds = this.sessionPromptRemainingSecondsState.asReadonly();
+    readonly sessionPromptCountdownLabel = computed(() => {
+        const totalSeconds = this.sessionPromptRemainingSeconds();
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    });
 
     readonly session = this.storage.session;
     readonly challenge = this.storage.challenge;
@@ -178,8 +198,7 @@ export class AuthFacade {
         const currentSession = this.session();
 
         this.stopSessionMonitor();
-        this.sessionPromptVisibleState.set(false);
-        this.sessionPromptLoadingState.set(false);
+        this.clearSessionPrompt();
 
         this.api
             .logout(currentSession, motivo)
@@ -221,13 +240,14 @@ export class AuthFacade {
         }
 
         this.unregisterActivityListeners();
+        this.cancelSessionPromptCountdown();
         if (!this.sessionRefreshRequest$) {
             this.sessionRefreshInFlight = false;
         }
         this.silentRefreshFailures = 0;
     }
 
-    keepSession(): void {
+    dismissSessionPrompt(): void {
         const currentSession = this.session();
 
         if (!currentSession) {
@@ -235,6 +255,11 @@ export class AuthFacade {
             return;
         }
 
+        if (!this.sessionPromptVisible() || this.sessionPromptLoading()) {
+            return;
+        }
+
+        this.pauseSessionPromptCountdown();
         this.sessionPromptLoadingState.set(true);
         this.sessionPromptErrorState.set(null);
 
@@ -242,23 +267,23 @@ export class AuthFacade {
             .pipe(finalize(() => this.sessionPromptLoadingState.set(false)))
             .subscribe({
                 next: () => {
-                    this.sessionPromptVisibleState.set(false);
-                    this.sessionPromptErrorState.set(null);
+                    this.clearSessionPrompt();
                     this.lastActivityAt = Date.now();
                     this.lastRefreshAt = Date.now();
                     this.silentRefreshFailures = 0;
                     this.restartSessionMonitor();
                 },
                 error: (error: Error) => {
+                    if (!this.isAuthenticated()) {
+                        return;
+                    }
+
                     this.sessionPromptErrorState.set(
-                        error.message || 'Tu sesión no pudo renovarse. Intenta mantenerla nuevamente o cierra sesión.',
+                        error.message || 'No fue posible renovar la sesión. Intenta cerrar el aviso de nuevo.',
                     );
+                    this.resumeSessionPromptCountdown();
                 },
             });
-    }
-
-    closeSessionFromPrompt(): void {
-        this.logout('USER_DECLINED_SESSION_RENEWAL');
     }
 
     clearError(): void {
@@ -327,6 +352,7 @@ export class AuthFacade {
         }
 
         if (this.sessionPromptVisible()) {
+            this.updateSessionPromptCountdown();
             return;
         }
 
@@ -352,16 +378,15 @@ export class AuthFacade {
             return;
         }
 
-        this.refreshSessionSafely()
-            .subscribe({
-                next: () => {
-                    // No reiniciar lastActivityAt aqui: el refresh automatico no es actividad
-                    // del usuario; de lo contrario el limite de inactividad nunca se cumpliria.
-                },
-                error: (error: Error) => {
-                    this.handleSilentRefreshFailure(error);
-                },
-            });
+        this.refreshSessionSafely().subscribe({
+            next: () => {
+                // No reiniciar lastActivityAt aqui: el refresh automatico no es actividad
+                // del usuario; de lo contrario el limite de inactividad nunca se cumpliria.
+            },
+            error: (error: Error) => {
+                this.handleSilentRefreshFailure(error);
+            },
+        });
     }
 
     /**
@@ -421,6 +446,15 @@ export class AuthFacade {
                 this.lastRefreshAt = this.resolveSessionIssuedAt(session);
                 this.silentRefreshFailures = 0;
             }),
+            catchError((error: unknown) => {
+                if (this.isRefreshConflict(error)) {
+                    this.forceLocalLogout(
+                        'La sesión se cerró porque la renovación del token entró en conflicto. Inicia sesión nuevamente.',
+                    );
+                }
+
+                return throwError(() => error);
+            }),
             finalize(() => {
                 this.sessionRefreshInFlight = false;
                 this.sessionRefreshRequest$ = null;
@@ -443,6 +477,10 @@ export class AuthFacade {
      * ya esta practicamente vencido y no queda margen para reintentar.
      */
     private handleSilentRefreshFailure(error: Error): void {
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
         this.silentRefreshFailures += 1;
 
         const currentSession = this.session();
@@ -575,9 +613,7 @@ export class AuthFacade {
 
     private forceLocalLogout(message: string): void {
         this.stopSessionMonitor();
-        this.sessionPromptVisibleState.set(false);
-        this.sessionPromptLoadingState.set(false);
-        this.sessionPromptErrorState.set(null);
+        this.clearSessionPrompt();
         this.storage.clearAll();
         this.errorState.set(message);
         void this.router.navigateByUrl('/login');
@@ -585,18 +621,103 @@ export class AuthFacade {
 
     private forceTabTakeoverLogout(): void {
         this.stopSessionMonitor();
-        this.sessionPromptVisibleState.set(false);
-        this.sessionPromptLoadingState.set(false);
-        this.sessionPromptErrorState.set(null);
+        this.clearSessionPrompt();
         this.storage.clearLocalAuthState();
         this.errorState.set('Esta pestaña se cerró porque la sesión se abrió en otra pestaña.');
         void this.router.navigateByUrl('/login');
     }
 
     private showSessionPrompt(reason = 'unspecified'): void {
+        if (!this.isAuthenticated()) {
+            return;
+        }
+
+        if (this.sessionPromptVisible()) {
+            this.updateSessionPromptCountdown();
+            return;
+        }
+
+        const now = Date.now();
+        const isInactivityPrompt = reason.startsWith('inactividad');
+        const deadlineAt = isInactivityPrompt
+            ? this.lastActivityAt + SESSION_INACTIVITY_LIMIT_MS
+            : now + SESSION_INACTIVITY_COUNTDOWN_MS;
+
+        if (deadlineAt <= now) {
+            this.logout('INACTIVITY_TIMEOUT');
+            return;
+        }
+
         console.warn(`[AuthFacade] Mostrando modal de sesión. Motivo: ${reason}`);
         this.sessionPromptErrorState.set(null);
+        this.sessionPromptLoadingState.set(false);
         this.sessionPromptVisibleState.set(true);
+        this.startSessionPromptCountdown(deadlineAt);
+    }
+
+    private startSessionPromptCountdown(deadlineAt: number): void {
+        this.pauseSessionPromptCountdown();
+        this.sessionPromptDeadlineAt = deadlineAt;
+        this.updateSessionPromptCountdown();
+
+        if (!this.sessionPromptVisible() || !this.isAuthenticated()) {
+            return;
+        }
+
+        this.sessionPromptCountdownId = setInterval(() => {
+            this.updateSessionPromptCountdown();
+        }, 1000);
+    }
+
+    private pauseSessionPromptCountdown(): void {
+        if (this.sessionPromptCountdownId) {
+            clearInterval(this.sessionPromptCountdownId);
+            this.sessionPromptCountdownId = null;
+        }
+    }
+
+    private resumeSessionPromptCountdown(): void {
+        if (!this.sessionPromptVisible()) {
+            return;
+        }
+
+        this.startSessionPromptCountdown(
+            this.sessionPromptDeadlineAt ?? Date.now() + SESSION_INACTIVITY_COUNTDOWN_MS,
+        );
+    }
+
+    private cancelSessionPromptCountdown(): void {
+        this.pauseSessionPromptCountdown();
+        this.sessionPromptDeadlineAt = null;
+        this.sessionPromptRemainingSecondsState.set(0);
+    }
+
+    private updateSessionPromptCountdown(): void {
+        const deadlineAt = this.sessionPromptDeadlineAt;
+
+        if (!this.sessionPromptVisible() || deadlineAt === null) {
+            return;
+        }
+
+        const remainingMs = deadlineAt - Date.now();
+
+        if (remainingMs <= 0) {
+            this.logout('INACTIVITY_TIMEOUT');
+            return;
+        }
+
+        this.sessionPromptRemainingSecondsState.set(Math.ceil(remainingMs / 1000));
+    }
+
+    private clearSessionPrompt(): void {
+        this.cancelSessionPromptCountdown();
+        this.sessionPromptVisibleState.set(false);
+        this.sessionPromptLoadingState.set(false);
+        this.sessionPromptErrorState.set(null);
+    }
+
+    private isRefreshConflict(error: unknown): boolean {
+        return error instanceof AuthHttpError && error.status === 409;
     }
 
     private registerActivityListeners(): void {

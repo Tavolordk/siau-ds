@@ -6,6 +6,16 @@ import { ADMIN_PROFILE_KEYWORD, AUTH_SYSTEM } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge, SessionValidation } from '../domain/auth-session.model';
 import { LoginContactMethod, LoginRequest } from '../domain/login-request.model';
 
+export class AuthHttpError extends Error {
+    constructor(
+        message: string,
+        readonly status: number,
+    ) {
+        super(message);
+        this.name = 'AuthHttpError';
+    }
+}
+
 interface ApiErrorDto {
     code?: string | null;
     message?: string | null;
@@ -313,7 +323,7 @@ export class AuthApi {
                 apiResponse?.errors?.find((item) => item.message)?.message ??
                 fallbackMessage;
 
-            return throwError(() => new Error(apiMessage));
+            return throwError(() => new AuthHttpError(apiMessage, error.status));
         }
 
         if (error instanceof Error) {
