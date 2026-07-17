@@ -106,9 +106,28 @@
                     <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
                         (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="!form().expressCreation"
-                        [maxLength]="18" [value]="form().curp" (valueChange)="updateForm('curp', $event)"
-                        [disabled]="isFormDisabled()" />
+                    <div class="registration-wizard__curp-field">
+                        <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
+                            [required]="!form().expressCreation" [maxLength]="18" [value]="form().curp"
+                            [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
+                            (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
+
+                        @if (showCurpUnlock()) {
+                        <label class="registration-wizard__curp-unlock">
+                            <input type="checkbox" [checked]="curpUnlockChecked()"
+                                [disabled]="isFormDisabled() || isSubmitting() || renapoLookupStatus() === 'loading'"
+                                (change)="toggleCurpUnlock($any($event.target).checked)" />
+
+                            <span class="registration-wizard__curp-unlock-check" aria-hidden="true">
+                                @if (curpUnlockChecked()) {
+                                <siau-lucide-icon name="check" size="11" strokeWidth="2.6" aria-hidden="true" />
+                                }
+                            </span>
+
+                            <span>Desbloquear CURP para consultar otra</span>
+                        </label>
+                        }
+                    </div>
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="!form().expressCreation"
                         [maxLength]="13" [value]="form().rfc" (valueChange)="updateForm('rfc', $event)"
@@ -116,14 +135,15 @@
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
-                        (valueChange)="updateForm('secondLastName', $event)" [disabled]="isFormDisabled()" />
+                        (valueChange)="updateForm('secondLastName', $event)"
+                        [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-select label="Sexo" placeholder="" [required]="!form().expressCreation"
                         [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
@@ -136,8 +156,25 @@
 
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
                         [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" />
                 </div>
+
+                @if (renapoLookupStatus() !== 'idle') {
+                <div class="registration-wizard__renapo-status"
+                    [class.registration-wizard__renapo-status--loading]="renapoLookupStatus() === 'loading'"
+                    [class.registration-wizard__renapo-status--success]="renapoLookupStatus() === 'success'"
+                    [class.registration-wizard__renapo-status--warning]="renapoLookupStatus() === 'not-found'"
+                    [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'">
+                    <span class="registration-wizard__renapo-status-icon">
+                        <siau-lucide-icon [name]="renapoStatusIcon()" size="17" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div>
+                        <strong>{{ renapoStatusTitle() }}</strong>
+                        <span>{{ renapoMessage() }}</span>
+                    </div>
+                </div>
+                }
             </section>
             }
 

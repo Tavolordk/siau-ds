@@ -15,6 +15,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, forkJoin } from 'rxjs';
 import { CatalogosFacade } from '../../../../../core/catalogos';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
+import { RenapoCurpData, RenapoFacade } from '../../../../../core/renapo';
 import {
     SiauInput,
     SiauModal,
@@ -39,6 +40,7 @@ import {
 
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 type UserWizardMode = 'create' | 'edit';
+type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
 
 type WizardStepId =
     | 'personal-data'
@@ -202,10 +204,13 @@ export class UserRegistrationWizard {
 
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly usersFacade = inject(UsersFacade);
+    private readonly renapoFacade = inject(RenapoFacade);
     private readonly authStorage = inject(AuthStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
+    private curpLookupSequence = 0;
+    private lastRenapoCurp = '';
     private readonly catalogosReady = signal<boolean>(false);
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
@@ -215,6 +220,10 @@ export class UserRegistrationWizard {
     protected readonly isSubmitting = signal<boolean>(false);
     protected readonly formErrors = signal<Record<string, string>>({});
     protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
+    protected readonly renapoLookupStatus = signal<RenapoLookupStatus>('idle');
+    protected readonly renapoMessage = signal<string>('');
+    protected readonly curpLocked = signal<boolean>(false);
+    protected readonly curpUnlockChecked = signal<boolean>(false);
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -418,6 +427,62 @@ export class UserRegistrationWizard {
     protected readonly isFormDisabled = computed(() =>
         this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
     );
+
+    protected readonly isCurpInputDisabled = computed(() => {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return true;
+        }
+
+        if (this.isEditMode()) {
+            return false;
+        }
+
+        return (
+            this.renapoLookupStatus() === 'loading' ||
+            (this.curpLocked() && !this.curpUnlockChecked())
+        );
+    });
+
+    protected readonly isRenapoPersonalDataDisabled = computed(() => {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return true;
+        }
+
+        return (
+            !this.isEditMode() &&
+            (this.renapoLookupStatus() === 'loading' || this.renapoLookupStatus() === 'success')
+        );
+    });
+
+    protected readonly showCurpUnlock = computed(() =>
+        !this.isEditMode() && (this.curpLocked() || this.curpUnlockChecked()),
+    );
+
+    protected readonly renapoStatusTitle = computed(() => {
+        switch (this.renapoLookupStatus()) {
+            case 'loading':
+                return 'Consultando RENAPO';
+            case 'success':
+                return 'CURP validada';
+            case 'not-found':
+                return 'CURP sin resultados';
+            case 'error':
+                return 'Consulta no disponible';
+            default:
+                return '';
+        }
+    });
+
+    protected readonly renapoStatusIcon = computed(() => {
+        switch (this.renapoLookupStatus()) {
+            case 'loading':
+                return 'refresh-cw';
+            case 'success':
+                return 'circle-check';
+            default:
+                return 'triangle-alert';
+        }
+    });
 
     protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
         const errors = this.formErrors();
@@ -701,6 +766,83 @@ export class UserRegistrationWizard {
         }
 
         this.clearFieldError(String(key));
+    }
+
+    protected updateCurp(value: string): void {
+        if (this.isCurpInputDisabled()) {
+            return;
+        }
+
+        if (this.isEditMode()) {
+            this.updateForm('curp', value);
+            return;
+        }
+
+        const curp = this.normalizeFormInputValue('curp', value);
+        const previousCurp = this.form().curp;
+
+        if (curp === previousCurp) {
+            return;
+        }
+
+        if (this.lastRenapoCurp && curp !== this.lastRenapoCurp) {
+            this.clearRenapoPersonalData();
+        }
+
+        this.curpLookupSequence += 1;
+        this.form.update((current) => ({
+            ...current,
+            curp,
+        }));
+        this.curpLocked.set(false);
+        this.renapoLookupStatus.set('idle');
+        this.renapoMessage.set('');
+        this.clearFieldError('curp');
+
+        if (curp.length !== 18) {
+            return;
+        }
+
+        if (!this.isValidCurp(curp)) {
+            this.formErrors.update((current) => ({
+                ...current,
+                curp: 'La CURP no tiene un formato válido.',
+            }));
+            return;
+        }
+
+        this.consultRenapo(curp);
+    }
+
+    protected toggleCurpUnlock(checked: boolean): void {
+        if (this.isEditMode() || this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (checked) {
+            this.curpUnlockChecked.set(true);
+            return;
+        }
+
+        const currentCurp = this.form().curp;
+
+        if (currentCurp !== this.lastRenapoCurp && !this.isValidCurp(currentCurp)) {
+            this.curpUnlockChecked.set(true);
+            this.formErrors.update((current) => ({
+                ...current,
+                curp: 'Completa una CURP válida de 18 caracteres antes de volver a bloquearla.',
+            }));
+            return;
+        }
+
+        this.curpUnlockChecked.set(false);
+
+        if (currentCurp !== this.lastRenapoCurp) {
+            this.consultRenapo(currentCurp);
+            return;
+        }
+
+        this.curpLocked.set(true);
     }
 
     protected toggleExpressCreation(checked: boolean): void {
@@ -1142,6 +1284,154 @@ export class UserRegistrationWizard {
             .trim();
     }
 
+    private consultRenapo(curp: string): void {
+        const normalizedCurp = this.toText(curp).toUpperCase();
+
+        if (!this.isValidCurp(normalizedCurp)) {
+            return;
+        }
+
+        const requestSequence = ++this.curpLookupSequence;
+
+        this.curpUnlockChecked.set(false);
+        this.curpLocked.set(false);
+        this.renapoLookupStatus.set('loading');
+        this.renapoMessage.set('Espera un momento mientras validamos la identidad.');
+
+        this.renapoFacade
+            .consultarCurp(normalizedCurp)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (response) => {
+                    if (
+                        requestSequence !== this.curpLookupSequence ||
+                        this.form().curp !== normalizedCurp
+                    ) {
+                        return;
+                    }
+
+                    this.lastRenapoCurp = normalizedCurp;
+                    this.curpLocked.set(true);
+
+                    if (response.exito && response.datos) {
+                        this.applyRenapoPersonalData(response.datos, normalizedCurp);
+                        this.renapoLookupStatus.set('success');
+                        this.renapoMessage.set(
+                            response.mensaje ||
+                            'Los datos personales fueron llenados con la información de RENAPO.',
+                        );
+                        return;
+                    }
+
+                    this.renapoLookupStatus.set('not-found');
+                    this.renapoMessage.set(
+                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos, fecha de nacimiento y sexo.',
+                    );
+                },
+                error: (error: unknown) => {
+                    if (
+                        requestSequence !== this.curpLookupSequence ||
+                        this.form().curp !== normalizedCurp
+                    ) {
+                        return;
+                    }
+
+                    this.lastRenapoCurp = normalizedCurp;
+                    this.curpLocked.set(true);
+                    this.renapoLookupStatus.set('error');
+                    this.renapoMessage.set(
+                        'No fue posible consultar RENAPO. Puedes desbloquear la CURP para reintentar o capturar manualmente los datos personales.',
+                    );
+                    console.error('Error consultando CURP en RENAPO.', error);
+                },
+            });
+    }
+
+    private applyRenapoPersonalData(data: RenapoCurpData, requestedCurp: string): void {
+        const returnedCurp = this.toText(data.curp).toUpperCase();
+        const gender = this.resolveRenapoGender(data.sexo);
+
+        this.form.update((current) => ({
+            ...current,
+            curp: returnedCurp || requestedCurp,
+            firstName: this.toText(data.nombre).toUpperCase(),
+            lastName: this.toText(data.primerApellido).toUpperCase(),
+            secondLastName: this.toText(data.segundoApellido).toUpperCase(),
+            birthDate: this.toDateInputValue(data.fechaNacimiento),
+            gender: gender || current.gender,
+        }));
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+
+            ['curp', 'firstName', 'lastName', 'birthDate', 'gender'].forEach((key) => {
+                delete next[key];
+            });
+
+            return next;
+        });
+    }
+
+    private clearRenapoPersonalData(): void {
+        this.form.update((current) => ({
+            ...current,
+            firstName: '',
+            lastName: '',
+            secondLastName: '',
+            birthDate: '',
+            gender: '',
+        }));
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+
+            ['firstName', 'lastName', 'birthDate', 'gender'].forEach((key) => {
+                delete next[key];
+            });
+
+            return next;
+        });
+    }
+
+    private resolveRenapoGender(value: string): string {
+        const gender = this.normalizeText(value);
+
+        if (!gender) {
+            return '';
+        }
+
+        const aliases = gender === 'h'
+            ? ['h', 'hombre', 'masculino']
+            : gender === 'm'
+                ? ['m', 'mujer', 'femenino']
+                : [gender];
+
+        const option = this.genderOptions().find((item) => {
+            const metadata = this.optionMetadata(item);
+            const candidates = [
+                item.value,
+                item.label,
+                metadata['sexo'],
+                metadata['clave'],
+                metadata['codigo'],
+                metadata['descripcion'],
+            ].map((candidate) => this.normalizeText(this.toText(candidate)));
+
+            return candidates.some((candidate) => aliases.includes(candidate));
+        });
+
+        return option?.value ?? '';
+    }
+
+    private resetRenapoLookupState(): void {
+        this.curpLookupSequence += 1;
+        this.lastRenapoCurp = '';
+        this.renapoLookupStatus.set('idle');
+        this.renapoMessage.set('');
+        this.curpLocked.set(false);
+        this.curpUnlockChecked.set(false);
+    }
+
     private buildSaveSuccessModalState(
         response: RegistroAdminResponse | RegistroEspecialResponse,
         isExpress: boolean,
@@ -1563,6 +1853,8 @@ export class UserRegistrationWizard {
     }
 
     private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
+        this.resetRenapoLookupState();
+
         const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
         const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
         const commission = this.toSectionRecord(datos, ['s3Comision', 'comision']);
@@ -2099,6 +2391,14 @@ export class UserRegistrationWizard {
             return isoMatch[1];
         }
 
+        const slashDateMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(textValue);
+
+        if (slashDateMatch) {
+            const [, day, month, year] = slashDateMatch;
+
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+
         const spanishDateMatch = /^(\d{1,2})\s+([a-záéíóúñ.]+)\s+(\d{4})$/i.exec(textValue);
 
         if (spanishDateMatch) {
@@ -2168,6 +2468,7 @@ export class UserRegistrationWizard {
     }
 
     private resetWizard(): void {
+        this.resetRenapoLookupState();
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
         this.editEnabled.set(true);

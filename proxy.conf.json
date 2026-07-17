@@ -34,5 +34,14 @@
         "pathRewrite": {
             "^/auth-api": ""
         }
+    },
+    "/renapo-api": {
+        "target": "http://10.241.83.7:3200",
+        "secure": true,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/renapo-api": ""
+        }
     }
 }

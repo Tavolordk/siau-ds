@@ -7,6 +7,7 @@ import { CaptchaRepository } from './core/captcha/domain/captcha.repository';
 import { CatalogosApiRepository } from './core/catalogos/data-access/catalogos-api.repository';
 import { CatalogosRepository } from './core/catalogos/domain/catalogos.repository';
 import { authTokenInterceptor } from './core/http/auth-token.interceptor';
+import { RenapoApiRepository, RenapoRepository } from './core/renapo';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -20,6 +21,10 @@ export const appConfig: ApplicationConfig = {
     {
       provide: CaptchaRepository,
       useClass: CaptchaApiRepository,
+    },
+    {
+      provide: RenapoRepository,
+      useClass: RenapoApiRepository,
     },
   ],
 };
