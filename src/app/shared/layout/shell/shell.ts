@@ -72,11 +72,7 @@ export class SiauShell implements OnDestroy {
     this.auth.logout();
   }
 
-  protected onKeepSessionClick(): void {
-    this.auth.keepSession();
-  }
-
-  protected onCloseSessionClick(): void {
-    this.auth.closeSessionFromPrompt();
+  protected onDismissSessionPrompt(): void {
+    this.auth.dismissSessionPrompt();
   }
 }

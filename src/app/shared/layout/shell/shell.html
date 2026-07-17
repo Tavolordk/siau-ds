@@ -13,41 +13,44 @@
 
   @if (auth.sessionPromptVisible()) {
   <section class="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm"
-    role="dialog" aria-modal="true" aria-labelledby="session-renewal-title">
-    <div class="w-full max-w-md rounded-2xl border border-white/20 bg-[#1B1F4A] p-6 text-white shadow-2xl">
+    role="dialog" aria-modal="true" aria-labelledby="session-countdown-title">
+    <div class="relative w-full max-w-md rounded-2xl border border-white/20 bg-[#1B1F4A] p-6 text-white shadow-2xl">
+      <button type="button"
+        class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-xl leading-none text-white/80 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label="Cerrar aviso y continuar con la sesión" [disabled]="auth.sessionPromptLoading()"
+        (click)="onDismissSessionPrompt()">
+        ×
+      </button>
+
       <div class="mb-4 flex items-start gap-3">
         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
           <span class="text-lg">⏱</span>
         </div>
 
         <div>
-          <h2 id="session-renewal-title" class="text-lg font-bold">¿Deseas mantener tu sesión?</h2>
+          <h2 id="session-countdown-title" class="text-lg font-bold">Tu sesión se cerrará por inactividad</h2>
           <p class="mt-1 text-sm text-white/70">
-            Tu sesión está próxima a vencer por inactividad.
-            Puedes renovarla antes de que expire o cerrarla ahora.
+            Detectamos cinco minutos sin actividad. Cierra este aviso para continuar; al hacerlo renovaremos tu token.
           </p>
         </div>
       </div>
+
+      <div class="mb-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-4 text-center">
+        <span class="block text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Cierre automático en</span>
+        <strong class="mt-1 block text-4xl font-black tabular-nums tracking-wider">
+          {{ auth.sessionPromptCountdownLabel() }}
+        </strong>
+      </div>
+
+      @if (auth.sessionPromptLoading()) {
+      <p class="mb-4 text-center text-sm text-white/75">Renovando sesión...</p>
+      }
 
       @if (auth.sessionPromptError()) {
       <p class="mb-4 rounded-xl border border-red-200/30 bg-red-500/15 px-3 py-2 text-sm text-red-50">
         {{ auth.sessionPromptError() }}
       </p>
       }
-
-      <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <button type="button"
-          class="rounded-xl border border-white/25 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-          [disabled]="auth.sessionPromptLoading()" (click)="onCloseSessionClick()">
-          Cerrar sesión
-        </button>
-
-        <button type="button"
-          class="rounded-xl bg-white px-4 py-2 text-sm font-bold text-[#1B1F4A] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
-          [disabled]="auth.sessionPromptLoading()" (click)="onKeepSessionClick()">
-          {{ auth.sessionPromptLoading() ? 'Renovando...' : 'Mantener sesión' }}
-        </button>
-      </div>
     </div>
   </section>
   }
