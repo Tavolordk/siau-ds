@@ -788,20 +788,82 @@
 </siau-modal>
 
 <siau-modal [open]="saveSuccess() !== null" title="Usuario guardado correctamente"
-    subtitle="El registro fue procesado exitosamente" icon="circle-check" size="sm" headerBadge="Éxito"
+    subtitle="Registro y notificación de acceso" icon="circle-check" size="md" headerBadge="Éxito"
     (close)="closeSaveSuccessModal()">
     @if (saveSuccess(); as success) {
     <section class="registration-wizard__success-modal">
-        <div class="registration-wizard__success-icon" aria-hidden="true">
-            <siau-lucide-icon name="circle-check" size="44" strokeWidth="1.9" />
+        <div class="registration-wizard__success-hero">
+            <div class="registration-wizard__success-icon" aria-hidden="true">
+                <siau-lucide-icon name="circle-check" size="42" strokeWidth="1.9" />
+            </div>
+
+            <div class="registration-wizard__success-heading">
+                <p class="registration-wizard__success-eyebrow">Registro confirmado</p>
+                <h3>{{ success.isExpress ? 'Creación express completada' : 'Creación de usuario completada' }}</h3>
+                <p>{{ success.message }}</p>
+            </div>
         </div>
 
-        <div class="registration-wizard__success-heading">
-            <h3>{{ success.isExpress ? 'Creación express completada' : 'Creación de usuario completada' }}</h3>
-            <p>{{ success.message }}</p>
-        </div>
+        @if (success.hasAccessEmail) {
+        <section class="registration-wizard__success-account">
+            <span>Cuenta de acceso</span>
+            <strong>{{ success.account || 'Pendiente de confirmación' }}</strong>
+            @if (success.userNumber) {
+            <small>Número de usuario · {{ success.userNumber }}</small>
+            }
+        </section>
 
-        @if (success.fullName || success.account || success.system) {
+        <section class="registration-wizard__success-delivery"
+            [class.registration-wizard__success-delivery--pending]="!success.emailAccepted">
+            <div>
+                <span>{{ success.emailAccepted ? 'Correo de acceso enviado' : 'Correo de acceso pendiente' }}</span>
+                <strong>{{ success.accessEmail }}</strong>
+            </div>
+
+            <p>
+                @if (success.emailAccepted) {
+                Hemos enviado tu cuenta y tus medios registrados para recibir el código de acceso. Podrás ingresar con
+                Telegram o con correo electrónico.
+                } @else {
+                {{ success.emailMessage }}
+                }
+            </p>
+
+            @if (success.emailStatus || success.emailReference) {
+            <div class="registration-wizard__success-delivery-meta">
+                @if (success.emailStatus) {
+                <span>Estado: {{ success.emailStatus }}</span>
+                }
+                @if (success.emailReference) {
+                <span>Referencia: {{ success.emailReference }}</span>
+                }
+            </div>
+            }
+        </section>
+
+        <section class="registration-wizard__success-access">
+            <p class="registration-wizard__success-access-title">Tus medios para ingresar a SIAU</p>
+            <div class="registration-wizard__success-access-grid">
+                <article>
+                    <span>01</span>
+                    <strong>Telegram</strong>
+                    <p>{{ success.accessPhone }}</p>
+                    <small>Recibe el código de acceso en tu número registrado.</small>
+                </article>
+
+                <article>
+                    <span>02</span>
+                    <strong>Correo electrónico</strong>
+                    <p>{{ success.accessEmail }}</p>
+                    <small>También puedes recibir el código en este correo.</small>
+                </article>
+            </div>
+        </section>
+
+        <p class="registration-wizard__success-security">
+            Por seguridad, nunca compartas tu código de verificación con otra persona.
+        </p>
+        } @else if (success.fullName || success.account || success.system) {
         <dl class="registration-wizard__success-detail">
             @if (success.fullName) {
             <div>

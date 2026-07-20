@@ -12,9 +12,18 @@ import {
     WritableSignal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, forkJoin } from 'rxjs';
+import {
+    catchError,
+    finalize,
+    forkJoin,
+    map,
+    Observable,
+    of,
+    switchMap,
+} from 'rxjs';
 import { CatalogosFacade } from '../../../../../core/catalogos';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
+import { CorreoDeliveryResult, CorreoFacade } from '../../../../../core/correo';
 import { RenapoCurpData, RenapoFacade } from '../../../../../core/renapo';
 import {
     SiauInput,
@@ -25,6 +34,7 @@ import {
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
+import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
     ActualizarAdminRequest,
     RegistroAdminRequest,
@@ -124,6 +134,13 @@ interface SaveSuccessModalState {
     readonly fullName: string;
     readonly system: string;
     readonly isExpress: boolean;
+    readonly hasAccessEmail: boolean;
+    readonly accessEmail: string;
+    readonly accessPhone: string;
+    readonly emailAccepted: boolean;
+    readonly emailStatus: string;
+    readonly emailMessage: string;
+    readonly emailReference: string;
 }
 
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
@@ -204,6 +221,7 @@ export class UserRegistrationWizard {
 
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly usersFacade = inject(UsersFacade);
+    private readonly correoFacade = inject(CorreoFacade);
     private readonly renapoFacade = inject(RenapoFacade);
     private readonly authStorage = inject(AuthStorage);
     private readonly destroyRef = inject(DestroyRef);
@@ -699,7 +717,7 @@ export class UserRegistrationWizard {
         }
 
         const isExpress = this.form().expressCreation;
-        let saveRequest$: ReturnType<UsersFacade['createAdminUser']> | ReturnType<UsersFacade['createSpecialUser']>;
+        let saveRequest$: Observable<RegistroAdminResponse | RegistroEspecialResponse>;
 
         try {
             saveRequest$ = isExpress
@@ -720,13 +738,26 @@ export class UserRegistrationWizard {
 
         saveRequest$
             .pipe(
+                switchMap((response) =>
+                    this.sendAccessCredentialsEmail(response, isExpress).pipe(
+                        map((emailDelivery) => ({ response, emailDelivery })),
+                        catchError((error: unknown) =>
+                            of({
+                                response,
+                                emailDelivery: this.toFailedEmailDelivery(error),
+                            }),
+                        ),
+                    ),
+                ),
                 takeUntilDestroyed(this.destroyRef),
                 finalize(() => this.isSubmitting.set(false)),
             )
             .subscribe({
-                next: (response) => {
+                next: ({ response, emailDelivery }) => {
                     this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                    this.saveSuccess.set(this.buildSaveSuccessModalState(response, isExpress));
+                    this.saveSuccess.set(
+                        this.buildSaveSuccessModalState(response, isExpress, emailDelivery),
+                    );
                 },
                 error: (error: unknown) => {
                     const message =
@@ -1313,7 +1344,7 @@ export class UserRegistrationWizard {
                     this.lastRenapoCurp = normalizedCurp;
                     this.curpLocked.set(true);
 
-                    if (response.exito && response.datos) {
+                    if (response.exito && response.datos && this.hasCompleteRenapoPersonalData(response.datos)) {
                         this.applyRenapoPersonalData(response.datos, normalizedCurp);
                         this.renapoLookupStatus.set('success');
                         this.renapoMessage.set(
@@ -1435,8 +1466,10 @@ export class UserRegistrationWizard {
     private buildSaveSuccessModalState(
         response: RegistroAdminResponse | RegistroEspecialResponse,
         isExpress: boolean,
+        emailDelivery: CorreoDeliveryResult | null = null,
     ): SaveSuccessModalState {
         const data = response.datos;
+        const current = this.form();
 
         return {
             message: this.toText(response.mensaje) || 'El usuario se guardó correctamente.',
@@ -1445,6 +1478,83 @@ export class UserRegistrationWizard {
             fullName: this.toText(data?.nombreCompleto),
             system: this.toText(data?.sistema),
             isExpress,
+            hasAccessEmail: emailDelivery !== null,
+            accessEmail: this.normalizeEmail(current.email),
+            accessPhone: this.formatPhoneForDisplay(current.phone),
+            emailAccepted: emailDelivery?.accepted ?? false,
+            emailStatus: this.toText(emailDelivery?.status),
+            emailMessage: this.toText(emailDelivery?.message),
+            emailReference: this.toText(emailDelivery?.correoId),
+        };
+    }
+
+    private sendAccessCredentialsEmail(
+        response: RegistroAdminResponse | RegistroEspecialResponse,
+        isExpress: boolean,
+    ): Observable<CorreoDeliveryResult> {
+        const current = this.form();
+        const data = response.datos;
+        const account = this.toText(data?.cuentaGenerada) || this.toText(data?.cuenta);
+        const recipient = this.normalizeEmail(current.email);
+
+        if (!account) {
+            return of({
+                accepted: false,
+                message: 'El usuario fue creado, pero la respuesta no incluyó la cuenta para enviar el correo de acceso.',
+                status: null,
+                correoId: null,
+                recipientCount: 0,
+                acceptedAtUtc: null,
+                traceId: null,
+            });
+        }
+
+        if (!this.isValidEmail(recipient)) {
+            return of({
+                accepted: false,
+                message: 'El usuario fue creado, pero no se encontró un correo electrónico válido para enviar sus datos de acceso.',
+                status: null,
+                correoId: null,
+                recipientCount: 0,
+                acceptedAtUtc: null,
+                traceId: null,
+            });
+        }
+
+        const fullName = this.toText(data?.nombreCompleto) || [
+            current.firstName,
+            current.lastName,
+            current.secondLastName,
+        ]
+            .map((value) => this.toText(value))
+            .filter(Boolean)
+            .join(' ');
+
+        return this.correoFacade.send(
+            buildUserCredentialsEmailRequest({
+                recipient,
+                fullName,
+                account,
+                email: recipient,
+                phone: current.phone,
+                system: this.toText(data?.sistema) || 'SIAU',
+                isExpress,
+            }),
+        );
+    }
+
+    private toFailedEmailDelivery(error: unknown): CorreoDeliveryResult {
+        return {
+            accepted: false,
+            message:
+                error instanceof Error
+                    ? error.message
+                    : 'El usuario fue creado, pero no fue posible solicitar el envío del correo de acceso.',
+            status: null,
+            correoId: null,
+            recipientCount: 0,
+            acceptedAtUtc: null,
+            traceId: null,
         };
     }
 
@@ -3068,6 +3178,16 @@ export class UserRegistrationWizard {
             .trim();
     }
 
+    private formatPhoneForDisplay(value: unknown): string {
+        const digits = this.toText(value).replace(/\D/g, '').slice(0, 10);
+
+        if (digits.length !== 10) {
+            return digits;
+        }
+
+        return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`;
+    }
+
     private isAdult(dateValue: string): boolean {
         const birthDate = new Date(`${dateValue}T00:00:00`);
 
@@ -3094,5 +3214,13 @@ export class UserRegistrationWizard {
             .replace(/[\u0300-\u036f]/g, '')
             .trim()
             .toLowerCase();
+    }
+    private hasCompleteRenapoPersonalData(data: RenapoCurpData): boolean {
+        return (
+            this.hasText(data.nombre) &&
+            this.hasText(data.primerApellido) &&
+            this.hasText(this.toDateInputValue(data.fechaNacimiento)) &&
+            this.hasText(this.resolveRenapoGender(data.sexo))
+        );
     }
 }
