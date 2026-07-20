@@ -130,8 +130,8 @@
                     </div>
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="!form().expressCreation"
-                        [maxLength]="13" [value]="form().rfc" (valueChange)="updateForm('rfc', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [maxLength]="13" [readonlyPrefix]="rfcPrefix()" [hint]="rfcHint()" [value]="form().rfc"
+                        (valueChange)="updateRfc($event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
@@ -155,8 +155,8 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
-                        [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
-                        [disabled]="isRenapoPersonalDataDisabled()" />
+                        [max]="maximumBirthDate()" [value]="form().birthDate"
+                        (valueChange)="updateForm('birthDate', $event)" [disabled]="isRenapoPersonalDataDisabled()" />
                 </div>
 
                 @if (renapoLookupStatus() !== 'idle') {
