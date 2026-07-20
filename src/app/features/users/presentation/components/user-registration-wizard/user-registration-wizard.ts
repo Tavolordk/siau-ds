@@ -1473,9 +1473,7 @@ export class UserRegistrationWizard {
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
-                sexoId: isExpress
-                    ? this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1)
-                    : this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
                 fechaNacimiento: this.getRequiredOrOptionalText(
                     current.birthDate,
                     !isExpress,
@@ -1637,7 +1635,7 @@ export class UserRegistrationWizard {
             datosPersonales: {
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
-                sexoId: this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1),
+                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -2826,7 +2824,7 @@ export class UserRegistrationWizard {
                 nextErrors['lastName'] = 'El primer apellido es obligatorio.';
             }
 
-            if (!isExpress && !this.hasText(current.gender)) {
+            if (!this.hasText(current.gender)) {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 

@@ -145,8 +145,8 @@
                         (valueChange)="updateForm('secondLastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-select label="Sexo" placeholder="" [required]="!form().expressCreation"
-                        [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
+                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions()"
+                        [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
