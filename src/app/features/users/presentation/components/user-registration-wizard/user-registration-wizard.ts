@@ -236,6 +236,8 @@ export class UserRegistrationWizard {
     private curpLookupSequence = 0;
     private lastRenapoCurp = '';
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
+    private initialEditFormSnapshot: UserRegistrationForm | null = null;
+    private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
     private readonly catalogosReady = signal<boolean>(false);
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
@@ -1320,6 +1322,7 @@ export class UserRegistrationWizard {
             return;
         }
 
+
         if (this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
@@ -2100,10 +2103,7 @@ export class UserRegistrationWizard {
             ...INITIAL_FORM,
             cuip: this.toText(this.firstValue(personalData, ['cuip'])),
             policeIdentificationKey: this.toText(
-                this.firstValue(
-                    personalData,
-                    ['claveUnicaIdentificacionPolicial', 'claveIdentificacionPolicial'],
-                ),
+                this.firstValue(personalData, ['claveUnicaIdentificacionPolicial', 'claveIdentificacionPolicial']),
             ),
             curp: this.toText(this.firstValue(personalData, ['curp'])),
             rfc: this.toText(this.firstValue(personalData, ['rfc'])),
@@ -2111,10 +2111,7 @@ export class UserRegistrationWizard {
             lastName: this.toText(this.firstValue(personalData, ['primerApellido', 'apellidoPaterno'])),
             secondLastName: this.toText(this.firstValue(personalData, ['segundoApellido', 'apellidoMaterno'])),
             birthDate: this.toDateInputValue(this.firstValue(personalData, ['fechaNacimiento'])),
-            gender: this.resolveSelectValue(
-                this.firstValue(personalData, ['sexo', 'sexoId']),
-                this.genderOptions,
-            ),
+            gender: this.resolveSelectValue(this.firstValue(personalData, ['sexo', 'sexoId']), this.genderOptions),
             civilStatus: this.resolveSelectValue(
                 this.firstValue(personalData, ['estadoCivil', 'estadoCivilId']),
                 this.civilStatusOptions,
@@ -2150,12 +2147,8 @@ export class UserRegistrationWizard {
             ),
             position: this.toText(this.firstValue(assignment, ['cargo', 'puesto'])),
             functions: this.toText(this.firstValue(assignment, ['funciones'])),
-            admissionDate: this.toDateInputValue(
-                this.firstValue(assignment, ['fechaInicio', 'fechaIngreso']),
-            ),
-            employeeNumber: this.toText(
-                this.firstValue(assignment, ['numeroEmpleado', 'numEmpleado']),
-            ),
+            admissionDate: this.toDateInputValue(this.firstValue(assignment, ['fechaInicio', 'fechaIngreso'])),
+            employeeNumber: this.toText(this.firstValue(assignment, ['numeroEmpleado', 'numEmpleado'])),
 
             commissionEnabled: hasCommissionData,
             commissionInstitutionType,
@@ -2192,9 +2185,7 @@ export class UserRegistrationWizard {
                 ['unidadAdministrativa', 'administrativeUnit'],
                 this.commissionAdministrativeUnitOptions,
             ),
-            commissionAdmissionDate: this.toDateInputValue(
-                this.firstValue(commission, ['fechaInicio', 'fechaIngreso']),
-            ),
+            commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
 
             email: this.resolveHydratedEmail(contact, datos, user),
             phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone']))
@@ -2207,9 +2198,7 @@ export class UserRegistrationWizard {
             username: this.toText(datos['cuenta']) || user?.username || '',
             password: '',
             confirmPassword: '',
-            accountStatus: this.toAccountStatus(
-                this.firstText([datos['estatus'], datos['estatusClave'], user?.status]),
-            ),
+            accountStatus: this.toAccountStatus(this.firstText([datos['estatus'], datos['estatusClave'], user?.status])),
             expressCreation: false,
             expressJustification: this.toText(datos['comentario']),
         };
@@ -2221,10 +2210,12 @@ export class UserRegistrationWizard {
         this.editEnabled.set(false);
         this.form.set(nextForm);
         this.initialIdentitySnapshot = this.toIdentitySnapshot(nextForm);
+        this.initialEditFormSnapshot = this.toEditFormSnapshot(nextForm);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set(assignedProfiles);
+        this.initialAssignedProfiles = [...assignedProfiles];
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
         this.loadHydratedAssignmentCatalogs(nextForm);
     }
@@ -2654,7 +2645,8 @@ export class UserRegistrationWizard {
             return 'suspended';
         }
 
-        if (normalizedValue.includes('inhabil') ||
+        if (
+            normalizedValue.includes('inhabil') ||
             normalizedValue.includes('inactivo') ||
             normalizedValue.includes('baja')
         ) {
@@ -2677,6 +2669,8 @@ export class UserRegistrationWizard {
     private resetWizard(): void {
         this.resetRenapoLookupState();
         this.initialIdentitySnapshot = null;
+        this.initialEditFormSnapshot = null;
+        this.initialAssignedProfiles = [];
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
         this.editEnabled.set(true);
@@ -2772,14 +2766,12 @@ export class UserRegistrationWizard {
                     this.userTypeOptions.set(catalogos.tiposUsuario);
                     this.systemOptions.set(catalogos.sistemas);
                     this.roleOptions.set([]);
-
                     this.institutionTypeOptions.update((current) =>
                         this.mergeSelectOptions(current, catalogos.tiposInstitucion),
                     );
                     this.stateOptions.update((current) =>
                         this.mergeSelectOptions(current, catalogos.estados),
                     );
-
                     this.catalogosReady.set(true);
                 },
                 error: (error: unknown) => {
@@ -3020,64 +3012,137 @@ export class UserRegistrationWizard {
                 this.addIdentityValidationErrors(current, isExpress, nextErrors);
             }
 
-            if (!this.hasText(current.firstName)) {
+            if (
+                this.shouldValidateEditFields(current, ['firstName']) &&
+                !this.hasText(current.firstName)
+            ) {
                 nextErrors['firstName'] = 'El nombre es obligatorio.';
             }
 
-            if (!this.hasText(current.lastName)) {
+            if (
+                this.shouldValidateEditFields(current, ['lastName']) &&
+                !this.hasText(current.lastName)
+            ) {
                 nextErrors['lastName'] = 'El primer apellido es obligatorio.';
             }
 
-            if (!this.hasText(current.gender)) {
+            if (
+                this.shouldValidateEditFields(current, ['gender']) &&
+                !this.hasText(current.gender)
+            ) {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
-            if (!isExpress && !this.hasText(current.civilStatus)) {
+            if (
+                !isExpress &&
+                this.shouldValidateEditFields(current, ['civilStatus']) &&
+                !this.hasText(current.civilStatus)
+            ) {
                 nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
             }
         }
 
         if (stepId === 'assignment') {
-            if (!this.hasText(current.institutionType)) {
+            if (
+                this.shouldValidateEditFields(current, ['institutionType']) &&
+                !this.hasText(current.institutionType)
+            ) {
                 nextErrors['institutionType'] = 'El tipo de institución es obligatorio.';
             }
 
-            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.entity)) {
+            if (
+                !this.isAssignmentFederalInstitution() &&
+                this.shouldValidateEditFields(current, ['institutionType', 'entity']) &&
+                !this.hasText(current.entity)
+            ) {
                 nextErrors['entity'] = 'La entidad es obligatoria.';
             }
 
-            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.municipality)) {
+            if (
+                !this.isAssignmentFederalInstitution() &&
+                this.shouldValidateEditFields(current, ['institutionType', 'entity', 'municipality']) &&
+                !this.hasText(current.municipality)
+            ) {
                 nextErrors['municipality'] = 'El municipio o alcaldía es obligatorio.';
             }
 
-            if (!this.hasText(current.institution)) {
+            if (
+                this.shouldValidateEditFields(
+                    current,
+                    ['institutionType', 'entity', 'municipality', 'institution'],
+                ) &&
+                !this.hasText(current.institution)
+            ) {
                 nextErrors['institution'] = 'La institución es obligatoria.';
             }
 
-            if (!this.hasText(current.admissionDate)) {
+            if (
+                this.shouldValidateEditFields(current, ['admissionDate']) &&
+                !this.hasText(current.admissionDate)
+            ) {
                 nextErrors['admissionDate'] = 'La fecha de ingreso es obligatoria.';
             }
 
-            if (!this.hasText(current.employeeNumber)) {
+            if (
+                this.shouldValidateEditFields(current, ['employeeNumber']) &&
+                !this.hasText(current.employeeNumber)
+            ) {
                 nextErrors['employeeNumber'] = 'El número de empleado es obligatorio.';
             }
         }
 
         if (stepId === 'commission') {
             if (current.commissionEnabled) {
-                if (!this.hasText(current.commissionInstitutionType)) {
+                if (
+                    this.shouldValidateEditFields(
+                        current,
+                        ['commissionEnabled', 'commissionInstitutionType'],
+                    ) &&
+                    !this.hasText(current.commissionInstitutionType)
+                ) {
                     nextErrors['commissionInstitutionType'] = 'El tipo de institución de comisión es obligatorio.';
                 }
 
-                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionEntity)) {
+                if (
+                    !this.isCommissionFederalInstitution() &&
+                    this.shouldValidateEditFields(
+                        current,
+                        ['commissionEnabled', 'commissionInstitutionType', 'commissionEntity'],
+                    ) &&
+                    !this.hasText(current.commissionEntity)
+                ) {
                     nextErrors['commissionEntity'] = 'La entidad de comisión es obligatoria.';
                 }
 
-                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionMunicipality)) {
+                if (
+                    !this.isCommissionFederalInstitution() &&
+                    this.shouldValidateEditFields(
+                        current,
+                        [
+                            'commissionEnabled',
+                            'commissionInstitutionType',
+                            'commissionEntity',
+                            'commissionMunicipality',
+                        ],
+                    ) &&
+                    !this.hasText(current.commissionMunicipality)
+                ) {
                     nextErrors['commissionMunicipality'] = 'El municipio o alcaldía de comisión es obligatorio.';
                 }
 
-                if (!this.hasText(current.commissionInstitution)) {
+                if (
+                    this.shouldValidateEditFields(
+                        current,
+                        [
+                            'commissionEnabled',
+                            'commissionInstitutionType',
+                            'commissionEntity',
+                            'commissionMunicipality',
+                            'commissionInstitution',
+                        ],
+                    ) &&
+                    !this.hasText(current.commissionInstitution)
+                ) {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
                 }
             }
@@ -3086,26 +3151,28 @@ export class UserRegistrationWizard {
         if (stepId === 'contact') {
             const hasEmail = this.hasText(current.email);
             const hasPhone = this.hasText(current.phone);
+            const shouldValidateEmail = this.shouldValidateEditFields(current, ['email']);
+            const shouldValidatePhone = this.shouldValidateEditFields(current, ['phone']);
 
-            if (!hasEmail) {
+            if (shouldValidateEmail && !hasEmail) {
                 nextErrors['email'] = 'El correo electrónico es obligatorio.';
             }
 
-            if (!hasPhone) {
+            if (shouldValidatePhone && !hasPhone) {
                 nextErrors['phone'] = 'El teléfono celular es obligatorio.';
             }
 
-            if (hasEmail && !this.isValidEmail(current.email)) {
+            if (shouldValidateEmail && hasEmail && !this.isValidEmail(current.email)) {
                 nextErrors['email'] = 'El correo electrónico no tiene un formato válido.';
             }
 
-            if (hasPhone && !/^\d{10}$/.test(current.phone)) {
+            if (shouldValidatePhone && hasPhone && !/^\d{10}$/.test(current.phone)) {
                 nextErrors['phone'] = 'El teléfono celular debe tener 10 dígitos.';
             }
         }
 
         if (stepId === 'profiles') {
-            if (this.assignedSystemProfiles().length === 0) {
+            if (this.shouldValidateAssignedProfiles() && this.assignedSystemProfiles().length === 0) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
             }
         }
@@ -3224,6 +3291,57 @@ export class UserRegistrationWizard {
             initialSnapshot.rfc !== currentSnapshot.rfc ||
             initialSnapshot.birthDate !== currentSnapshot.birthDate
         );
+    }
+
+    private shouldValidateEditFields(
+        current: UserRegistrationForm,
+        fields: readonly (keyof UserRegistrationForm)[],
+    ): boolean {
+        if (!this.isEditMode()) {
+            return true;
+        }
+
+        const initialSnapshot = this.initialEditFormSnapshot;
+
+        if (!initialSnapshot) {
+            return true;
+        }
+
+        return fields.some(
+            (field) => !this.areEditFieldValuesEqual(initialSnapshot[field], current[field]),
+        );
+    }
+
+    private shouldValidateAssignedProfiles(): boolean {
+        if (!this.isEditMode()) {
+            return true;
+        }
+
+        return this.buildAssignedProfileSignature(this.initialAssignedProfiles) !==
+            this.buildAssignedProfileSignature(this.assignedSystemProfiles());
+    }
+
+    private areEditFieldValuesEqual(
+        initialValue: UserRegistrationForm[keyof UserRegistrationForm],
+        currentValue: UserRegistrationForm[keyof UserRegistrationForm],
+    ): boolean {
+        if (Array.isArray(initialValue) && Array.isArray(currentValue)) {
+            return (
+                initialValue.length === currentValue.length &&
+                initialValue.every((value, index) => value === currentValue[index])
+            );
+        }
+
+        return initialValue === currentValue;
+    }
+
+    private buildAssignedProfileSignature(
+        profiles: readonly AssignedSystemProfile[],
+    ): string {
+        return profiles
+            .map((profile) => `${profile.system}|${profile.role}`)
+            .sort()
+            .join('||');
     }
 
     private validateChangedIdentityFields(): boolean {
@@ -3511,6 +3629,13 @@ export class UserRegistrationWizard {
         return `${year}-${month}-${day}`;
     }
 
+    private toEditFormSnapshot(form: UserRegistrationForm): UserRegistrationForm {
+        return {
+            ...form,
+            profiles: [...form.profiles],
+        };
+    }
+
     private toIdentitySnapshot(form: UserRegistrationForm): IdentitySnapshot {
         return {
             curp: this.toText(form.curp).toUpperCase(),
@@ -3526,7 +3651,6 @@ export class UserRegistrationWizard {
             .trim()
             .toLowerCase();
     }
-
     private hasCompleteRenapoPersonalData(data: RenapoCurpData): boolean {
         return (
             this.hasText(data.nombre) &&
@@ -3534,24 +3658,5 @@ export class UserRegistrationWizard {
             this.hasText(this.toDateInputValue(data.fechaNacimiento)) &&
             this.hasText(this.resolveRenapoGender(data.sexo))
         );
-    }
-    private mapCommissionSelectValue(
-        id: unknown,
-        label: unknown,
-        target: WritableSignal<readonly SiauSelectOption[]>,
-    ): string {
-        const value = this.toText(id) || this.toText(label);
-        const optionLabel = this.toText(label) || value;
-
-        if (!value) {
-            return '';
-        }
-
-        target.set(this.mergeSelectOptions(
-            [{ value, label: optionLabel }],
-            target(),
-        ));
-
-        return value;
     }
 }
