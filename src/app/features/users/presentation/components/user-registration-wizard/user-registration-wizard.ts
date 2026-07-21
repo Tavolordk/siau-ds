@@ -447,19 +447,11 @@ export class UserRegistrationWizard {
     protected readonly headerBadge = computed(() => {
         const prefix = this.isEditMode() ? 'Edición' : 'Registro';
         return `${prefix} · ${this.activeIndex() + 1}/${this.stepOrder().length} secciones`;
-    });
+    }); protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
-    protected readonly isEditMode = computed(() => this.mode() === 'edit');
-
-    protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
-
-    protected readonly rfcHint = computed(() => {
-        const prefix = this.rfcPrefix();
-
-        return prefix
-            ? `Los primeros 10 caracteres se toman de la CURP (${prefix}). Captura solo los 3 de la homoclave.`
-            : null;
-    });
+    protected readonly rfcHint = computed(
+        () => 'Captura el RFC completo. Su fecha (AAMMDD) debe coincidir con la de la CURP.',
+    );
 
     protected readonly isFormDisabled = computed(() =>
         this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
@@ -489,6 +481,15 @@ export class UserRegistrationWizard {
             !this.isEditMode() &&
             (this.renapoLookupStatus() === 'loading' || this.renapoLookupStatus() === 'success')
         );
+    });
+
+    protected readonly isBirthDateInputDisabled = computed(() => {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return true;
+        }
+
+        // La fecha se obtiene directamente de la CURP válida, incluso si RENAPO no responde.
+        return !this.isEditMode() && this.getBirthDateFromCurp(this.form().curp) !== null;
     });
 
     protected readonly showCurpUnlock = computed(() =>
@@ -825,6 +826,19 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (key === 'birthDate' && !this.isEditMode()) {
+            const curpBirthDate = this.getBirthDateFromCurp(this.form().curp);
+
+            if (curpBirthDate) {
+                this.form.update((current) => ({
+                    ...current,
+                    birthDate: curpBirthDate,
+                }));
+                this.clearFieldError('birthDate');
+                return;
+            }
+        }
+
         const normalizedValue = this.normalizeFormInputValue(key, value);
 
         this.form.update((current) => ({
@@ -852,7 +866,6 @@ export class UserRegistrationWizard {
             this.form.update((current) => ({
                 ...current,
                 curp,
-                rfc: this.synchronizeRfcWithCurpPrefix(curp, current.rfc),
             }));
             this.clearFieldError('curp');
             this.clearFieldError('rfc');
@@ -874,15 +887,14 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
-            rfc: this.synchronizeRfcWithCurpPrefix(curp, current.rfc),
+            birthDate: this.getBirthDateFromCurp(curp) ?? '',
         }));
         this.curpLocked.set(false);
         this.renapoLookupStatus.set('idle');
         this.renapoMessage.set('');
         this.clearFieldError('curp');
         this.clearFieldError('rfc');
-
-        if (curp.length !== 18) {
+        this.clearFieldError('birthDate'); if (curp.length !== 18) {
             return;
         }
 
@@ -902,8 +914,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        const current = this.form();
-        const rfc = this.normalizeRfcForCurp(value, current.curp);
+        const rfc = this.normalizeRfc(value);
 
         this.form.update((form) => ({
             ...form,
@@ -1322,7 +1333,6 @@ export class UserRegistrationWizard {
             return;
         }
 
-
         if (this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
@@ -1423,7 +1433,7 @@ export class UserRegistrationWizard {
 
                     this.renapoLookupStatus.set('not-found');
                     this.renapoMessage.set(
-                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos, fecha de nacimiento y sexo.',
+                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos y sexo; la fecha de nacimiento se obtiene de la CURP.',
                     );
                 },
                 error: (error: unknown) => {
@@ -1438,7 +1448,7 @@ export class UserRegistrationWizard {
                     this.curpLocked.set(true);
                     this.renapoLookupStatus.set('error');
                     this.renapoMessage.set(
-                        'No fue posible consultar RENAPO. Puedes desbloquear la CURP para reintentar o capturar manualmente los datos personales.',
+                        'No fue posible consultar RENAPO. Puedes desbloquear la CURP para reintentar o capturar manualmente nombre(s), apellidos y sexo; la fecha de nacimiento se obtiene de la CURP.',
                     );
                     console.error('Error consultando CURP en RENAPO.', error);
                 },
@@ -1453,11 +1463,10 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
-            rfc: this.synchronizeRfcWithCurpPrefix(curp, current.rfc),
             firstName: this.toText(data.nombre).toUpperCase(),
             lastName: this.toText(data.primerApellido).toUpperCase(),
             secondLastName: this.toText(data.segundoApellido).toUpperCase(),
-            birthDate: this.toDateInputValue(data.fechaNacimiento),
+            birthDate: this.getBirthDateFromCurp(curp) ?? current.birthDate,
             gender: gender || current.gender,
         }));
 
@@ -1478,7 +1487,6 @@ export class UserRegistrationWizard {
             firstName: '',
             lastName: '',
             secondLastName: '',
-            birthDate: '',
             gender: '',
         }));
 
@@ -1639,23 +1647,14 @@ export class UserRegistrationWizard {
         return {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
-                curp: this.getRequiredOrOptionalText(
-                    current.curp,
-                    !isExpress,
-                    'Captura la CURP.',
-                ).toUpperCase(),
-                rfc: this.getRequiredOrOptionalText(
-                    current.rfc,
-                    !isExpress,
-                    'Captura el RFC.',
-                ).toUpperCase(),
+                curp: this.requireText(current.curp, 'Captura la CURP.').toUpperCase(),
+                rfc: this.requireText(current.rfc, 'Captura el RFC.').toUpperCase(),
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
                 sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
-                fechaNacimiento: this.getRequiredOrOptionalText(
+                fechaNacimiento: this.requireText(
                     current.birthDate,
-                    !isExpress,
                     'Captura la fecha de nacimiento.',
                 ),
                 estadoCivilId: isExpress
@@ -1793,8 +1792,7 @@ export class UserRegistrationWizard {
 
     private resolveAccountStatusId(status: AccountStatus): number {
         switch (status) {
-            case 'disabled':
-                return 2;
+            case 'disabled': return 2;
             case 'suspended':
                 return 3;
             default:
@@ -1976,14 +1974,6 @@ export class UserRegistrationWizard {
         }
 
         return text;
-    }
-
-    private getRequiredOrOptionalText(
-        value: string,
-        required: boolean,
-        errorMessage: string,
-    ): string {
-        return required ? this.requireText(value, errorMessage) : this.toText(value);
     }
 
     private resolveOptionalCatalogId(
@@ -2251,9 +2241,7 @@ export class UserRegistrationWizard {
 
                 const rawRoleId = this.toText(
                     this.firstValue(record, ['perfilId', 'rolId', 'idPerfil']),
-                );
-
-                const systemOption =
+                ); const systemOption =
                     this.systemOptions().find((option) =>
                         this.normalizeText(option.label) === this.normalizeText(rawSystemLabel) ||
                         this.normalizeText(option.value) === this.normalizeText(rawSystemLabel) ||
@@ -3009,7 +2997,7 @@ export class UserRegistrationWizard {
 
         if (stepId === 'personal-data') {
             if (this.shouldValidateIdentityFields(current)) {
-                this.addIdentityValidationErrors(current, isExpress, nextErrors);
+                this.addIdentityValidationErrors(current, nextErrors);
             }
 
             if (
@@ -3151,8 +3139,7 @@ export class UserRegistrationWizard {
         if (stepId === 'contact') {
             const hasEmail = this.hasText(current.email);
             const hasPhone = this.hasText(current.phone);
-            const shouldValidateEmail = this.shouldValidateEditFields(current, ['email']);
-            const shouldValidatePhone = this.shouldValidateEditFields(current, ['phone']);
+            const shouldValidateEmail = this.shouldValidateEditFields(current, ['email']); const shouldValidatePhone = this.shouldValidateEditFields(current, ['phone']);
 
             if (shouldValidateEmail && !hasEmail) {
                 nextErrors['email'] = 'El correo electrónico es obligatorio.';
@@ -3209,52 +3196,41 @@ export class UserRegistrationWizard {
 
     private addIdentityValidationErrors(
         current: UserRegistrationForm,
-        isExpress: boolean,
         errors: Record<string, string>,
     ): void {
         const hasCurp = this.hasText(current.curp);
         const hasRfc = this.hasText(current.rfc);
         const hasBirthDate = this.hasText(current.birthDate);
-        const shouldValidateCurp = !isExpress || hasCurp;
-        const shouldValidateRfc = !isExpress || hasRfc;
-        const shouldValidateBirthDate = !isExpress || hasBirthDate;
-
         let validCurp = false;
         let validRfc = false;
 
-        if (shouldValidateCurp) {
-            if (!hasCurp) {
-                errors['curp'] = 'La CURP es obligatoria.';
-            } else if (!this.isValidCurp(current.curp)) {
-                errors['curp'] = 'La CURP no tiene un formato o una fecha válidos.';
-            } else {
-                validCurp = true;
-            }
+        if (!hasCurp) {
+            errors['curp'] = 'La CURP es obligatoria.';
+        } else if (!this.isValidCurp(current.curp)) {
+            errors['curp'] = 'La CURP no tiene un formato o una fecha válidos.';
+        } else {
+            validCurp = true;
         }
 
-        if (shouldValidateRfc) {
-            if (!hasRfc) {
-                errors['rfc'] = 'El RFC es obligatorio.';
-            } else if (!this.isValidRfc(current.rfc)) {
-                errors['rfc'] = 'El RFC no tiene un formato válido.';
-            } else {
-                validRfc = true;
-            }
+        if (!hasRfc) {
+            errors['rfc'] = 'El RFC es obligatorio.';
+        } else if (!this.isValidRfc(current.rfc)) {
+            errors['rfc'] = 'El RFC no tiene un formato válido.';
+        } else {
+            validRfc = true;
         }
 
-        if (shouldValidateBirthDate) {
-            if (!hasBirthDate) {
-                errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
-            } else if (!this.isValidDateInput(current.birthDate)) {
-                errors['birthDate'] = 'La fecha de nacimiento no es válida.';
-            } else if (!this.isAdult(current.birthDate)) {
-                errors['birthDate'] = 'El usuario debe ser mayor de edad.';
-            }
+        if (!hasBirthDate) {
+            errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
+        } else if (!this.isValidDateInput(current.birthDate)) {
+            errors['birthDate'] = 'La fecha de nacimiento no es válida.';
+        } else if (!this.isAdult(current.birthDate)) {
+            errors['birthDate'] = 'El usuario debe ser mayor de edad.';
         }
 
-        if (validCurp && validRfc && !this.rfcMatchesCurp(current.rfc, current.curp)) {
+        if (validCurp && validRfc && !this.rfcBirthDateMatchesCurp(current.rfc, current.curp)) {
             errors['rfc'] =
-                'Los primeros 10 caracteres del RFC deben coincidir con los primeros 10 de la CURP. Solo captura la homoclave de 3 caracteres.';
+                'La fecha del RFC debe coincidir con la fecha registrada en la CURP.';
         }
 
         const curpBirthDate = validCurp ? this.getBirthDateFromCurp(current.curp) : null;
@@ -3269,7 +3245,8 @@ export class UserRegistrationWizard {
         }
 
         if (hasBirthDate && current.birthDate !== curpBirthDate) {
-            errors['birthDate'] = 'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
+            errors['birthDate'] =
+                'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP y el RFC.';
         }
     }
 
@@ -3353,7 +3330,7 @@ export class UserRegistrationWizard {
         }
 
         const nextErrors: Record<string, string> = {};
-        this.addIdentityValidationErrors(current, current.expressCreation, nextErrors);
+        this.addIdentityValidationErrors(current, nextErrors);
 
         this.formErrors.update((currentErrors) => ({
             ...this.withoutIdentityFieldErrors(currentErrors),
@@ -3483,44 +3460,28 @@ export class UserRegistrationWizard {
         );
     }
 
-    private getRfcPrefixFromCurp(value: string): string {
-        const curp = this.toText(value).toUpperCase();
-
-        return this.isValidCurp(curp) ? curp.slice(0, 10) : '';
+    private normalizeRfc(value: string): string {
+        return this.toText(value).toUpperCase().slice(0, 13);
     }
 
-    private normalizeRfcForCurp(value: string, curp: string): string {
-        const normalizedRfc = this.toText(value).toUpperCase();
-        const prefix = this.getRfcPrefixFromCurp(curp);
+    private rfcBirthDateMatchesCurp(rfc: string, curp: string): boolean {
+        const curpDateCode = this.toText(curp).toUpperCase().slice(4, 10);
+        const rfcDateCode = this.getBirthDateCodeFromRfc(rfc);
 
-        if (!prefix) {
-            return normalizedRfc.slice(0, 13);
+        return Boolean(curpDateCode) && curpDateCode === rfcDateCode;
+    }
+
+    private getBirthDateCodeFromRfc(value: string): string | null {
+        const rfc = this.toText(value).toUpperCase();
+
+        if (!this.isValidRfc(rfc)) {
+            return null;
         }
 
-        return `${prefix}${this.extractRfcHomoclave(normalizedRfc, prefix)}`;
-    }
+        const prefixLength = rfc.length === 13 ? 4 : 3;
+        const dateCode = rfc.slice(prefixLength, prefixLength + 6);
 
-    private synchronizeRfcWithCurpPrefix(curp: string, rfc: string): string {
-        return this.normalizeRfcForCurp(rfc, curp);
-    }
-
-    private extractRfcHomoclave(value: string, prefix: string): string {
-        const rfc = this.toText(value).toUpperCase();
-        const rawHomoclave = rfc.startsWith(prefix)
-            ? rfc.slice(prefix.length)
-            : rfc.length > prefix.length
-                ? rfc.slice(-3)
-                : rfc.length <= 3
-                    ? rfc
-                    : '';
-
-        return rawHomoclave.replace(/[^A-Z0-9]/g, '').slice(0, 3);
-    }
-
-    private rfcMatchesCurp(rfc: string, curp: string): boolean {
-        const prefix = this.getRfcPrefixFromCurp(curp);
-
-        return Boolean(prefix) && this.toText(rfc).toUpperCase().slice(0, 10) === prefix;
+        return /^\d{6}$/.test(dateCode) ? dateCode : null;
     }
 
     private getBirthDateFromCurp(value: string): string | null {
@@ -3627,9 +3588,7 @@ export class UserRegistrationWizard {
         const day = String(date.getDate()).padStart(2, '0');
 
         return `${year}-${month}-${day}`;
-    }
-
-    private toEditFormSnapshot(form: UserRegistrationForm): UserRegistrationForm {
+    } private toEditFormSnapshot(form: UserRegistrationForm): UserRegistrationForm {
         return {
             ...form,
             profiles: [...form.profiles],
@@ -3655,7 +3614,6 @@ export class UserRegistrationWizard {
         return (
             this.hasText(data.nombre) &&
             this.hasText(data.primerApellido) &&
-            this.hasText(this.toDateInputValue(data.fechaNacimiento)) &&
             this.hasText(this.resolveRenapoGender(data.sexo))
         );
     }

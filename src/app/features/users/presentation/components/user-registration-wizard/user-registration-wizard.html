@@ -66,9 +66,9 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Solo serán obligatorios nombre, primer apellido, adscripción, correo y teléfono celular.
-                            Al final
-                            deberás capturar una justificación.</small>
+                        <small>CURP, RFC y fecha de nacimiento siempre son obligatorios. En este modo también debes
+                            capturar nombre, primer apellido, adscripción, correo y teléfono celular. Al final deberás
+                            capturar una justificación.</small>
                     </span>
                 </label>
             </div>
@@ -107,8 +107,8 @@
                         (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <div class="registration-wizard__curp-field">
-                        <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
-                            [required]="!form().expressCreation" [maxLength]="18" [value]="form().curp"
+                        <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="true" [maxLength]="18"
+                            [value]="form().curp"
                             [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
                             (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
 
@@ -129,9 +129,9 @@
                         }
                     </div>
 
-                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="!form().expressCreation"
-                        [maxLength]="13" [readonlyPrefix]="rfcPrefix()" [hint]="rfcHint()" [value]="form().rfc"
-                        (valueChange)="updateRfc($event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="true" [maxLength]="13"
+                        [hint]="rfcHint()" [value]="form().rfc" (valueChange)="updateRfc($event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
                         [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
@@ -154,9 +154,9 @@
                         [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
-                        [max]="maximumBirthDate()" [value]="form().birthDate"
-                        (valueChange)="updateForm('birthDate', $event)" [disabled]="isRenapoPersonalDataDisabled()" />
+                    <siau-input label="Fecha de Nacimiento" type="date" [required]="true" [max]="maximumBirthDate()"
+                        [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
+                        [disabled]="isBirthDateInputDisabled()" />
                 </div>
 
                 @if (renapoLookupStatus() !== 'idle') {
