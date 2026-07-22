@@ -739,6 +739,19 @@
             }
             }
 
+            @if (submitError(); as error) {
+            <div class="registration-wizard__info-box registration-wizard__info-box--error" role="alert"
+                aria-live="assertive">
+                <siau-lucide-icon name="triangle-alert" size="18" strokeWidth="2" aria-hidden="true" />
+
+                <div>
+                    <strong>{{ isEditMode() ? 'No se pudieron guardar los cambios.' : 'No fue posible registrar al
+                        usuario.' }}</strong>
+                    <div>{{ error }}</div>
+                </div>
+            </div>
+            }
+
             @if (currentStepErrors().length > 0) {
             <div class="registration-wizard__info-box">
                 <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />

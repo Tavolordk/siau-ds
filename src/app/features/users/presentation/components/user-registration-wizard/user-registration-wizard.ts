@@ -450,7 +450,8 @@ export class UserRegistrationWizard {
     }); protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
     protected readonly rfcHint = computed(
-        () => 'Captura el RFC completo. Su fecha (AAMMDD) debe coincidir con la de la CURP.',
+        () =>
+            'Se completa con los primeros 10 caracteres de la CURP, pero puedes editarlo por completo. Su fecha (AAMMDD) debe coincidir con la de la CURP.',
     );
 
     protected readonly isFormDisabled = computed(() =>
@@ -527,12 +528,19 @@ export class UserRegistrationWizard {
         const stepFields = this.getStepValidationFields(this.activeStepId());
 
         return Object.entries(errors)
-            .filter(([key]) => stepFields.includes(key))
+            .filter(([key]) => key !== 'submit' && stepFields.includes(key))
             .map(([key, message]) => ({
                 key,
                 message,
             }));
     });
+
+    /**
+     * Los errores provenientes del API no pertenecen a una sección concreta.
+     * La creación normal no tiene el paso "Cuenta", por lo que deben mostrarse
+     * como una alerta global dentro del asistente.
+     */
+    protected readonly submitError = computed(() => this.formErrors()['submit'] ?? null);
 
     protected readonly modalTitle = computed(() => {
         if (!this.isEditMode()) {
@@ -708,6 +716,9 @@ export class UserRegistrationWizard {
             return;
         }
 
+        // Evita dejar visible el error del intento anterior mientras se reintenta el registro.
+        this.clearFieldError('submit');
+
         if (this.isEditMode()) {
             if (!this.validateAllSteps()) {
                 return;
@@ -866,6 +877,7 @@ export class UserRegistrationWizard {
             this.form.update((current) => ({
                 ...current,
                 curp,
+                rfc: this.completeRfcFromCurp(curp, current.rfc),
             }));
             this.clearFieldError('curp');
             this.clearFieldError('rfc');
@@ -887,6 +899,7 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
+            rfc: this.completeRfcFromCurp(curp, current.rfc),
             birthDate: this.getBirthDateFromCurp(curp) ?? '',
         }));
         this.curpLocked.set(false);
@@ -3389,7 +3402,6 @@ export class UserRegistrationWizard {
                 'password',
                 'confirmPassword',
                 'expressJustification',
-                'submit',
             ],
         };
 
@@ -3462,6 +3474,18 @@ export class UserRegistrationWizard {
 
     private normalizeRfc(value: string): string {
         return this.toText(value).toUpperCase().slice(0, 13);
+    }
+
+    private completeRfcFromCurp(curp: string, currentRfc: string): string {
+        const curpPrefix = curp.slice(0, 10);
+
+        // Espera a tener el prefijo completo para no borrar el RFC durante la captura de la CURP.
+        if (curpPrefix.length < 10) {
+            return currentRfc;
+        }
+
+        // Conserva la homoclave existente; el usuario sigue pudiendo editar los 13 caracteres del RFC.
+        return `${curpPrefix}${this.normalizeRfc(currentRfc).slice(10)}`.slice(0, 13);
     }
 
     private rfcBirthDateMatchesCurp(rfc: string, curp: string): boolean {

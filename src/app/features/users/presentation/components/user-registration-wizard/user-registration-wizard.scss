@@ -594,6 +594,23 @@
   font-weight: 700;
 }
 
+.registration-wizard__info-box--error {
+  align-items: flex-start;
+  border-color: rgba(190, 24, 93, 0.3);
+  background: rgb(255, 241, 242);
+  color: rgb(159, 18, 57);
+}
+
+.registration-wizard__info-box--error siau-lucide-icon,
+.registration-wizard__info-box--error strong {
+  color: rgb(159, 18, 57);
+}
+
+.registration-wizard__info-box--error > div {
+  display: grid;
+  gap: 2px;
+}
+
 .registration-wizard__info-box + .registration-wizard__grid {
   padding-top: 18px;
 }
