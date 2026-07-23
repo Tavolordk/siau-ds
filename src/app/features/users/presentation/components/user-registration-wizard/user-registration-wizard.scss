@@ -1932,15 +1932,206 @@
     grid-template-columns: 1fr;
   }
 }
-.users-table th {
-  text-align: center;
+
+/* =========================================================
+   VALIDACIÓN COMPLEMENTARIA POR CURP
+========================================================= */
+
+.registration-wizard__curp-validation {
+  min-width: 0;
+  padding: 11px 10px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 12px;
+  color: rgb(255, 255, 255);
+  background:
+    linear-gradient(145deg, rgba(27, 31, 74, 0.2), rgba(255, 255, 255, 0.08)), rgba(27, 31, 74, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-.users-table td {
+
+.registration-wizard__curp-validation--sidebar {
+  flex: 1 1 134px;
+  min-height: 134px;
+  margin-top: 10px;
+}
+
+.registration-wizard__curp-validation--mobile {
+  display: none;
+}
+
+.registration-wizard__curp-validation-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.registration-wizard__curp-validation-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgb(255, 255, 255);
+  background: rgba(255, 255, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-wizard__curp-validation-header div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.registration-wizard__curp-validation-header span:not(.registration-wizard__curp-validation-icon) {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.registration-wizard__curp-validation-header strong {
+  overflow: hidden;
+  color: rgb(255, 255, 255);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registration-wizard__curp-validation-list {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.registration-wizard__curp-validation-row {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.registration-wizard__curp-validation-row dt {
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.registration-wizard__curp-validation-row dd {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+}
+
+.registration-wizard__curp-validation-pill {
+  min-height: 21px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.1;
   text-align: center;
 }
 
-@media (max-width: 900px) {
-  .users-table td {
-    text-align: left;
+.registration-wizard__curp-validation-pill--success {
+  border-color: rgba(26, 127, 82, 0.32);
+  color: rgb(21, 91, 61);
+  background: rgba(214, 244, 227, 0.95);
+}
+
+.registration-wizard__curp-validation-pill--danger {
+  border-color: rgba(155, 34, 71, 0.3);
+  color: rgb(130, 23, 56);
+  background: rgba(250, 225, 235, 0.95);
+}
+
+.registration-wizard__curp-validation-pill--neutral {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgb(255, 255, 255);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.registration-wizard__curp-validation-validity {
+  max-width: 104px;
+  overflow-wrap: anywhere;
+  color: rgb(255, 255, 255);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+@media (max-width: 920px) {
+  .registration-wizard__curp-validation--sidebar {
+    display: none;
+  }
+
+  .registration-wizard__curp-validation--mobile {
+    width: calc(100% - 44px);
+    margin: 0 22px 22px;
+    display: grid;
+    color: rgb(27, 31, 74);
+    border-color: rgba(160, 178, 187, 0.42);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 8px 18px rgba(27, 31, 74, 0.06);
+  }
+
+  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-icon {
+    border-color: rgba(27, 31, 74, 0.13);
+    color: rgb(27, 31, 74);
+    background: rgba(27, 31, 74, 0.07);
+  }
+
+  .registration-wizard__curp-validation--mobile
+    .registration-wizard__curp-validation-header
+    span:not(.registration-wizard__curp-validation-icon),
+  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-row dt {
+    color: rgba(27, 31, 74, 0.52);
+  }
+
+  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-header strong,
+  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-validity {
+    color: rgb(27, 31, 74);
+  }
+
+  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-row {
+    border-color: rgba(160, 178, 187, 0.28);
+    background: rgba(234, 241, 248, 0.58);
+  }
+
+  .registration-wizard__curp-validation--mobile
+    .registration-wizard__curp-validation-pill--neutral {
+    border-color: rgba(27, 31, 74, 0.12);
+    color: rgb(62, 92, 118);
+    background: rgba(62, 92, 118, 0.1);
+  }
+}
+
+@media (max-width: 480px) {
+  .registration-wizard__curp-validation--mobile {
+    width: calc(100% - 24px);
+    margin-right: 12px;
+    margin-bottom: 16px;
+    margin-left: 12px;
   }
 }

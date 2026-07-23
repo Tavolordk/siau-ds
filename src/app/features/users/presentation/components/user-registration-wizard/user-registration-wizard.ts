@@ -51,6 +51,9 @@ import {
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
+type CurpPersonalStatus = 'active' | 'inactive' | 'no-information';
+type CurpEcccStatus = 'approved' | 'rejected' | 'no-information';
+type CurpValidationStatus = CurpPersonalStatus | CurpEcccStatus;
 
 type WizardStepId =
     | 'personal-data'
@@ -114,6 +117,12 @@ interface IdentitySnapshot {
     readonly birthDate: string;
 }
 
+interface CurpValidationSummary {
+    readonly personal: CurpPersonalStatus;
+    readonly eccc: CurpEcccStatus;
+    readonly ecccValidity: string | null;
+}
+
 interface UserProfileOption {
     readonly value: string;
     readonly label: string;
@@ -151,6 +160,16 @@ interface SaveSuccessModalState {
 
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
+
+/**
+ * Resultado temporal mientras se habilita el servicio de consulta complementaria.
+ * Se evita simular una aprobación o una situación laboral que aún no fue validada.
+ */
+const HARDCODED_CURP_VALIDATION_SUMMARY: CurpValidationSummary = {
+    personal: 'no-information',
+    eccc: 'no-information',
+    ecccValidity: null,
+};
 
 const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
     'personal-data',
@@ -251,6 +270,7 @@ export class UserRegistrationWizard {
     protected readonly renapoMessage = signal<string>('');
     protected readonly curpLocked = signal<boolean>(false);
     protected readonly curpUnlockChecked = signal<boolean>(false);
+    protected readonly curpValidationSummary = signal<CurpValidationSummary | null>(null);
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -521,6 +541,14 @@ export class UserRegistrationWizard {
             default:
                 return 'triangle-alert';
         }
+    });
+
+    protected readonly curpValidationSummaryForPersonalStep = computed(() => {
+        if (this.activeStepId() !== 'personal-data') {
+            return null;
+        }
+
+        return this.curpValidationSummary();
     });
 
     protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
@@ -879,6 +907,8 @@ export class UserRegistrationWizard {
                 return;
             }
 
+            this.clearCurpValidationSummary();
+
             this.form.update((current) => ({
                 ...current,
                 curp,
@@ -895,6 +925,8 @@ export class UserRegistrationWizard {
         if (curp === previousCurp) {
             return;
         }
+
+        this.clearCurpValidationSummary();
 
         if (this.lastRenapoCurp && curp !== this.lastRenapoCurp) {
             this.clearRenapoPersonalData();
@@ -1410,6 +1442,31 @@ export class UserRegistrationWizard {
             .trim();
     }
 
+    protected getCurpValidationStatusLabel(status: CurpValidationStatus): string {
+        switch (status) {
+            case 'active':
+                return 'Activo';
+            case 'inactive':
+                return 'Inactivo';
+            case 'approved':
+                return 'Aprobado';
+            case 'rejected':
+                return 'Reprobado';
+            default:
+                return 'Sin información';
+        }
+    }
+
+    protected getCurpValidationStatusClass(status: CurpValidationStatus): string {
+        const tone = status === 'active' || status === 'approved'
+            ? 'success'
+            : status === 'inactive' || status === 'rejected'
+                ? 'danger'
+                : 'neutral';
+
+        return `registration-wizard__curp-validation-pill registration-wizard__curp-validation-pill--${tone}`;
+    }
+
     private consultRenapo(curp: string): void {
         const normalizedCurp = this.toText(curp).toUpperCase();
 
@@ -1419,6 +1476,7 @@ export class UserRegistrationWizard {
 
         const requestSequence = ++this.curpLookupSequence;
 
+        this.loadHardcodedCurpValidationSummary(normalizedCurp);
         this.curpUnlockChecked.set(false);
         this.curpLocked.set(false);
         this.renapoLookupStatus.set('loading');
@@ -1556,6 +1614,20 @@ export class UserRegistrationWizard {
         this.renapoMessage.set('');
         this.curpLocked.set(false);
         this.curpUnlockChecked.set(false);
+        this.clearCurpValidationSummary();
+    }
+
+    private loadHardcodedCurpValidationSummary(curp: string): void {
+        if (!this.isValidCurp(curp)) {
+            this.clearCurpValidationSummary();
+            return;
+        }
+
+        this.curpValidationSummary.set({ ...HARDCODED_CURP_VALIDATION_SUMMARY });
+    }
+
+    private clearCurpValidationSummary(): void {
+        this.curpValidationSummary.set(null);
     }
 
     private buildSaveSuccessModalState(

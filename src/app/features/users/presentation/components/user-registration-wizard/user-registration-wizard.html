@@ -14,6 +14,49 @@
                     <span class="registration-wizard__step-label">{{ step.label }}</span>
                 </button>
                 }
+
+                @if (curpValidationSummaryForPersonalStep(); as curpValidation) {
+                <section class="registration-wizard__curp-validation registration-wizard__curp-validation--sidebar"
+                    aria-live="polite">
+                    <div class="registration-wizard__curp-validation-header">
+                        <span class="registration-wizard__curp-validation-icon">
+                            <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
+                        </span>
+
+                        <div>
+                            <span>Validación CURP</span>
+                            <strong>Personal y ECCC</strong>
+                        </div>
+                    </div>
+
+                    <dl class="registration-wizard__curp-validation-list">
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>Personal</dt>
+                            <dd>
+                                <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
+                                    {{ getCurpValidationStatusLabel(curpValidation.personal) }}
+                                </span>
+                            </dd>
+                        </div>
+
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>ECCC</dt>
+                            <dd>
+                                <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
+                                    {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                                </span>
+                            </dd>
+                        </div>
+
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>Vigencia</dt>
+                            <dd class="registration-wizard__curp-validation-validity">
+                                {{ curpValidation.ecccValidity ?? 'Sin información' }}
+                            </dd>
+                        </div>
+                    </dl>
+                </section>
+                }
             </div>
 
             <div class="registration-wizard__sidebar-progress">
@@ -174,6 +217,49 @@
                         <span>{{ renapoMessage() }}</span>
                     </div>
                 </div>
+                }
+
+                @if (curpValidationSummaryForPersonalStep(); as curpValidation) {
+                <section class="registration-wizard__curp-validation registration-wizard__curp-validation--mobile"
+                    aria-live="polite">
+                    <div class="registration-wizard__curp-validation-header">
+                        <span class="registration-wizard__curp-validation-icon">
+                            <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
+                        </span>
+
+                        <div>
+                            <span>Validación CURP</span>
+                            <strong>Personal y ECCC</strong>
+                        </div>
+                    </div>
+
+                    <dl class="registration-wizard__curp-validation-list">
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>Personal</dt>
+                            <dd>
+                                <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
+                                    {{ getCurpValidationStatusLabel(curpValidation.personal) }}
+                                </span>
+                            </dd>
+                        </div>
+
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>ECCC</dt>
+                            <dd>
+                                <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
+                                    {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                                </span>
+                            </dd>
+                        </div>
+
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>Vigencia</dt>
+                            <dd class="registration-wizard__curp-validation-validity">
+                                {{ curpValidation.ecccValidity ?? 'Sin información' }}
+                            </dd>
+                        </div>
+                    </dl>
+                </section>
                 }
             </section>
             }
