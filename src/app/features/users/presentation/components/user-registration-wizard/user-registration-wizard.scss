@@ -1932,3 +1932,15 @@
     grid-template-columns: 1fr;
   }
 }
+.users-table th {
+  text-align: center;
+}
+.users-table td {
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .users-table td {
+    text-align: left;
+  }
+}
