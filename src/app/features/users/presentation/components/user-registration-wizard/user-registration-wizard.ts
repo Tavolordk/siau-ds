@@ -451,7 +451,7 @@ export class UserRegistrationWizard {
 
     protected readonly rfcHint = computed(
         () =>
-            'Se completa con los primeros 10 caracteres de la CURP, pero puedes editarlo por completo. Su fecha (AAMMDD) debe coincidir con la de la CURP.',
+            'Al cambiar la CURP se regeneran sus primeros 10 caracteres. Captura los últimos 3 de la homoclave; su fecha (AAMMDD) debe coincidir con la CURP.',
     );
 
     protected readonly isFormDisabled = computed(() =>
@@ -873,11 +873,16 @@ export class UserRegistrationWizard {
 
         if (this.isEditMode()) {
             const curp = this.normalizeFormInputValue('curp', value);
+            const previousCurp = this.form().curp;
+
+            if (curp === previousCurp) {
+                return;
+            }
 
             this.form.update((current) => ({
                 ...current,
                 curp,
-                rfc: this.completeRfcFromCurp(curp, current.rfc),
+                rfc: this.regenerateRfcFromCurp(curp),
             }));
             this.clearFieldError('curp');
             this.clearFieldError('rfc');
@@ -899,7 +904,7 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
-            rfc: this.completeRfcFromCurp(curp, current.rfc),
+            rfc: this.regenerateRfcFromCurp(curp),
             birthDate: this.getBirthDateFromCurp(curp) ?? '',
         }));
         this.curpLocked.set(false);
@@ -3476,16 +3481,10 @@ export class UserRegistrationWizard {
         return this.toText(value).toUpperCase().slice(0, 13);
     }
 
-    private completeRfcFromCurp(curp: string, currentRfc: string): string {
-        const curpPrefix = curp.slice(0, 10);
-
-        // Espera a tener el prefijo completo para no borrar el RFC durante la captura de la CURP.
-        if (curpPrefix.length < 10) {
-            return currentRfc;
-        }
-
-        // Conserva la homoclave existente; el usuario sigue pudiendo editar los 13 caracteres del RFC.
-        return `${curpPrefix}${this.normalizeRfc(currentRfc).slice(10)}`.slice(0, 13);
+    private regenerateRfcFromCurp(curp: string): string {
+        // Cada CURP nueva inicia un RFC nuevo: se conservan únicamente sus primeros
+        // 10 caracteres y la homoclave queda vacía para que el usuario la capture.
+        return this.toText(curp).toUpperCase().slice(0, 10);
     }
 
     private rfcBirthDateMatchesCurp(rfc: string, curp: string): boolean {
