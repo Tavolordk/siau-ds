@@ -47,7 +47,7 @@ export interface UserDetailRecord {
 export interface RegistroDatosPersonales {
     readonly cuip: string | null;
     readonly curp: string;
-    readonly rfc: string;
+    readonly rfc: string | null;
     readonly nombres: string;
     readonly primerApellido: string;
     readonly segundoApellido: string | null;
@@ -113,6 +113,12 @@ export interface RegistroEspecialDatosPersonales {
     readonly nombres: string;
     readonly primerApellido: string;
     readonly sexoId: number;
+    readonly cuip?: string | null;
+    readonly curp?: string | null;
+    readonly rfc?: string | null;
+    readonly segundoApellido?: string | null;
+    readonly fechaNacimiento?: string | null;
+    readonly estadoCivilId?: number | null;
 }
 
 export interface RegistroEspecialAsignacion {
@@ -179,7 +185,7 @@ export interface ActualizarAdminPerfil {
 export interface ActualizarAdminRequest {
     readonly usuarioId: number;
     readonly curp: string;
-    readonly rfc: string;
+    readonly rfc: string | null;
     readonly nombres: string;
     readonly primerApellido: string;
     readonly segundoApellido: string | null;

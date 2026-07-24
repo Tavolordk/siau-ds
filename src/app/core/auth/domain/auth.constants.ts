@@ -6,13 +6,17 @@ export const DEFAULT_AUTHENTICATED_ROUTE = '/solicitudes';
 export const SESSION_TOKEN_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 export const SESSION_REFRESH_BEFORE_EXPIRY_MS = 5 * 60 * 1000;
 
-// A los 5 minutos sin actividad comienza el aviso de cierre automático.
+// A los 5 minutos sin actividad inicia el aviso de cierre automático.
 export const SESSION_INACTIVITY_PROMPT_MS = 5 * 60 * 1000;
 
 // El aviso dura dos minutos. Al llegar a cero se cierra la sesión automáticamente.
 export const SESSION_INACTIVITY_COUNTDOWN_MS = 2 * 60 * 1000;
 export const SESSION_INACTIVITY_LIMIT_MS =
     SESSION_INACTIVITY_PROMPT_MS + SESSION_INACTIVITY_COUNTDOWN_MS;
+
+// La última actividad se conserva entre recargas/pestañas. Se limita la escritura
+// para no tocar localStorage por cada evento de mouse, sin perder precisión útil.
+export const SESSION_ACTIVITY_STORAGE_THROTTLE_MS = 1 * 1000;
 
 // Al volver después de esta pausa, renovar inmediatamente sin esperar al monitor.
 export const SESSION_REFRESH_AFTER_IDLE_MS = 2 * 60 * 1000;

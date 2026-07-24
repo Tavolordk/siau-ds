@@ -32,6 +32,7 @@ export interface EstructuraOrganizacionalQuery {
 export interface EstructuraOrgQuery {
     readonly tipoInstitucionId?: number;
     readonly estadoId?: number;
+    readonly municipioId?: number;
     readonly padreId?: number;
     readonly busqueda?: string;
     readonly soloActivos?: 0 | 1;

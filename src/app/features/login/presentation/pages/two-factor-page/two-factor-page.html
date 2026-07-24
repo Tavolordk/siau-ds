@@ -30,7 +30,7 @@
                     <div class="flex flex-col items-center gap-8">
                         <div class="flex h-16 w-16 items-center justify-center rounded-full bg-[#1B1F4A] text-white shadow-[0_0_20px_rgba(27,31,74,0.5)]"
                             aria-hidden="true">
-                            @if (isTelegramContact()) {
+                            @if (isPhoneContact()) {
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round">
@@ -77,6 +77,12 @@
 
                             <p class="text-xs text-white/40">Cada dígito se oculta automáticamente al ingresarlo</p>
 
+                            @if (pasteBlocked()) {
+                            <p class="text-xs text-amber-100" role="alert">
+                                Por seguridad, captura el código manualmente.
+                            </p>
+                            }
+
                             @if (auth.error()) {
                             <p class="rounded-xl border border-red-200/30 bg-red-500/15 px-3 py-2 text-sm text-red-50"
                                 role="alert">
@@ -87,6 +93,11 @@
                             <button type="submit" [disabled]="digits().join('').length !== 6 || auth.loading()"
                                 class="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1B1F4A] py-3.5 font-bold text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70">
                                 {{ auth.loading() ? 'Verificando...' : 'Verificar e Ingresar' }}
+                            </button>
+
+                            <button type="button" [disabled]="auth.loading()" (click)="requestNewCode()"
+                                class="inline-block pt-1 text-sm font-medium text-white/75 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                                {{ auth.loading() ? 'Solicitando código...' : 'Solicitar un nuevo código' }}
                             </button>
 
                             <a routerLink="/login"

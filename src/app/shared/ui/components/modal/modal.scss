@@ -227,12 +227,12 @@
 .siau-modal__surface:has(.registration-wizard) {
   width: min(100%, 920px) !important;
   max-width: 920px !important;
-  max-height: 640px !important;
+  max-height: 706px !important;
 }
 
 .siau-modal__surface:has(.registration-wizard) .siau-modal__content {
-  height: 574px !important;
-  max-height: 574px !important;
+  height: 640px !important;
+  max-height: 640px !important;
   overflow: hidden !important;
 }
 

@@ -65,6 +65,14 @@ export class UserManagementPage {
     protected readonly isStatusSubmitting = signal<boolean>(false);
 
     protected readonly filteredUsers = computed(() => this.users());
+    protected readonly shownUsersCount = computed(() => {
+        const pagination = this.pagination();
+        const totalRecords = Math.max(0, pagination.totalRegistros);
+        const pageSize = Math.max(0, pagination.porPagina);
+        const previousPagesCount = Math.max(0, pagination.paginaActual - 1) * pageSize;
+
+        return Math.min(totalRecords, previousPagesCount + this.filteredUsers().length);
+    });
     protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
     protected readonly canGoNext = computed(() => this.pagination().paginaActual < this.pagination().totalPaginas);
 

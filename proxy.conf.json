@@ -43,5 +43,14 @@
         "pathRewrite": {
             "^/renapo-api": ""
         }
+    },
+    "/correo-api": {
+        "target": "http://10.237.3.44:3208/",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/correo-api": ""
+        }
     }
 }

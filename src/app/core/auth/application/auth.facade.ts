@@ -19,6 +19,7 @@ import { AuthApi, AuthHttpError } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
 import {
     DEFAULT_AUTHENTICATED_ROUTE,
+    SESSION_ACTIVITY_STORAGE_THROTTLE_MS,
     SESSION_INACTIVITY_COUNTDOWN_MS,
     SESSION_INACTIVITY_LIMIT_MS,
     SESSION_INACTIVITY_PROMPT_MS,
@@ -47,6 +48,7 @@ export class AuthFacade {
     private readonly sessionPromptLoadingState = signal(false);
     private readonly sessionPromptErrorState = signal<string | null>(null);
     private readonly sessionPromptRemainingSecondsState = signal(0);
+    private challengeCaptchaToken: string | null = null;
 
     private sessionMonitorId: ReturnType<typeof setInterval> | null = null;
     private sessionPromptCountdownId: ReturnType<typeof setInterval> | null = null;
@@ -56,6 +58,7 @@ export class AuthFacade {
     private silentRefreshFailures = 0;
     private activityListenersRegistered = false;
     private lastActivityAt = Date.now();
+    private lastPersistedActivityAt = 0;
     private lastRefreshAt = Date.now();
     private observedExternalSessionClosure = 0;
     private observedExternalTabTakeover = 0;
@@ -160,6 +163,9 @@ export class AuthFacade {
         this.captcha
             .verifyAnswer(request.captcha)
             .pipe(
+                tap((verification) => {
+                    this.challengeCaptchaToken = verification.token;
+                }),
                 switchMap((verification) =>
                     this.api.login({
                         ...request,
@@ -171,9 +177,50 @@ export class AuthFacade {
             .subscribe({
                 next: (result) => this.handleLoginResult(result),
                 error: (error: Error) => {
+                    this.challengeCaptchaToken = null;
                     this.errorState.set(error.message);
                     this.captcha.refresh();
                 },
+            });
+    }
+
+    /**
+     * HU02/RN07-RN08: solicita una nueva emisión al mismo proceso de
+     * autenticación. El backend conserva la autoridad para invalidar el OTP
+     * anterior, contar intentos y aplicar el bloqueo configurado.
+     */
+    resendCode(): void {
+        const challenge = this.challenge();
+        const captchaToken = this.challengeCaptchaToken;
+
+        if (!challenge || !captchaToken) {
+            this.errorState.set(
+                'Por seguridad, vuelve al inicio de sesión para validar un nuevo CAPTCHA antes de solicitar otro código.',
+            );
+            return;
+        }
+
+        if (this.loading()) {
+            return;
+        }
+
+        this.loadingState.set(true);
+        this.errorState.set(null);
+
+        this.api
+            .login({
+                username: challenge.username,
+                contact: challenge.contact,
+                captcha: '',
+                captchaToken,
+            })
+            .pipe(finalize(() => this.loadingState.set(false)))
+            .subscribe({
+                next: (nextChallenge) => {
+                    this.storage.saveChallenge(nextChallenge);
+                    this.errorState.set(null);
+                },
+                error: (error: Error) => this.errorState.set(error.message),
             });
     }
 
@@ -186,6 +233,7 @@ export class AuthFacade {
             .pipe(finalize(() => this.loadingState.set(false)))
             .subscribe({
                 next: (session) => {
+                    this.challengeCaptchaToken = null;
                     this.storage.saveSession(session);
                     this.restartSessionMonitor();
                     void this.router.navigateByUrl(DEFAULT_AUTHENTICATED_ROUTE);
@@ -196,6 +244,8 @@ export class AuthFacade {
 
     logout(motivo = 'USER_LOGOUT'): void {
         const currentSession = this.session();
+
+        this.challengeCaptchaToken = null;
 
         this.stopSessionMonitor();
         this.clearSessionPrompt();
@@ -218,7 +268,17 @@ export class AuthFacade {
         }
 
         const now = Date.now();
-        this.lastActivityAt = now;
+        const persistedLastActivityAt = this.storage.readLastActivityAt();
+
+        // No reiniciar la inactividad al cargar otra vez SIAU. Para sesiones
+        // heredadas sin marca de actividad, se inicia una sola vez desde ahora.
+        this.lastActivityAt = persistedLastActivityAt ?? now;
+        this.lastPersistedActivityAt = this.lastActivityAt;
+
+        if (persistedLastActivityAt === null) {
+            this.persistLastActivity(now, true);
+        }
+
         this.lastRefreshAt = this.resolveSessionIssuedAt(this.session());
         this.registerActivityListeners();
 
@@ -268,7 +328,7 @@ export class AuthFacade {
             .subscribe({
                 next: () => {
                     this.clearSessionPrompt();
-                    this.lastActivityAt = Date.now();
+                    this.persistLastActivity(Date.now(), true);
                     this.lastRefreshAt = Date.now();
                     this.silentRefreshFailures = 0;
                     this.restartSessionMonitor();
@@ -447,9 +507,11 @@ export class AuthFacade {
                 this.silentRefreshFailures = 0;
             }),
             catchError((error: unknown) => {
-                if (this.isRefreshConflict(error)) {
+                if (this.isRefreshTokenRejected(error)) {
+                    // No mostrar un modal inútil: si el backend rechazó el refresh
+                    // token, ya no existe una forma segura de renovar esta sesión.
                     this.forceLocalLogout(
-                        'La sesión se cerró porque la renovación del token entró en conflicto. Inicia sesión nuevamente.',
+                        'Tu sesión venció y no se pudo renovar. Inicia sesión nuevamente.',
                     );
                 }
 
@@ -512,7 +574,7 @@ export class AuthFacade {
             return;
         }
 
-        this.lastActivityAt = now;
+        this.persistLastActivity(now);
 
         const currentSession = this.session();
         const refreshAgeMs = now - this.lastRefreshAt;
@@ -595,6 +657,7 @@ export class AuthFacade {
 
     private handleLoginResult(result: AuthSession | PendingAuthChallenge): void {
         if (this.isAuthSession(result)) {
+            this.challengeCaptchaToken = null;
             this.storage.saveSession(result);
             this.restartSessionMonitor();
             void this.router.navigateByUrl(DEFAULT_AUTHENTICATED_ROUTE);
@@ -612,6 +675,7 @@ export class AuthFacade {
     }
 
     private forceLocalLogout(message: string): void {
+        this.challengeCaptchaToken = null;
         this.stopSessionMonitor();
         this.clearSessionPrompt();
         this.storage.clearAll();
@@ -620,6 +684,7 @@ export class AuthFacade {
     }
 
     private forceTabTakeoverLogout(): void {
+        this.challengeCaptchaToken = null;
         this.stopSessionMonitor();
         this.clearSessionPrompt();
         this.storage.clearLocalAuthState();
@@ -644,7 +709,7 @@ export class AuthFacade {
             : now + SESSION_INACTIVITY_COUNTDOWN_MS;
 
         if (deadlineAt <= now) {
-            this.logout('INACTIVITY_TIMEOUT');
+            this.expireInactiveSession();
             return;
         }
 
@@ -702,7 +767,7 @@ export class AuthFacade {
         const remainingMs = deadlineAt - Date.now();
 
         if (remainingMs <= 0) {
-            this.logout('INACTIVITY_TIMEOUT');
+            this.expireInactiveSession();
             return;
         }
 
@@ -716,8 +781,41 @@ export class AuthFacade {
         this.sessionPromptErrorState.set(null);
     }
 
-    private isRefreshConflict(error: unknown): boolean {
-        return error instanceof AuthHttpError && error.status === 409;
+    private isRefreshTokenRejected(error: unknown): boolean {
+        if (!(error instanceof AuthHttpError)) {
+            return false;
+        }
+
+        // Solo se usa desde la petición PATCH de refresh. Estos 4xx indican que
+        // el backend ya no acepta el refresh token (vencido, inválido o revocado).
+        // En SIAU, el 409 es específicamente el refresh token vencido.
+        return [400, 401, 403, 409, 422].includes(error.status);
+    }
+
+    private persistLastActivity(now: number, force = false): void {
+        this.lastActivityAt = now;
+
+        if (force || now - this.lastPersistedActivityAt >= SESSION_ACTIVITY_STORAGE_THROTTLE_MS) {
+            this.storage.saveLastActivityAt(now);
+            this.lastPersistedActivityAt = now;
+        }
+    }
+
+    private expireInactiveSession(): void {
+        const currentSession = this.session();
+
+        // El cierre local es inmediato: no depende de que el refresh token ni el
+        // endpoint de logout sigan vigentes o respondan.
+        this.forceLocalLogout('La sesión se cerró por inactividad. Inicia sesión nuevamente.');
+
+        if (!currentSession) {
+            return;
+        }
+
+        this.api
+            .logout(currentSession, 'INACTIVITY_TIMEOUT')
+            .pipe(catchError(() => of(void 0)))
+            .subscribe();
     }
 
     private registerActivityListeners(): void {

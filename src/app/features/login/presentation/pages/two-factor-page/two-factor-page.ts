@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChildren } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, viewChildren } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
 import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
@@ -16,16 +16,38 @@ export class TwoFactorPage {
     protected readonly challenge = this.auth.challenge;
     protected readonly digits = signal<string[]>(Array.from({ length: 6 }, () => ''));
     protected readonly digitInputs = viewChildren<ElementRef<HTMLInputElement>>('digitInput');
+    protected readonly pasteBlocked = signal(false);
 
     protected readonly channelLabel = computed(() => this.challenge()?.contactMethodLabel ?? 'tu medio de contacto');
     protected readonly maskedContact = computed(() => this.challenge()?.maskedContact ?? this.challenge()?.contact ?? '');
-    protected readonly isTelegramContact = computed(() => this.challenge()?.contactMethod === 'telegram');
+    protected readonly isPhoneContact = computed(() => this.challenge()?.contactMethod === 'telefono');
+
+    constructor() {
+        let previousChallengeKey = '';
+
+        effect(() => {
+            const challenge = this.challenge();
+            const challengeKey = challenge
+                ? `${challenge.codeId ?? ''}|${challenge.issuedAt}`
+                : '';
+
+            if (previousChallengeKey && challengeKey && previousChallengeKey !== challengeKey) {
+                this.digits.set(Array.from({ length: 6 }, () => ''));
+                this.pasteBlocked.set(false);
+                this.focusInput(0);
+            }
+
+            previousChallengeKey = challengeKey;
+        });
+    }
 
     protected onInput(event: Event, index: number): void {
         const input = event.target as HTMLInputElement;
         const value = input.value.replace(/\D/g, '').slice(-1);
 
         input.value = value;
+        this.pasteBlocked.set(false);
+        this.auth.clearError();
         this.updateDigit(index, value);
 
         if (value && index < 5) {
@@ -45,17 +67,7 @@ export class TwoFactorPage {
 
     protected onPaste(event: ClipboardEvent): void {
         event.preventDefault();
-
-        const pastedCode = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, 6) ?? '';
-        const nextDigits = Array.from({ length: 6 }, (_, index) => pastedCode[index] ?? '');
-
-        this.digits.set(nextDigits);
-        this.digitInputs().forEach((input, index) => {
-            input.nativeElement.value = nextDigits[index] ?? '';
-        });
-
-        this.focusInput(Math.min(pastedCode.length, 5));
-        this.trySubmitWhenComplete();
+        this.pasteBlocked.set(true);
     }
 
     protected submit(): void {
@@ -66,6 +78,10 @@ export class TwoFactorPage {
         }
 
         this.auth.verifyCode(code);
+    }
+
+    protected requestNewCode(): void {
+        this.auth.resendCode();
     }
 
     private updateDigit(index: number, value: string): void {

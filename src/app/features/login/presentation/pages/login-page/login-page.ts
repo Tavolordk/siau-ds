@@ -20,9 +20,9 @@ export class LoginPage implements OnDestroy {
     protected readonly captcha = inject(CaptchaFacade);
 
     protected readonly form = this.formBuilder.nonNullable.group({
-        username: ['', [Validators.required, Validators.minLength(3)]],
+        username: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{14}$/)]],
         contact: ['', [this.contactValidator]],
-        captcha: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(6)]],
+        captcha: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{7}$/)]],
     });
 
     constructor() {
@@ -55,7 +55,7 @@ export class LoginPage implements OnDestroy {
         const value = this.form.getRawValue();
 
         this.auth.login({
-            username: value.username.trim(),
+            username: value.username.trim().toUpperCase(),
             contact: String(value.contact).trim(),
             captcha: value.captcha,
         });
@@ -89,7 +89,7 @@ export class LoginPage implements OnDestroy {
 
         const normalizedValue = startsAsPhone
             ? value.replace(/\D/g, '').slice(0, 10)
-            : value.replace(/\s+/g, '').slice(0, 120);
+            : value.replace(/\s+/g, '').slice(0, 254);
 
         if (originalValue !== normalizedValue) {
             control.setValue(normalizedValue, { emitEvent: false });
@@ -101,10 +101,24 @@ export class LoginPage implements OnDestroy {
     protected normalizeCaptcha(): void {
         const value = this.form.controls.captcha.value
             .toUpperCase()
-            .replace(/\s+/g, '')
-            .slice(0, 6);
+            .replace(/[^A-Z0-9]/g, '')
+            .slice(0, 7);
 
         this.form.controls.captcha.setValue(value, { emitEvent: false });
+    }
+
+    protected normalizeUsername(): void {
+        const control = this.form.controls.username;
+        const normalized = control.value
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '')
+            .slice(0, 14);
+
+        if (control.value !== normalized) {
+            control.setValue(normalized, { emitEvent: false });
+        }
+
+        control.updateValueAndValidity({ emitEvent: false });
     }
 
     protected isPhoneContact(): boolean {
@@ -114,7 +128,7 @@ export class LoginPage implements OnDestroy {
     }
 
     protected contactIconLabel(): string {
-        return this.isPhoneContact() ? 'Número de Telegram' : 'Correo electrónico';
+        return this.isPhoneContact() ? 'Número telefónico' : 'Correo electrónico';
     }
 
     protected contactInputMode(): string {
@@ -122,7 +136,7 @@ export class LoginPage implements OnDestroy {
     }
 
     protected contactMaxLength(): number {
-        return this.isPhoneContact() ? 10 : 120;
+        return this.isPhoneContact() ? 10 : 254;
     }
 
     private contactValidator(control: AbstractControl<string>): ValidationErrors | null {
@@ -136,6 +150,10 @@ export class LoginPage implements OnDestroy {
             return /^\d{10}$/.test(value) ? null : { phoneLength: true };
         }
 
-        return Validators.email(control) ? { email: true } : null;
+        return this.isValidEmail(value) ? null : { email: true };
+    }
+
+    private isValidEmail(value: string): boolean {
+        return value.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(value);
     }
 }

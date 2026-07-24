@@ -23,6 +23,7 @@ type CatalogoQuery =
 const QUERY_PARAM_NAMES: Record<string, string> = {
     nivel: 'Nivel',
     estadoId: 'EstadoId',
+    municipioId: 'MunicipioId',
     soloActivos: 'SoloActivos',
     tipoEstructuraId: 'TipoEstructuraId',
     tipoInstitucionId: 'TipoInstitucionId',

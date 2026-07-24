@@ -74,12 +74,24 @@ export class AuthApi {
     private readonly baseUrl = inject(AUTH_API_BASE_URL).replace(/\/$/, '');
 
     login(request: LoginRequest): Observable<PendingAuthChallenge> {
-        const username = request.username.trim();
+        const username = request.username.trim().toUpperCase();
         const contact = this.normalizeContact(request.contact);
         const contactMethod = this.resolveContactMethod(contact);
 
-        if (!username || !contact) {
-            return throwError(() => new Error('Completa usuario y medio de contacto.'));
+        if (!/^[A-Z0-9]{14}$/.test(username)) {
+            return throwError(() => new Error('El usuario debe contener exactamente 14 caracteres alfanuméricos.'));
+        }
+
+        if (!contact) {
+            return throwError(() => new Error('Completa el medio de contacto.'));
+        }
+
+        if (!this.isValidContact(contact)) {
+            return throwError(() => new Error('Captura un correo electrónico o teléfono celular válido.'));
+        }
+
+        if (!request.captchaToken?.trim()) {
+            return throwError(() => new Error('Completa y valida el CAPTCHA antes de solicitar el código.'));
         }
 
         return this.http
@@ -87,6 +99,7 @@ export class AuthApi {
                 cuenta: username,
                 medioContacto: contact,
                 sistema: AUTH_SYSTEM,
+                captchaToken: request.captchaToken.trim(),
             })
             .pipe(
                 map((response) => this.unwrapResponse(response, 'No se pudo solicitar el código de acceso.')),
@@ -111,6 +124,7 @@ export class AuthApi {
                 cuenta: challenge.username,
                 medioContacto: challenge.contact,
                 sistema: AUTH_SYSTEM,
+                idCodigo: challenge.codeId,
                 codigo: normalizedCode,
             })
             .pipe(
@@ -179,12 +193,12 @@ export class AuthApi {
             return response.data;
         }
 
-        const apiMessage =
-            response.errors?.find((error) => error.detail || error.message)?.detail ??
-            response.errors?.find((error) => error.message)?.message ??
-            fallbackMessage;
+        const apiError = response.errors?.find((error) => error.detail || error.message);
+        const apiMessage = apiError?.detail ?? apiError?.message ?? fallbackMessage;
 
-        throw new Error(apiMessage);
+        // En el endpoint de refresh, una respuesta de negocio sin datos significa
+        // que el backend rechazó la renovación; el facade la trata como terminal.
+        throw new AuthHttpError(apiMessage, 400);
     }
 
     private toPendingChallenge(
@@ -251,18 +265,30 @@ export class AuthApi {
             return value.replace(/\D/g, '').slice(0, 10);
         }
 
-        return value.replace(/\s+/g, '').slice(0, 120);
+        return value.replace(/\s+/g, '').slice(0, 254);
     }
 
     private resolveContactMethod(contact: string): LoginContactMethod {
-        return /^\d+$/.test(contact) ? 'telegram' : 'correo';
+        return /^\d+$/.test(contact) ? 'telefono' : 'correo';
+    }
+
+    private isValidContact(contact: string): boolean {
+        if (/^\d+$/.test(contact)) {
+            return /^\d{10}$/.test(contact);
+        }
+
+        return this.isValidEmail(contact);
+    }
+
+    private isValidEmail(value: string): boolean {
+        return value.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(value);
     }
 
     private createContactMethodLabel(value: string | null, fallback: LoginContactMethod): string {
         const normalizedValue = value?.trim().toLowerCase();
 
-        if (normalizedValue === 'telegram' || fallback === 'telegram') {
-            return 'Telegram';
+        if (normalizedValue === 'telefono' || normalizedValue === 'teléfono' || fallback === 'telefono') {
+            return 'teléfono celular';
         }
 
         return 'correo electrónico';

@@ -12,9 +12,18 @@ import {
     WritableSignal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, forkJoin } from 'rxjs';
+import {
+    catchError,
+    finalize,
+    forkJoin,
+    map,
+    Observable,
+    of,
+    switchMap,
+} from 'rxjs';
 import { CatalogosFacade } from '../../../../../core/catalogos';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
+import { CorreoDeliveryResult, CorreoFacade } from '../../../../../core/correo';
 import { RenapoCurpData, RenapoFacade } from '../../../../../core/renapo';
 import {
     SiauInput,
@@ -25,6 +34,8 @@ import {
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
+import { UserRegistrationDraftStorage } from '../../../data-access/user-registration-draft.storage';
+import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
     ActualizarAdminRequest,
     RegistroAdminRequest,
@@ -41,6 +52,9 @@ import {
 type AccountStatus = 'active' | 'disabled' | 'suspended';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
+type CurpPersonalStatus = 'active' | 'inactive' | 'no-information';
+type CurpEcccStatus = 'approved' | 'rejected' | 'no-information';
+type CurpValidationStatus = CurpPersonalStatus | CurpEcccStatus;
 
 type WizardStepId =
     | 'personal-data'
@@ -98,6 +112,17 @@ interface UserRegistrationForm {
     expressJustification: string;
 }
 
+interface IdentitySnapshot {
+    readonly curp: string;
+    readonly rfc: string;
+    readonly birthDate: string;
+}
+
+interface CurpValidationSummary {
+    readonly personal: CurpPersonalStatus;
+    readonly eccc: CurpEcccStatus;
+}
+
 interface UserProfileOption {
     readonly value: string;
     readonly label: string;
@@ -124,10 +149,26 @@ interface SaveSuccessModalState {
     readonly fullName: string;
     readonly system: string;
     readonly isExpress: boolean;
+    readonly hasAccessEmail: boolean;
+    readonly accessEmail: string;
+    readonly accessPhone: string;
+    readonly emailAccepted: boolean;
+    readonly emailStatus: string;
+    readonly emailMessage: string;
+    readonly emailReference: string;
 }
 
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
+
+/**
+ * Resultado temporal mientras se habilita el servicio de consulta complementaria.
+ * Se evita simular una aprobación o una situación laboral que aún no fue validada.
+ */
+const HARDCODED_CURP_VALIDATION_SUMMARY: CurpValidationSummary = {
+    personal: 'no-information',
+    eccc: 'no-information',
+};
 
 const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
     'personal-data',
@@ -204,14 +245,21 @@ export class UserRegistrationWizard {
 
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly usersFacade = inject(UsersFacade);
+    private readonly correoFacade = inject(CorreoFacade);
     private readonly renapoFacade = inject(RenapoFacade);
     private readonly authStorage = inject(AuthStorage);
+    private readonly draftStorage = inject(UserRegistrationDraftStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
     private curpLookupSequence = 0;
     private lastRenapoCurp = '';
+    private initialIdentitySnapshot: IdentitySnapshot | null = null;
+    private initialEditFormSnapshot: UserRegistrationForm | null = null;
+    private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
     private readonly catalogosReady = signal<boolean>(false);
+    private readonly draftPersistenceEnabled = signal<boolean>(false);
+    private defaultSiauProfileLoading = false;
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly editEnabled = signal<boolean>(true);
@@ -220,10 +268,12 @@ export class UserRegistrationWizard {
     protected readonly isSubmitting = signal<boolean>(false);
     protected readonly formErrors = signal<Record<string, string>>({});
     protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
+    protected readonly recoveredDraftAt = signal<string | null>(null);
     protected readonly renapoLookupStatus = signal<RenapoLookupStatus>('idle');
     protected readonly renapoMessage = signal<string>('');
     protected readonly curpLocked = signal<boolean>(false);
     protected readonly curpUnlockChecked = signal<boolean>(false);
+    protected readonly curpValidationSummary = signal<CurpValidationSummary | null>(null);
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
@@ -252,12 +302,30 @@ export class UserRegistrationWizard {
     protected readonly commissionDecentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionAdministrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
 
-    protected readonly isAssignmentFederalInstitution = computed(() =>
-        this.isFederalInstitutionValue(this.form().institutionType),
+    protected readonly assignmentRequiresEntity = computed(() =>
+        this.requiresEntityForInstitution(this.form().institutionType),
     );
 
-    protected readonly isCommissionFederalInstitution = computed(() =>
-        this.isFederalInstitutionValue(this.form().commissionInstitutionType),
+    protected readonly assignmentRequiresMunicipality = computed(() =>
+        this.requiresMunicipalityForInstitution(this.form().institutionType),
+    );
+
+    protected readonly commissionRequiresEntity = computed(() =>
+        this.requiresEntityForInstitution(this.form().commissionInstitutionType),
+    );
+
+    protected readonly commissionRequiresMunicipality = computed(() =>
+        this.requiresMunicipalityForInstitution(this.form().commissionInstitutionType),
+    );
+
+    /** HU05: la comisión sólo se captura después de una adscripción válida. */
+    protected readonly canConfigureCommission = computed(() =>
+        this.hasValidAssignmentForCommission(this.form()),
+    );
+
+    /** HU07: la asignación manual de accesos requiere estructura válida. */
+    protected readonly canAssignProfiles = computed(() =>
+        this.hasProfileAssignmentContext(this.form()),
     );
 
     protected readonly emailRequired = computed(() => true);
@@ -269,18 +337,10 @@ export class UserRegistrationWizard {
         ),
     );
 
-    protected readonly isSelectedSiauBlocked = computed(() =>
-        this.hasAssignedSiauProfile() && this.isSiauSystem(this.selectedSystem()),
-    );
-
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
 
         if (!system) {
-            return [];
-        }
-
-        if (this.isSelectedSiauBlocked()) {
             return [];
         }
 
@@ -290,7 +350,7 @@ export class UserRegistrationWizard {
             : this.findDetailRoleOptionsForSystem(system);
 
         return sourceOptions.filter(
-            (option) => !this.isRoleAlreadyAssigned(system, option),
+            (option) => this.isSiauSystem(system) || !this.isRoleAlreadyAssigned(system, option),
         );
     });
 
@@ -299,10 +359,6 @@ export class UserRegistrationWizard {
         const role = this.selectedRole();
 
         if (!system || !role) {
-            return false;
-        }
-
-        if (this.isSelectedSiauBlocked()) {
             return false;
         }
 
@@ -342,13 +398,7 @@ export class UserRegistrationWizard {
         },
     ];
 
-    protected readonly stepOrder = computed<readonly WizardStepId[]>(() => {
-        const isNormalCreation = this.mode() === 'create' && !this.form().expressCreation;
-
-        return isNormalCreation
-            ? ALL_WIZARD_STEPS.filter((stepId) => stepId !== 'account')
-            : ALL_WIZARD_STEPS;
-    });
+    protected readonly stepOrder = computed<readonly WizardStepId[]>(() => ALL_WIZARD_STEPS);
 
     protected readonly steps = computed<readonly SiauStep[]>(() => {
         const completed = this.completedSteps();
@@ -420,9 +470,19 @@ export class UserRegistrationWizard {
     protected readonly headerBadge = computed(() => {
         const prefix = this.isEditMode() ? 'Edición' : 'Registro';
         return `${prefix} · ${this.activeIndex() + 1}/${this.stepOrder().length} secciones`;
-    });
+    }); protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
-    protected readonly isEditMode = computed(() => this.mode() === 'edit');
+    protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
+
+    protected readonly rfcRequired = computed(() => Boolean(this.rfcPrefix()));
+
+    protected readonly rfcHint = computed(() => {
+        const prefix = this.rfcPrefix();
+
+        return prefix
+            ? `Los primeros 10 caracteres (${prefix}) se generan desde la CURP. Captura sólo los 3 de la homoclave.`
+            : 'Captura la CURP para generar automáticamente los primeros 10 caracteres.';
+    });
 
     protected readonly isFormDisabled = computed(() =>
         this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
@@ -454,6 +514,16 @@ export class UserRegistrationWizard {
         );
     });
 
+    protected readonly isBirthDateInputDisabled = computed(() => {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return true;
+        }
+
+        // Solo RENAPO bloquea los datos que confirmó; si RENAPO no responde o no
+        // encuentra la CURP, el administrador debe poder capturar la fecha manualmente.
+        return !this.isEditMode() && this.renapoLookupStatus() === 'success';
+    });
+
     protected readonly showCurpUnlock = computed(() =>
         !this.isEditMode() && (this.curpLocked() || this.curpUnlockChecked()),
     );
@@ -463,7 +533,7 @@ export class UserRegistrationWizard {
             case 'loading':
                 return 'Consultando RENAPO';
             case 'success':
-                return 'CURP validada';
+                return 'Validado en RENAPO';
             case 'not-found':
                 return 'CURP sin resultados';
             case 'error':
@@ -484,17 +554,32 @@ export class UserRegistrationWizard {
         }
     });
 
+    protected readonly curpValidationSummaryForPersonalStep = computed(() => {
+        if (this.activeStepId() !== 'personal-data') {
+            return null;
+        }
+
+        return this.curpValidationSummary();
+    });
+
     protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
         const errors = this.formErrors();
         const stepFields = this.getStepValidationFields(this.activeStepId());
 
         return Object.entries(errors)
-            .filter(([key]) => stepFields.includes(key))
+            .filter(([key]) => key !== 'submit' && stepFields.includes(key))
             .map(([key, message]) => ({
                 key,
                 message,
             }));
     });
+
+    /**
+     * Los errores provenientes del API no pertenecen a una sección concreta.
+     * La creación normal no tiene el paso "Cuenta", por lo que deben mostrarse
+     * como una alerta global dentro del asistente.
+     */
+    protected readonly submitError = computed(() => this.formErrors()['submit'] ?? null);
 
     protected readonly modalTitle = computed(() => {
         if (!this.isEditMode()) {
@@ -568,12 +653,47 @@ export class UserRegistrationWizard {
 
             untracked(() => {
                 if (mode === 'edit') {
+                    this.draftPersistenceEnabled.set(false);
                     this.hydrateEditForm(detail?.datos ?? {}, user);
                     return;
                 }
 
                 this.resetWizard();
+                this.restoreRegistrationDraft();
                 this.editEnabled.set(true);
+                this.draftPersistenceEnabled.set(true);
+                this.ensureDefaultSiauProfile();
+            });
+        });
+
+        effect(() => {
+            const shouldPersist =
+                this.open() &&
+                this.mode() === 'create' &&
+                this.draftPersistenceEnabled() &&
+                !this.isSubmitting();
+
+            if (!shouldPersist) {
+                return;
+            }
+
+            const form = this.form();
+            const profiles = this.assignedSystemProfiles();
+            const activeStepId = this.activeStepId();
+            const completedSteps = this.completedSteps();
+
+            untracked(() => {
+                if (!this.hasRegistrationDraftContent(form, profiles)) {
+                    this.draftStorage.clear();
+                    return;
+                }
+
+                this.draftStorage.save({
+                    form,
+                    profiles,
+                    activeStepId,
+                    completedSteps,
+                });
             });
         });
     }
@@ -592,6 +712,16 @@ export class UserRegistrationWizard {
         }
 
         if (this.isEditMode()) {
+            const currentStep = this.activeStepId();
+
+            if (
+                currentStep === 'personal-data' &&
+                stepId !== currentStep &&
+                !this.validateChangedIdentityFields()
+            ) {
+                return;
+            }
+
             this.activeStepId.set(stepId);
             return;
         }
@@ -617,7 +747,10 @@ export class UserRegistrationWizard {
         const stepOrder = this.stepOrder();
         const currentIndex = stepOrder.indexOf(current);
 
-        if (!this.isEditMode() && !this.validateStep(current)) {
+        if (
+            (this.isEditMode() && current === 'personal-data' && !this.validateChangedIdentityFields()) ||
+            (!this.isEditMode() && !this.validateStep(current))
+        ) {
             return;
         }
 
@@ -647,15 +780,32 @@ export class UserRegistrationWizard {
     }
 
     protected closeSaveSuccessModal(): void {
+        if (!this.isEditMode()) {
+            this.draftStorage.clear();
+        }
         this.saveSuccess.set(null);
         this.closed.emit();
         this.resetWizard();
+    }
+
+    protected discardRecoveredDraft(): void {
+        if (this.isEditMode()) {
+            return;
+        }
+
+        this.draftStorage.clear();
+        this.resetWizard();
+        this.draftPersistenceEnabled.set(true);
+        this.ensureDefaultSiauProfile();
     }
 
     protected submit(): void {
         if (this.readonlyMode() || this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
+
+        // Evita dejar visible el error del intento anterior mientras se reintenta el registro.
+        this.clearFieldError('submit');
 
         if (this.isEditMode()) {
             if (!this.validateAllSteps()) {
@@ -699,7 +849,7 @@ export class UserRegistrationWizard {
         }
 
         const isExpress = this.form().expressCreation;
-        let saveRequest$: ReturnType<UsersFacade['createAdminUser']> | ReturnType<UsersFacade['createSpecialUser']>;
+        let saveRequest$: Observable<RegistroAdminResponse | RegistroEspecialResponse>;
 
         try {
             saveRequest$ = isExpress
@@ -720,13 +870,27 @@ export class UserRegistrationWizard {
 
         saveRequest$
             .pipe(
+                switchMap((response) =>
+                    this.sendAccessCredentialsEmail(response, isExpress).pipe(
+                        map((emailDelivery) => ({ response, emailDelivery })),
+                        catchError((error: unknown) =>
+                            of({
+                                response,
+                                emailDelivery: this.toFailedEmailDelivery(error),
+                            }),
+                        ),
+                    ),
+                ),
                 takeUntilDestroyed(this.destroyRef),
                 finalize(() => this.isSubmitting.set(false)),
             )
             .subscribe({
-                next: (response) => {
+                next: ({ response, emailDelivery }) => {
                     this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                    this.saveSuccess.set(this.buildSaveSuccessModalState(response, isExpress));
+                    this.draftStorage.clear();
+                    this.saveSuccess.set(
+                        this.buildSaveSuccessModalState(response, isExpress, emailDelivery),
+                    );
                 },
                 error: (error: unknown) => {
                     const message =
@@ -752,6 +916,16 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (key === 'curp') {
+            this.updateCurp(this.toText(value));
+            return;
+        }
+
+        if (key === 'rfc') {
+            this.updateRfc(this.toText(value));
+            return;
+        }
+
         const normalizedValue = this.normalizeFormInputValue(key, value);
 
         this.form.update((current) => ({
@@ -774,7 +948,21 @@ export class UserRegistrationWizard {
         }
 
         if (this.isEditMode()) {
-            this.updateForm('curp', value);
+            const curp = this.normalizeFormInputValue('curp', value);
+            const previousCurp = this.form().curp;
+
+            if (curp === previousCurp) {
+                return;
+            }
+
+            this.clearCurpLookupResultsForEdit();
+
+            this.form.update((current) => ({
+                ...current,
+                curp,
+            }));
+            this.clearFieldError('curp');
+            this.clearFieldError('rfc');
             return;
         }
 
@@ -785,19 +973,15 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.lastRenapoCurp && curp !== this.lastRenapoCurp) {
-            this.clearRenapoPersonalData();
-        }
+        this.clearCurpLookupResultsForEdit();
 
-        this.curpLookupSequence += 1;
         this.form.update((current) => ({
             ...current,
             curp,
         }));
-        this.curpLocked.set(false);
-        this.renapoLookupStatus.set('idle');
-        this.renapoMessage.set('');
         this.clearFieldError('curp');
+        this.clearFieldError('rfc');
+        this.clearFieldError('birthDate');
 
         if (curp.length !== 18) {
             return;
@@ -812,6 +996,24 @@ export class UserRegistrationWizard {
         }
 
         this.consultRenapo(curp);
+    }
+
+    protected updateRfc(value: string): void {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        const current = this.form();
+        const prefix = this.getRfcPrefixFromCurp(current.curp);
+        const rfc = prefix
+            ? `${prefix}${this.getRfcHomoclave(value, prefix, current.rfc)}`
+            : this.normalizeRfc(value);
+
+        this.form.update((form) => ({
+            ...form,
+            rfc,
+        }));
+        this.clearFieldError('rfc');
     }
 
     protected toggleCurpUnlock(checked: boolean): void {
@@ -867,6 +1069,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (checked && !this.canConfigureCommission()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                commissionInstitutionType:
+                    'Primero registra una adscripción válida antes de capturar la comisión.',
+            }));
+            return;
+        }
+
         this.form.update((current) => ({
             ...current,
             commissionEnabled: checked,
@@ -909,19 +1120,19 @@ export class UserRegistrationWizard {
         }
 
         const institutionType = value ?? '';
-        const isFederal = this.isFederalInstitutionValue(institutionType);
+        const requiresEntity = this.requiresEntityForInstitution(institutionType);
 
         this.form.update((current) => ({
             ...current,
             institutionType,
-            entity: isFederal ? '' : current.entity,
+            entity: requiresEntity ? current.entity : '',
             municipality: '',
             institution: '',
             decentralizedBody: '',
             administrativeUnit: '',
         }));
 
-        if (isFederal) {
+        if (!this.requiresMunicipalityForInstitution(institutionType)) {
             this.municipalityOptions.set([]);
         }
 
@@ -936,7 +1147,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isAssignmentFederalInstitution()) {
+        if (!this.assignmentRequiresEntity()) {
             this.form.update((current) => ({
                 ...current,
                 entity: '',
@@ -959,7 +1170,9 @@ export class UserRegistrationWizard {
         this.institutionOptions.set([]);
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
-        this.loadMunicipalities(value, this.municipalityOptions);
+        if (this.assignmentRequiresMunicipality()) {
+            this.loadMunicipalities(value, this.municipalityOptions);
+        }
         this.loadAssignmentInstitutions();
     }
 
@@ -968,12 +1181,22 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isAssignmentFederalInstitution()) {
-            this.updateForm('municipality', '');
+        if (!this.assignmentRequiresMunicipality()) {
+            this.form.update((current) => ({ ...current, municipality: '' }));
             return;
         }
 
-        this.updateForm('municipality', value);
+        this.form.update((current) => ({
+            ...current,
+            municipality: value ?? '',
+            institution: '',
+            decentralizedBody: '',
+            administrativeUnit: '',
+        }));
+        this.institutionOptions.set([]);
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+        this.loadAssignmentInstitutions();
     }
 
     protected updateAssignmentInstitution(value: string | null): void {
@@ -990,7 +1213,6 @@ export class UserRegistrationWizard {
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
         this.loadAssignmentChildren(value, this.decentralizedBodyOptions);
-        this.loadAssignmentChildren(value, this.administrativeUnitOptions);
     }
 
     protected updateAssignmentDecentralizedBody(value: string | null): void {
@@ -1004,7 +1226,7 @@ export class UserRegistrationWizard {
             administrativeUnit: '',
         }));
         this.administrativeUnitOptions.set([]);
-        this.loadAssignmentChildren(value || this.form().institution, this.administrativeUnitOptions);
+        this.loadAssignmentChildren(value, this.administrativeUnitOptions);
     }
 
     protected updateCommissionInstitutionType(value: string | null): void {
@@ -1013,12 +1235,12 @@ export class UserRegistrationWizard {
         }
 
         const commissionInstitutionType = value ?? '';
-        const isFederal = this.isFederalInstitutionValue(commissionInstitutionType);
+        const requiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
 
         this.form.update((current) => ({
             ...current,
             commissionInstitutionType,
-            commissionEntity: isFederal ? '' : current.commissionEntity,
+            commissionEntity: requiresEntity ? current.commissionEntity : '',
             commissionMunicipality: '',
             commissionInstitution: '',
             commissionDependency: '',
@@ -1026,7 +1248,7 @@ export class UserRegistrationWizard {
             commissionAdministrativeUnit: '',
         }));
 
-        if (isFederal) {
+        if (!this.requiresMunicipalityForInstitution(commissionInstitutionType)) {
             this.commissionMunicipalityOptions.set([]);
         }
 
@@ -1042,7 +1264,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isCommissionFederalInstitution()) {
+        if (!this.commissionRequiresEntity()) {
             this.form.update((current) => ({
                 ...current,
                 commissionEntity: '',
@@ -1067,7 +1289,9 @@ export class UserRegistrationWizard {
         this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
-        this.loadMunicipalities(value, this.commissionMunicipalityOptions);
+        if (this.commissionRequiresMunicipality()) {
+            this.loadMunicipalities(value, this.commissionMunicipalityOptions);
+        }
         this.loadCommissionInstitutions();
     }
 
@@ -1076,12 +1300,24 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isCommissionFederalInstitution()) {
-            this.updateForm('commissionMunicipality', '');
+        if (!this.commissionRequiresMunicipality()) {
+            this.form.update((current) => ({ ...current, commissionMunicipality: '' }));
             return;
         }
 
-        this.updateForm('commissionMunicipality', value);
+        this.form.update((current) => ({
+            ...current,
+            commissionMunicipality: value ?? '',
+            commissionInstitution: '',
+            commissionDependency: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDependencyOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadCommissionInstitutions();
     }
 
     protected updateCommissionInstitution(value: string | null): void {
@@ -1101,7 +1337,6 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionChildren(value, this.commissionDependencyOptions);
         this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions);
-        this.loadCommissionChildren(value, this.commissionAdministrativeUnitOptions);
     }
 
     protected updateCommissionDependency(value: string | null): void {
@@ -1112,19 +1347,7 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             commissionDependency: value ?? '',
-            commissionDecentralizedBody: '',
-            commissionAdministrativeUnit: '',
         }));
-        this.commissionDecentralizedBodyOptions.set([]);
-        this.commissionAdministrativeUnitOptions.set([]);
-        this.loadCommissionChildren(
-            value || this.form().commissionInstitution,
-            this.commissionDecentralizedBodyOptions,
-        );
-        this.loadCommissionChildren(
-            value || this.form().commissionInstitution,
-            this.commissionAdministrativeUnitOptions,
-        );
     }
 
     protected updateCommissionDecentralizedBody(value: string | null): void {
@@ -1139,7 +1362,7 @@ export class UserRegistrationWizard {
         }));
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionChildren(
-            value || this.form().commissionDependency || this.form().commissionInstitution,
+            value,
             this.commissionAdministrativeUnitOptions,
         );
     }
@@ -1174,6 +1397,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.canAssignProfiles()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles:
+                    'Registra una adscripción o una comisión válida antes de asignar perfiles.',
+            }));
+            return;
+        }
+
         const system = value ?? '';
 
         this.selectedSystem.set(system);
@@ -1196,19 +1428,19 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.canAssignProfiles()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles:
+                    'Registra una adscripción o una comisión válida antes de asignar perfiles.',
+            }));
+            return;
+        }
+
         const system = this.selectedSystem();
         const role = this.selectedRole();
 
         if (!system || !role) {
-            return;
-        }
-
-        if (
-            this.isSiauSystem(system) &&
-            this.assignedSystemProfiles().some((profile) =>
-                this.isSiauSystem(profile.system, profile.systemLabel),
-            )
-        ) {
             return;
         }
 
@@ -1224,8 +1456,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-
-        if (this.isRoleAlreadyAssigned(system, roleOption)) {
+        if (!this.isSiauSystem(system) && this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
 
@@ -1237,7 +1468,21 @@ export class UserRegistrationWizard {
             roleLabel: roleOption.label,
         };
 
-        this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.assignedSystemProfiles.update((current) => {
+            if (!this.isSiauSystem(system, systemOption.label)) {
+                return [...current, newItem];
+            }
+
+            // HU07: SIAU siempre conserva un único perfil. Al seleccionar otro,
+            // se sustituye el perfil "Usuario" (o el SIAU existente) sin pedir
+            // que el administrador lo elimine manualmente.
+            return [
+                ...current.filter((profile) =>
+                    !this.isSiauSystem(profile.system, profile.systemLabel),
+                ),
+                newItem,
+            ];
+        });
         this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
@@ -1249,7 +1494,27 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const profile = this.assignedSystemProfiles().find((item) => item.id === id);
+
+        if (!profile || !this.canRemoveAssignedProfile(profile)) {
+            return;
+        }
+
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
+    }
+
+    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean {
+        if (!this.isSiauSystem(profile.system, profile.systemLabel)) {
+            return true;
+        }
+
+        const assignedToSiau = this.assignedSystemProfiles().filter((item) =>
+            this.isSiauSystem(item.system, item.systemLabel),
+        );
+
+        // El perfil base de SIAU no puede quedar eliminado si es el único que
+        // mantiene el usuario para dicho sistema.
+        return assignedToSiau.length > 1;
     }
 
     protected togglePasswordVisibility(): void {
@@ -1284,6 +1549,31 @@ export class UserRegistrationWizard {
             .trim();
     }
 
+    protected getCurpValidationStatusLabel(status: CurpValidationStatus): string {
+        switch (status) {
+            case 'active':
+                return 'Activo';
+            case 'inactive':
+                return 'Inactivo';
+            case 'approved':
+                return 'Aprobado';
+            case 'rejected':
+                return 'Reprobado';
+            default:
+                return 'Sin información';
+        }
+    }
+
+    protected getCurpValidationStatusClass(status: CurpValidationStatus): string {
+        const tone = status === 'active' || status === 'approved'
+            ? 'success'
+            : status === 'inactive' || status === 'rejected'
+                ? 'danger'
+                : 'neutral';
+
+        return `registration-wizard__curp-validation-pill registration-wizard__curp-validation-pill--${tone}`;
+    }
+
     private consultRenapo(curp: string): void {
         const normalizedCurp = this.toText(curp).toUpperCase();
 
@@ -1293,6 +1583,16 @@ export class UserRegistrationWizard {
 
         const requestSequence = ++this.curpLookupSequence;
 
+        // Cada consulta representa una nueva validación de identidad: se vuelve
+        // a generar el prefijo del RFC desde la CURP y se exige capturar de nuevo
+        // la homoclave de tres caracteres.
+        this.form.update((current) => ({
+            ...current,
+            rfc: this.buildRfcFromCurp(normalizedCurp),
+        }));
+        this.clearFieldError('rfc');
+
+        this.loadHardcodedCurpValidationSummary(normalizedCurp);
         this.curpUnlockChecked.set(false);
         this.curpLocked.set(false);
         this.renapoLookupStatus.set('loading');
@@ -1313,7 +1613,7 @@ export class UserRegistrationWizard {
                     this.lastRenapoCurp = normalizedCurp;
                     this.curpLocked.set(true);
 
-                    if (response.exito && response.datos) {
+                    if (response.exito && response.datos && this.hasCompleteRenapoPersonalData(response.datos)) {
                         this.applyRenapoPersonalData(response.datos, normalizedCurp);
                         this.renapoLookupStatus.set('success');
                         this.renapoMessage.set(
@@ -1325,7 +1625,7 @@ export class UserRegistrationWizard {
 
                     this.renapoLookupStatus.set('not-found');
                     this.renapoMessage.set(
-                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos, fecha de nacimiento y sexo.',
+                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos, sexo y fecha de nacimiento.',
                     );
                 },
                 error: (error: unknown) => {
@@ -1340,7 +1640,7 @@ export class UserRegistrationWizard {
                     this.curpLocked.set(true);
                     this.renapoLookupStatus.set('error');
                     this.renapoMessage.set(
-                        'No fue posible consultar RENAPO. Puedes desbloquear la CURP para reintentar o capturar manualmente los datos personales.',
+                        'No fue posible consultar RENAPO. Puedes reintentar o capturar manualmente nombre(s), apellidos, sexo y fecha de nacimiento.',
                     );
                     console.error('Error consultando CURP en RENAPO.', error);
                 },
@@ -1349,22 +1649,23 @@ export class UserRegistrationWizard {
 
     private applyRenapoPersonalData(data: RenapoCurpData, requestedCurp: string): void {
         const returnedCurp = this.toText(data.curp).toUpperCase();
+        const curp = returnedCurp || requestedCurp;
         const gender = this.resolveRenapoGender(data.sexo);
 
         this.form.update((current) => ({
             ...current,
-            curp: returnedCurp || requestedCurp,
+            curp,
             firstName: this.toText(data.nombre).toUpperCase(),
             lastName: this.toText(data.primerApellido).toUpperCase(),
             secondLastName: this.toText(data.segundoApellido).toUpperCase(),
-            birthDate: this.toDateInputValue(data.fechaNacimiento),
+            birthDate: this.toDateInputValue(data.fechaNacimiento) || this.getBirthDateFromCurp(curp) || current.birthDate,
             gender: gender || current.gender,
         }));
 
         this.formErrors.update((current) => {
             const next = { ...current };
 
-            ['curp', 'firstName', 'lastName', 'birthDate', 'gender'].forEach((key) => {
+            ['curp', 'rfc', 'firstName', 'lastName', 'birthDate', 'gender'].forEach((key) => {
                 delete next[key];
             });
 
@@ -1391,6 +1692,23 @@ export class UserRegistrationWizard {
 
             return next;
         });
+    }
+
+    /**
+     * Una CURP diferente invalida por completo la respuesta anterior: se oculta
+     * el mensaje, se cancela su secuencia y se limpian los datos autollenados
+     * antes de mostrar el resultado de la nueva consulta.
+     */
+    private clearCurpLookupResultsForEdit(): void {
+        const hadRenapoResult =
+            this.lastRenapoCurp !== '' ||
+            this.renapoLookupStatus() !== 'idle';
+
+        if (hadRenapoResult) {
+            this.clearRenapoPersonalData();
+        }
+
+        this.resetRenapoLookupState();
     }
 
     private resolveRenapoGender(value: string): string {
@@ -1430,13 +1748,29 @@ export class UserRegistrationWizard {
         this.renapoMessage.set('');
         this.curpLocked.set(false);
         this.curpUnlockChecked.set(false);
+        this.clearCurpValidationSummary();
+    }
+
+    private loadHardcodedCurpValidationSummary(curp: string): void {
+        if (!this.isValidCurp(curp)) {
+            this.clearCurpValidationSummary();
+            return;
+        }
+
+        this.curpValidationSummary.set({ ...HARDCODED_CURP_VALIDATION_SUMMARY });
+    }
+
+    private clearCurpValidationSummary(): void {
+        this.curpValidationSummary.set(null);
     }
 
     private buildSaveSuccessModalState(
         response: RegistroAdminResponse | RegistroEspecialResponse,
         isExpress: boolean,
+        emailDelivery: CorreoDeliveryResult | null = null,
     ): SaveSuccessModalState {
         const data = response.datos;
+        const current = this.form();
 
         return {
             message: this.toText(response.mensaje) || 'El usuario se guardó correctamente.',
@@ -1445,6 +1779,83 @@ export class UserRegistrationWizard {
             fullName: this.toText(data?.nombreCompleto),
             system: this.toText(data?.sistema),
             isExpress,
+            hasAccessEmail: emailDelivery !== null,
+            accessEmail: this.normalizeEmail(current.email),
+            accessPhone: this.formatPhoneForDisplay(current.phone),
+            emailAccepted: emailDelivery?.accepted ?? false,
+            emailStatus: this.toText(emailDelivery?.status),
+            emailMessage: this.toText(emailDelivery?.message),
+            emailReference: this.toText(emailDelivery?.correoId),
+        };
+    }
+
+    private sendAccessCredentialsEmail(
+        response: RegistroAdminResponse | RegistroEspecialResponse,
+        isExpress: boolean,
+    ): Observable<CorreoDeliveryResult> {
+        const current = this.form();
+        const data = response.datos;
+        const account = this.toText(data?.cuentaGenerada) || this.toText(data?.cuenta);
+        const recipient = this.normalizeEmail(current.email);
+
+        if (!account) {
+            return of({
+                accepted: false,
+                message: 'El usuario fue creado, pero la respuesta no incluyó la cuenta para enviar el correo de acceso.',
+                status: null,
+                correoId: null,
+                recipientCount: 0,
+                acceptedAtUtc: null,
+                traceId: null,
+            });
+        }
+
+        if (!this.isValidEmail(recipient)) {
+            return of({
+                accepted: false,
+                message: 'El usuario fue creado, pero no se encontró un correo electrónico válido para enviar sus datos de acceso.',
+                status: null,
+                correoId: null,
+                recipientCount: 0,
+                acceptedAtUtc: null,
+                traceId: null,
+            });
+        }
+
+        const fullName = this.toText(data?.nombreCompleto) || [
+            current.firstName,
+            current.lastName,
+            current.secondLastName,
+        ]
+            .map((value) => this.toText(value))
+            .filter(Boolean)
+            .join(' ');
+
+        return this.correoFacade.send(
+            buildUserCredentialsEmailRequest({
+                recipient,
+                fullName,
+                account,
+                email: recipient,
+                phone: current.phone,
+                system: this.toText(data?.sistema) || 'SIAU',
+                isExpress,
+            }),
+        );
+    }
+
+    private toFailedEmailDelivery(error: unknown): CorreoDeliveryResult {
+        return {
+            accepted: false,
+            message:
+                error instanceof Error
+                    ? error.message
+                    : 'El usuario fue creado, pero no fue posible solicitar el envío del correo de acceso.',
+            status: null,
+            correoId: null,
+            recipientCount: 0,
+            acceptedAtUtc: null,
+            traceId: null,
         };
     }
 
@@ -1460,30 +1871,20 @@ export class UserRegistrationWizard {
         return {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
-                curp: this.getRequiredOrOptionalText(
-                    current.curp,
-                    !isExpress,
-                    'Captura la CURP.',
-                ).toUpperCase(),
-                rfc: this.getRequiredOrOptionalText(
-                    current.rfc,
-                    !isExpress,
-                    'Captura el RFC.',
-                ).toUpperCase(),
+                curp: this.requireText(current.curp, 'Captura la CURP.').toUpperCase(),
+                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
-                sexoId: isExpress
-                    ? this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1)
-                    : this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
-                fechaNacimiento: this.getRequiredOrOptionalText(
+                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                fechaNacimiento: this.requireText(
                     current.birthDate,
-                    !isExpress,
                     'Captura la fecha de nacimiento.',
                 ),
-                estadoCivilId: isExpress
-                    ? this.resolveOptionalCatalogId(current.civilStatus, this.civilStatusOptions(), 1)
-                    : this.requireCatalogId(current.civilStatus, 'Selecciona el estado civil.'),
+                estadoCivilId: this.requireCatalogId(
+                    current.civilStatus,
+                    'Selecciona el estado civil.',
+                ),
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -1536,10 +1937,7 @@ export class UserRegistrationWizard {
                 'Captura la CURP.',
             ).toUpperCase(),
 
-            rfc: this.requireText(
-                current.rfc,
-                'Captura el RFC.',
-            ).toUpperCase(),
+            rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
 
             nombres: this.requireText(
                 current.firstName,
@@ -1616,8 +2014,7 @@ export class UserRegistrationWizard {
 
     private resolveAccountStatusId(status: AccountStatus): number {
         switch (status) {
-            case 'disabled':
-                return 2;
+            case 'disabled': return 2;
             case 'suspended':
                 return 3;
             default:
@@ -1637,7 +2034,16 @@ export class UserRegistrationWizard {
             datosPersonales: {
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
-                sexoId: this.resolveOptionalCatalogId(current.gender, this.genderOptions(), 1),
+                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                cuip: this.toNullableText(current.cuip),
+                curp: this.toNullableText(current.curp)?.toUpperCase() ?? null,
+                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
+                segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
+                fechaNacimiento: this.toNullableText(current.birthDate),
+                estadoCivilId: this.requireCatalogId(
+                    current.civilStatus,
+                    'Selecciona el estado civil.',
+                ),
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -1801,22 +2207,6 @@ export class UserRegistrationWizard {
         return text;
     }
 
-    private getRequiredOrOptionalText(
-        value: string,
-        required: boolean,
-        errorMessage: string,
-    ): string {
-        return required ? this.requireText(value, errorMessage) : this.toText(value);
-    }
-
-    private resolveOptionalCatalogId(
-        value: string,
-        options: readonly SiauSelectOption[],
-        fallback: number,
-    ): number {
-        return this.toCatalogId(value) ?? this.resolveDefaultCatalogId(options, fallback);
-    }
-
     private toNullableText(value: string | null | undefined): string | null {
         const text = this.toText(value);
 
@@ -1857,7 +2247,10 @@ export class UserRegistrationWizard {
 
         const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
         const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
-        const commission = this.toSectionRecord(datos, ['s3Comision', 'comision']);
+        const s3Commission = this.toSectionRecord(datos, ['s3Comision']);
+        const commission = Object.keys(s3Commission).length > 0
+            ? s3Commission
+            : this.toSectionRecord(datos, ['comision']);
         const contact = this.toSectionRecord(datos, ['s5Contacto', 'medioContacto', 'contacto']);
 
         const institutionType = this.resolveRecordSelectValue(
@@ -1866,8 +2259,8 @@ export class UserRegistrationWizard {
             ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
             this.institutionTypeOptions,
         );
-        const assignmentIsFederal = this.isFederalInstitutionValue(institutionType);
-        const assignmentEntity = assignmentIsFederal
+        const assignmentRequiresEntity = this.requiresEntityForInstitution(institutionType);
+        const assignmentEntity = !assignmentRequiresEntity
             ? ''
             : this.resolveRecordSelectValue(
                 assignment,
@@ -1876,21 +2269,37 @@ export class UserRegistrationWizard {
                 this.stateOptions,
             );
 
-        const commissionInstitutionType = this.resolveRecordSelectValue(
-            commission,
-            ['tipoInstitucionId', 'idTipoInstitucion'],
-            ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
-            this.institutionTypeOptions,
-        );
-        const commissionIsFederal = this.isFederalInstitutionValue(commissionInstitutionType);
-        const commissionEntity = commissionIsFederal
+        const commissionInstitutionTypeId = this.toText(commission['tipoInstitucionId']);
+        const commissionInstitutionTypeLabel = this.toText(commission['tipoInstitucion']);
+        const commissionInstitutionType =
+            commissionInstitutionTypeId || commissionInstitutionTypeLabel;
+
+        if (commissionInstitutionType) {
+            this.institutionTypeOptions.set(this.mergeSelectOptions(
+                [{
+                    value: commissionInstitutionType,
+                    label: commissionInstitutionTypeLabel || commissionInstitutionType,
+                }],
+                this.institutionTypeOptions(),
+            ));
+        }
+
+        const commissionRequiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
+        const commissionEntityId = this.toText(commission['estadoId']);
+        const commissionEntityLabel = this.toText(commission['estado']);
+        const commissionEntity = !commissionRequiresEntity
             ? ''
-            : this.resolveRecordSelectValue(
-                commission,
-                ['estadoId', 'entidadId', 'idEstado'],
-                ['estado', 'entidad', 'estadoNombre'],
-                this.stateOptions,
-            );
+            : commissionEntityId || commissionEntityLabel;
+
+        if (commissionEntity) {
+            this.stateOptions.set(this.mergeSelectOptions(
+                [{
+                    value: commissionEntity,
+                    label: commissionEntityLabel || commissionEntity,
+                }],
+                this.stateOptions(),
+            ));
+        }
 
         const hasCommissionData =
             this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||
@@ -1923,7 +2332,7 @@ export class UserRegistrationWizard {
 
             institutionType,
             entity: assignmentEntity,
-            municipality: assignmentIsFederal
+            municipality: !this.requiresMunicipalityForInstitution(institutionType)
                 ? ''
                 : this.resolveRecordSelectValue(
                     assignment,
@@ -1957,7 +2366,7 @@ export class UserRegistrationWizard {
             commissionEnabled: hasCommissionData,
             commissionInstitutionType,
             commissionEntity,
-            commissionMunicipality: commissionIsFederal
+            commissionMunicipality: !this.requiresMunicipalityForInstitution(commissionInstitutionType)
                 ? ''
                 : this.resolveRecordSelectValue(
                     commission,
@@ -2013,10 +2422,13 @@ export class UserRegistrationWizard {
         this.completedSteps.set([...this.stepOrder()]);
         this.editEnabled.set(false);
         this.form.set(nextForm);
+        this.initialIdentitySnapshot = this.toIdentitySnapshot(nextForm);
+        this.initialEditFormSnapshot = this.toEditFormSnapshot(nextForm);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set(assignedProfiles);
+        this.initialAssignedProfiles = [...assignedProfiles];
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
         this.loadHydratedAssignmentCatalogs(nextForm);
     }
@@ -2052,9 +2464,7 @@ export class UserRegistrationWizard {
 
                 const rawRoleId = this.toText(
                     this.firstValue(record, ['perfilId', 'rolId', 'idPerfil']),
-                );
-
-                const systemOption =
+                ); const systemOption =
                     this.systemOptions().find((option) =>
                         this.normalizeText(option.label) === this.normalizeText(rawSystemLabel) ||
                         this.normalizeText(option.value) === this.normalizeText(rawSystemLabel) ||
@@ -2201,6 +2611,12 @@ export class UserRegistrationWizard {
                 normalized.includes('siau') ||
                 normalized.includes('sistema integral de administracion de usuarios');
         });
+    }
+
+    private isDefaultSiauRole(roleValue: string, roleLabel = ''): boolean {
+        return [roleValue, roleLabel].some(
+            (value) => this.normalizeText(this.toText(value)) === 'usuario',
+        );
     }
 
     private isRoleAlreadyAssigned(system: string, roleOption: SiauSelectOption): boolean {
@@ -2468,7 +2884,11 @@ export class UserRegistrationWizard {
     }
 
     private resetWizard(): void {
+        this.draftPersistenceEnabled.set(false);
         this.resetRenapoLookupState();
+        this.initialIdentitySnapshot = null;
+        this.initialEditFormSnapshot = null;
+        this.initialAssignedProfiles = [];
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
         this.editEnabled.set(true);
@@ -2476,6 +2896,7 @@ export class UserRegistrationWizard {
         this.isSubmitting.set(false);
         this.formErrors.set({});
         this.saveSuccess.set(null);
+        this.recoveredDraftAt.set(null);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -2494,8 +2915,84 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
     }
 
+    private restoreRegistrationDraft(): void {
+        const draft = this.draftStorage.load<UserRegistrationForm, AssignedSystemProfile>();
+
+        if (!draft) {
+            return;
+        }
+
+        const form = this.toRegistrationDraftForm(draft.form);
+        const profiles = this.toRegistrationDraftProfiles(draft.profiles);
+        const stepOrder = this.stepOrder();
+        const activeStepId = this.isWizardStep(draft.activeStepId) && stepOrder.includes(draft.activeStepId)
+            ? draft.activeStepId
+            : 'personal-data';
+        const completedSteps = draft.completedSteps.filter(
+            (stepId): stepId is WizardStepId =>
+                this.isWizardStep(stepId) && stepOrder.includes(stepId as WizardStepId),
+        );
+
+        this.form.set(form);
+        this.assignedSystemProfiles.set(profiles);
+        this.activeStepId.set(activeStepId);
+        this.completedSteps.set(completedSteps);
+        this.recoveredDraftAt.set(draft.savedAt);
+        this.loadHydratedAssignmentCatalogs(form);
+    }
+
+    private hasRegistrationDraftContent(
+        form: UserRegistrationForm,
+        profiles: readonly AssignedSystemProfile[],
+    ): boolean {
+        const hasNonDefaultProfile = profiles.some(
+            (profile) =>
+                !(
+                    this.isSiauSystem(profile.system, profile.systemLabel) &&
+                    this.isDefaultSiauRole(profile.role, profile.roleLabel)
+                ),
+        );
+
+        return hasNonDefaultProfile || Object.entries(form).some(([key, value]) => {
+            if (key === 'profiles' || key === 'password' || key === 'confirmPassword') {
+                return false;
+            }
+
+            return typeof value === 'boolean' ? value : this.hasText(value);
+        });
+    }
+
+    private toRegistrationDraftForm(value: UserRegistrationForm): UserRegistrationForm {
+        return {
+            ...INITIAL_FORM,
+            ...value,
+            profiles: [],
+            password: '',
+            confirmPassword: '',
+            commissionEnabled: Boolean(value?.commissionEnabled),
+            expressCreation: Boolean(value?.expressCreation),
+            accountStatus: this.toAccountStatus(this.toText(value?.accountStatus)),
+        };
+    }
+
+    private toRegistrationDraftProfiles(value: readonly AssignedSystemProfile[]): AssignedSystemProfile[] {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+
+        return value
+            .map((profile, index) => ({
+                id: this.toText(profile?.id) || `draft-profile-${index}`,
+                system: this.toText(profile?.system),
+                systemLabel: this.toText(profile?.systemLabel),
+                role: this.toText(profile?.role),
+                roleLabel: this.toText(profile?.roleLabel),
+            }))
+            .filter((profile) => Boolean(profile.system && profile.role));
+    }
+
     private loadHydratedAssignmentCatalogs(form: UserRegistrationForm): void {
-        if (!this.isFederalInstitutionValue(form.institutionType) && form.entity) {
+        if (this.requiresMunicipalityForInstitution(form.institutionType) && form.entity) {
             this.loadMunicipalities(form.entity, this.municipalityOptions);
         }
 
@@ -2505,7 +3002,6 @@ export class UserRegistrationWizard {
 
         if (form.institution) {
             this.loadAssignmentChildren(form.institution, this.decentralizedBodyOptions);
-            this.loadAssignmentChildren(form.institution, this.administrativeUnitOptions);
         }
 
         if (form.decentralizedBody) {
@@ -2516,7 +3012,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (!this.isFederalInstitutionValue(form.commissionInstitutionType) && form.commissionEntity) {
+        if (this.requiresMunicipalityForInstitution(form.commissionInstitutionType) && form.commissionEntity) {
             this.loadMunicipalities(form.commissionEntity, this.commissionMunicipalityOptions);
         }
 
@@ -2527,12 +3023,6 @@ export class UserRegistrationWizard {
         if (form.commissionInstitution) {
             this.loadCommissionChildren(form.commissionInstitution, this.commissionDependencyOptions);
             this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions);
-            this.loadCommissionChildren(form.commissionInstitution, this.commissionAdministrativeUnitOptions);
-        }
-
-        if (form.commissionDependency) {
-            this.loadCommissionChildren(form.commissionDependency, this.commissionDecentralizedBodyOptions);
-            this.loadCommissionChildren(form.commissionDependency, this.commissionAdministrativeUnitOptions);
         }
 
         if (form.commissionDecentralizedBody) {
@@ -2564,9 +3054,14 @@ export class UserRegistrationWizard {
                     this.userTypeOptions.set(catalogos.tiposUsuario);
                     this.systemOptions.set(catalogos.sistemas);
                     this.roleOptions.set([]);
-                    this.institutionTypeOptions.set(catalogos.tiposInstitucion);
-                    this.stateOptions.set(catalogos.estados);
+                    this.institutionTypeOptions.update((current) =>
+                        this.mergeSelectOptions(current, catalogos.tiposInstitucion),
+                    );
+                    this.stateOptions.update((current) =>
+                        this.mergeSelectOptions(current, catalogos.estados),
+                    );
                     this.catalogosReady.set(true);
+                    this.ensureDefaultSiauProfile();
                 },
                 error: (error: unknown) => {
                     this.catalogosReady.set(true);
@@ -2646,11 +3141,14 @@ export class UserRegistrationWizard {
     private loadAssignmentInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.institutionType);
-        const estadoId = this.isFederalInstitutionValue(current.institutionType)
+        const estadoId = !this.requiresEntityForInstitution(current.institutionType)
             ? undefined
             : this.toCatalogId(current.entity);
+        const municipioId = !this.requiresMunicipalityForInstitution(current.institutionType)
+            ? undefined
+            : this.toCatalogId(current.municipality);
 
-        if (!tipoInstitucionId && !estadoId) {
+        if (!tipoInstitucionId && !estadoId && !municipioId) {
             this.institutionOptions.set([]);
             return;
         }
@@ -2658,6 +3156,7 @@ export class UserRegistrationWizard {
         this.loadOrgOptions(this.institutionOptions, {
             tipoInstitucionId,
             estadoId,
+            municipioId,
         });
     }
 
@@ -2675,9 +3174,12 @@ export class UserRegistrationWizard {
 
         this.loadOrgOptions(target, {
             tipoInstitucionId: this.toCatalogId(current.institutionType),
-            estadoId: this.isFederalInstitutionValue(current.institutionType)
+            estadoId: !this.requiresEntityForInstitution(current.institutionType)
                 ? undefined
                 : this.toCatalogId(current.entity),
+            municipioId: !this.requiresMunicipalityForInstitution(current.institutionType)
+                ? undefined
+                : this.toCatalogId(current.municipality),
             padreId,
         });
     }
@@ -2685,11 +3187,14 @@ export class UserRegistrationWizard {
     private loadCommissionInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.commissionInstitutionType);
-        const estadoId = this.isFederalInstitutionValue(current.commissionInstitutionType)
+        const estadoId = !this.requiresEntityForInstitution(current.commissionInstitutionType)
             ? undefined
             : this.toCatalogId(current.commissionEntity);
+        const municipioId = !this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
+            ? undefined
+            : this.toCatalogId(current.commissionMunicipality);
 
-        if (!tipoInstitucionId && !estadoId) {
+        if (!tipoInstitucionId && !estadoId && !municipioId) {
             this.commissionInstitutionOptions.set([]);
             return;
         }
@@ -2697,6 +3202,7 @@ export class UserRegistrationWizard {
         this.loadOrgOptions(this.commissionInstitutionOptions, {
             tipoInstitucionId,
             estadoId,
+            municipioId,
         });
     }
 
@@ -2714,9 +3220,12 @@ export class UserRegistrationWizard {
 
         this.loadOrgOptions(target, {
             tipoInstitucionId: this.toCatalogId(current.commissionInstitutionType),
-            estadoId: this.isFederalInstitutionValue(current.commissionInstitutionType)
+            estadoId: !this.requiresEntityForInstitution(current.commissionInstitutionType)
                 ? undefined
                 : this.toCatalogId(current.commissionEntity),
+            municipioId: !this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
+                ? undefined
+                : this.toCatalogId(current.commissionMunicipality),
             padreId,
         });
     }
@@ -2726,6 +3235,7 @@ export class UserRegistrationWizard {
         query: {
             tipoInstitucionId?: number;
             estadoId?: number;
+            municipioId?: number;
             padreId?: number;
         },
     ): void {
@@ -2774,15 +3284,94 @@ export class UserRegistrationWizard {
         return Number.isFinite(id) && id > 0 ? id : undefined;
     }
 
-    private isFederalInstitutionValue(value: string | null | undefined): boolean {
+    private ensureDefaultSiauProfile(): void {
+        if (
+            !this.open() ||
+            this.mode() !== 'create' ||
+            this.defaultSiauProfileLoading ||
+            this.assignedSystemProfiles().some((profile) =>
+                this.isSiauSystem(profile.system, profile.systemLabel),
+            )
+        ) {
+            return;
+        }
+
+        const systemOption = this.systemOptions().find((option) =>
+            this.isSiauSystem(option.value, option.label),
+        );
+
+        if (!systemOption) {
+            return;
+        }
+
+        this.defaultSiauProfileLoading = true;
+        const system = systemOption.value || systemOption.label;
+
+        this.catalogosFacade
+            .obtenerSistemaPerfilesOptions(this.resolveSistemaPerfilesQueryValue(system))
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => {
+                    this.defaultSiauProfileLoading = false;
+                }),
+            )
+            .subscribe({
+                next: (options) => {
+                    if (
+                        !this.open() ||
+                        this.mode() !== 'create' ||
+                        this.assignedSystemProfiles().some((profile) =>
+                            this.isSiauSystem(profile.system, profile.systemLabel),
+                        )
+                    ) {
+                        return;
+                    }
+
+                    const userRole = options.find((option) =>
+                        this.normalizeText(option.label) === 'usuario' ||
+                        this.normalizeText(option.value) === 'usuario',
+                    );
+
+                    if (!userRole) {
+                        console.warn('No se localizó el perfil base "Usuario" para SIAU.');
+                        return;
+                    }
+
+                    this.assignedSystemProfiles.update((current) => [
+                        ...current,
+                        {
+                            id: `${system}-${userRole.value}-default`,
+                            system,
+                            systemLabel: systemOption.label,
+                            role: userRole.value,
+                            roleLabel: userRole.label,
+                        },
+                    ]);
+                },
+                error: (error: unknown) => {
+                    console.error('No fue posible cargar el perfil base de SIAU.', error);
+                },
+            });
+    }
+
+    private requiresEntityForInstitution(value: string | null | undefined): boolean {
+        const label = this.getInstitutionTypeLabel(value);
+
+        return label.includes('estatal') || label.includes('municipal');
+    }
+
+    private requiresMunicipalityForInstitution(value: string | null | undefined): boolean {
+        return this.getInstitutionTypeLabel(value).includes('municipal');
+    }
+
+    private getInstitutionTypeLabel(value: string | null | undefined): string {
         if (!value) {
-            return false;
+            return '';
         }
 
         const option = this.institutionTypeOptions().find((item) => item.value === value);
-        const label = option?.label ?? value;
 
-        return this.normalizeText(label).includes('federal');
+        return this.normalizeText(option?.label ?? value);
     }
 
     private validateAllSteps(): boolean {
@@ -2802,89 +3391,173 @@ export class UserRegistrationWizard {
         const nextErrors: Record<string, string> = {};
 
         if (stepId === 'personal-data') {
-            if (!isExpress || this.hasText(current.curp)) {
-                if (!this.hasText(current.curp)) {
-                    nextErrors['curp'] = 'La CURP es obligatoria.';
-                } else if (!this.isValidCurp(current.curp)) {
-                    nextErrors['curp'] = 'La CURP no tiene un formato válido.';
-                }
+            if (this.shouldValidateIdentityFields(current)) {
+                this.addIdentityValidationErrors(current, nextErrors);
             }
 
-            if (!isExpress || this.hasText(current.rfc)) {
-                if (!this.hasText(current.rfc)) {
-                    nextErrors['rfc'] = 'El RFC es obligatorio.';
-                } else if (!this.isValidRfc(current.rfc)) {
-                    nextErrors['rfc'] = 'El RFC no tiene un formato válido.';
-                }
-            }
+            this.addPersonalFieldValidationErrors(current, nextErrors);
 
-            if (!this.hasText(current.firstName)) {
+            if (
+                this.shouldValidateEditFields(current, ['firstName']) &&
+                !this.hasText(current.firstName)
+            ) {
                 nextErrors['firstName'] = 'El nombre es obligatorio.';
             }
 
-            if (!this.hasText(current.lastName)) {
+            if (
+                this.shouldValidateEditFields(current, ['lastName']) &&
+                !this.hasText(current.lastName)
+            ) {
                 nextErrors['lastName'] = 'El primer apellido es obligatorio.';
             }
 
-            if (!isExpress && !this.hasText(current.gender)) {
+            if (
+                this.shouldValidateEditFields(current, ['gender']) &&
+                !this.hasText(current.gender)
+            ) {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
-            if (!isExpress && !this.hasText(current.civilStatus)) {
+            if (
+                this.shouldValidateEditFields(current, ['civilStatus']) &&
+                !this.hasText(current.civilStatus)
+            ) {
                 nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
-            }
-
-            if (!isExpress || this.hasText(current.birthDate)) {
-                if (!this.hasText(current.birthDate)) {
-                    nextErrors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
-                } else if (!this.isAdult(current.birthDate)) {
-                    nextErrors['birthDate'] = 'El usuario debe ser mayor de edad.';
-                }
             }
         }
 
         if (stepId === 'assignment') {
-            if (!this.hasText(current.institutionType)) {
+            if (
+                this.shouldValidateEditFields(current, ['institutionType']) &&
+                !this.hasText(current.institutionType)
+            ) {
                 nextErrors['institutionType'] = 'El tipo de institución es obligatorio.';
             }
 
-            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.entity)) {
+            if (
+                this.assignmentRequiresEntity() &&
+                this.shouldValidateEditFields(current, ['institutionType', 'entity']) &&
+                !this.hasText(current.entity)
+            ) {
                 nextErrors['entity'] = 'La entidad es obligatoria.';
             }
 
-            if (!this.isAssignmentFederalInstitution() && !this.hasText(current.municipality)) {
+            if (
+                this.assignmentRequiresMunicipality() &&
+                this.shouldValidateEditFields(current, ['institutionType', 'entity', 'municipality']) &&
+                !this.hasText(current.municipality)
+            ) {
                 nextErrors['municipality'] = 'El municipio o alcaldía es obligatorio.';
             }
 
-            if (!this.hasText(current.institution)) {
+            if (
+                this.shouldValidateEditFields(
+                    current,
+                    ['institutionType', 'entity', 'municipality', 'institution'],
+                ) &&
+                !this.hasText(current.institution)
+            ) {
                 nextErrors['institution'] = 'La institución es obligatoria.';
             }
 
-            if (!this.hasText(current.admissionDate)) {
+            if (
+                this.shouldValidateEditFields(current, ['admissionDate']) &&
+                !this.hasText(current.admissionDate)
+            ) {
                 nextErrors['admissionDate'] = 'La fecha de ingreso es obligatoria.';
             }
 
-            if (!this.hasText(current.employeeNumber)) {
+            if (
+                this.shouldValidateEditFields(current, ['admissionDate']) &&
+                this.hasText(current.admissionDate) &&
+                !this.isDateOnOrBeforeToday(current.admissionDate)
+            ) {
+                nextErrors['admissionDate'] = 'La fecha de ingreso debe ser válida y no posterior a la fecha actual.';
+            }
+
+            if (
+                this.shouldValidateEditFields(current, ['employeeNumber']) &&
+                !this.hasText(current.employeeNumber)
+            ) {
                 nextErrors['employeeNumber'] = 'El número de empleado es obligatorio.';
             }
+
+            this.addAssignmentFormatValidationErrors(current, nextErrors);
         }
 
         if (stepId === 'commission') {
             if (current.commissionEnabled) {
-                if (!this.hasText(current.commissionInstitutionType)) {
+                if (!this.hasValidAssignmentForCommission(current)) {
+                    nextErrors['commissionInstitutionType'] =
+                        'Primero registra una adscripción válida antes de capturar la comisión.';
+                }
+
+                if (
+                    this.shouldValidateEditFields(
+                        current,
+                        ['commissionEnabled', 'commissionInstitutionType'],
+                    ) &&
+                    !this.hasText(current.commissionInstitutionType)
+                ) {
                     nextErrors['commissionInstitutionType'] = 'El tipo de institución de comisión es obligatorio.';
                 }
 
-                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionEntity)) {
+                if (
+                    this.commissionRequiresEntity() &&
+                    this.shouldValidateEditFields(
+                        current,
+                        ['commissionEnabled', 'commissionInstitutionType', 'commissionEntity'],
+                    ) &&
+                    !this.hasText(current.commissionEntity)
+                ) {
                     nextErrors['commissionEntity'] = 'La entidad de comisión es obligatoria.';
                 }
 
-                if (!this.isCommissionFederalInstitution() && !this.hasText(current.commissionMunicipality)) {
+                if (
+                    this.commissionRequiresMunicipality() &&
+                    this.shouldValidateEditFields(
+                        current,
+                        [
+                            'commissionEnabled',
+                            'commissionInstitutionType',
+                            'commissionEntity',
+                            'commissionMunicipality',
+                        ],
+                    ) &&
+                    !this.hasText(current.commissionMunicipality)
+                ) {
                     nextErrors['commissionMunicipality'] = 'El municipio o alcaldía de comisión es obligatorio.';
                 }
 
-                if (!this.hasText(current.commissionInstitution)) {
+                if (
+                    this.shouldValidateEditFields(
+                        current,
+                        [
+                            'commissionEnabled',
+                            'commissionInstitutionType',
+                            'commissionEntity',
+                            'commissionMunicipality',
+                            'commissionInstitution',
+                        ],
+                    ) &&
+                    !this.hasText(current.commissionInstitution)
+                ) {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
+                }
+
+                if (
+                    this.shouldValidateEditFields(
+                        current,
+                        ['commissionAdmissionDate', 'admissionDate'],
+                    ) &&
+                    this.hasText(current.commissionAdmissionDate) &&
+                    !this.isCommissionStartDateValid(
+                        current.commissionAdmissionDate,
+                        current.admissionDate,
+                    )
+                ) {
+                    nextErrors['commissionAdmissionDate'] =
+                        'La fecha de inicio de comisión debe ser válida, no posterior a hoy y no anterior a la fecha de ingreso.';
                 }
             }
         }
@@ -2892,27 +3565,37 @@ export class UserRegistrationWizard {
         if (stepId === 'contact') {
             const hasEmail = this.hasText(current.email);
             const hasPhone = this.hasText(current.phone);
+            const shouldValidateEmail = this.shouldValidateEditFields(current, ['email']); const shouldValidatePhone = this.shouldValidateEditFields(current, ['phone']);
 
-            if (!hasEmail) {
+            if (shouldValidateEmail && !hasEmail) {
                 nextErrors['email'] = 'El correo electrónico es obligatorio.';
             }
 
-            if (!hasPhone) {
+            if (shouldValidatePhone && !hasPhone) {
                 nextErrors['phone'] = 'El teléfono celular es obligatorio.';
             }
 
-            if (hasEmail && !this.isValidEmail(current.email)) {
+            if (shouldValidateEmail && hasEmail && !this.isValidEmail(current.email)) {
                 nextErrors['email'] = 'El correo electrónico no tiene un formato válido.';
             }
 
-            if (hasPhone && !/^\d{10}$/.test(current.phone)) {
+            if (shouldValidatePhone && hasPhone && !/^\d{10}$/.test(current.phone)) {
                 nextErrors['phone'] = 'El teléfono celular debe tener 10 dígitos.';
             }
         }
 
         if (stepId === 'profiles') {
-            if (this.assignedSystemProfiles().length === 0) {
+            if (this.shouldValidateAssignedProfiles() && this.assignedSystemProfiles().length === 0) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
+            }
+
+            if (
+                this.shouldValidateAssignedProfiles() &&
+                this.assignedSystemProfiles().length > 0 &&
+                !this.hasProfileAssignmentContext(current)
+            ) {
+                nextErrors['profiles'] =
+                    'Registra una adscripción o una comisión válida antes de asignar perfiles.';
             }
         }
 
@@ -2946,13 +3629,321 @@ export class UserRegistrationWizard {
         return Object.keys(nextErrors).length === 0;
     }
 
+    private addIdentityValidationErrors(
+        current: UserRegistrationForm,
+        errors: Record<string, string>,
+    ): void {
+        const identityDocumentsAreOptional = !this.isEditMode() && current.expressCreation;
+        const hasCurp = this.hasText(current.curp);
+        const hasRfc = this.hasText(current.rfc);
+        const hasBirthDate = this.hasText(current.birthDate);
+        let validCurp = false;
+        let validRfc = false;
+
+        if (!hasCurp && !identityDocumentsAreOptional) {
+            errors['curp'] = 'La CURP es obligatoria.';
+        } else if (!this.isValidCurp(current.curp)) {
+            if (hasCurp) {
+                errors['curp'] = 'La CURP no tiene un formato o una fecha válidos.';
+            }
+        } else {
+            validCurp = true;
+        }
+
+        if (hasRfc && !this.isValidRfc(current.rfc)) {
+            errors['rfc'] = 'El RFC no tiene un formato válido.';
+        } else {
+            validRfc = hasRfc;
+        }
+
+        if (!hasBirthDate && !identityDocumentsAreOptional) {
+            errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
+        } else if (hasBirthDate && !this.isValidDateInput(current.birthDate)) {
+            errors['birthDate'] = 'La fecha de nacimiento no es válida.';
+        } else if (hasBirthDate && !this.isDateOnOrBeforeToday(current.birthDate)) {
+            errors['birthDate'] = 'La fecha de nacimiento no puede ser posterior a la fecha actual.';
+        } else if (hasBirthDate && !this.isAdult(current.birthDate)) {
+            errors['birthDate'] = 'El usuario debe ser mayor de edad.';
+        }
+
+        if (validCurp && validRfc && !this.rfcMatchesCurp(current.rfc, current.curp)) {
+            errors['rfc'] = 'Los primeros 10 caracteres del RFC deben coincidir con la CURP.';
+        }
+
+        if (validRfc && hasBirthDate && !this.rfcBirthDateMatchesDate(current.rfc, current.birthDate)) {
+            errors['rfc'] = 'La fecha contenida en el RFC debe coincidir con la fecha de nacimiento.';
+        }
+
+        const curpBirthDate = validCurp ? this.getBirthDateFromCurp(current.curp) : null;
+
+        if (curpBirthDate && !this.isAdult(curpBirthDate)) {
+            errors['curp'] =
+                'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de edad.';
+        }
+
+        if (curpBirthDate && hasBirthDate && current.birthDate !== curpBirthDate) {
+            errors['birthDate'] =
+                'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
+        }
+    }
+
+    private addPersonalFieldValidationErrors(
+        current: UserRegistrationForm,
+        errors: Record<string, string>,
+    ): void {
+        if (
+            this.shouldValidateEditFields(current, ['cuip']) &&
+            this.hasText(current.cuip) &&
+            !/^[A-Z0-9]{20}$/.test(this.toText(current.cuip).toUpperCase())
+        ) {
+            errors['cuip'] = 'La CUIP debe tener exactamente 20 caracteres alfanuméricos.';
+        }
+
+        this.addNameValidationError(
+            current.firstName,
+            'firstName',
+            'El nombre',
+            this.shouldValidateEditFields(current, ['firstName']),
+            errors,
+        );
+        this.addNameValidationError(
+            current.lastName,
+            'lastName',
+            'El primer apellido',
+            this.shouldValidateEditFields(current, ['lastName']),
+            errors,
+        );
+        this.addNameValidationError(
+            current.secondLastName,
+            'secondLastName',
+            'El segundo apellido',
+            this.shouldValidateEditFields(current, ['secondLastName']),
+            errors,
+        );
+    }
+
+    private addNameValidationError(
+        value: string,
+        key: string,
+        label: string,
+        shouldValidate: boolean,
+        errors: Record<string, string>,
+    ): void {
+        if (!shouldValidate || !this.hasText(value)) {
+            return;
+        }
+
+        const normalized = this.toText(value).toUpperCase();
+
+        if (normalized.length > 100 || !/^[A-ZÁÉÍÓÚÜÑ\s]+$/.test(normalized)) {
+            errors[key] = `${label} debe contener únicamente letras y espacios (máximo 100 caracteres).`;
+        }
+    }
+
+    private addAssignmentFormatValidationErrors(
+        current: UserRegistrationForm,
+        errors: Record<string, string>,
+    ): void {
+        if (
+            this.shouldValidateEditFields(current, ['position']) &&
+            this.hasText(current.position) &&
+            !this.isValidTextWithinRange(current.position, 2, 150)
+        ) {
+            errors['position'] = 'El cargo debe tener entre 2 y 150 caracteres válidos.';
+        }
+
+        if (
+            this.shouldValidateEditFields(current, ['functions']) &&
+            this.hasText(current.functions) &&
+            !this.isValidTextWithinRange(current.functions, 5, 500)
+        ) {
+            errors['functions'] = 'Las funciones deben tener entre 5 y 500 caracteres válidos.';
+        }
+
+        if (
+            this.shouldValidateEditFields(current, ['employeeNumber']) &&
+            this.hasText(current.employeeNumber) &&
+            !/^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+        ) {
+            errors['employeeNumber'] =
+                'El número de empleado debe contener de 3 a 20 letras, números o espacios.';
+        }
+    }
+
+    private hasValidAssignmentForCommission(current: UserRegistrationForm): boolean {
+        if (
+            !this.hasText(current.institutionType) ||
+            !this.hasText(current.institution) ||
+            !this.hasText(current.admissionDate) ||
+            !this.hasText(current.employeeNumber)
+        ) {
+            return false;
+        }
+
+        if (this.requiresEntityForInstitution(current.institutionType) && !this.hasText(current.entity)) {
+            return false;
+        }
+
+        if (
+            this.requiresMunicipalityForInstitution(current.institutionType) &&
+            !this.hasText(current.municipality)
+        ) {
+            return false;
+        }
+
+        return (
+            this.isDateOnOrBeforeToday(current.admissionDate) &&
+            /^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+        );
+    }
+
+    private hasValidCommissionContext(current: UserRegistrationForm): boolean {
+        if (
+            !current.commissionEnabled ||
+            !this.hasText(current.commissionInstitutionType) ||
+            !this.hasText(current.commissionInstitution)
+        ) {
+            return false;
+        }
+
+        if (
+            this.requiresEntityForInstitution(current.commissionInstitutionType) &&
+            !this.hasText(current.commissionEntity)
+        ) {
+            return false;
+        }
+
+        if (
+            this.requiresMunicipalityForInstitution(current.commissionInstitutionType) &&
+            !this.hasText(current.commissionMunicipality)
+        ) {
+            return false;
+        }
+
+        return (
+            !this.hasText(current.commissionAdmissionDate) ||
+            this.isCommissionStartDateValid(current.commissionAdmissionDate, current.admissionDate)
+        );
+    }
+
+    private hasProfileAssignmentContext(current: UserRegistrationForm): boolean {
+        return (
+            this.hasValidAssignmentForCommission(current) ||
+            this.hasValidCommissionContext(current)
+        );
+    }
+
+    private shouldValidateIdentityFields(current: UserRegistrationForm): boolean {
+        if (!this.isEditMode()) {
+            return true;
+        }
+
+        const initialSnapshot = this.initialIdentitySnapshot;
+
+        if (!initialSnapshot) {
+            return true;
+        }
+
+        const currentSnapshot = this.toIdentitySnapshot(current);
+
+        return (
+            initialSnapshot.curp !== currentSnapshot.curp ||
+            initialSnapshot.rfc !== currentSnapshot.rfc ||
+            initialSnapshot.birthDate !== currentSnapshot.birthDate
+        );
+    }
+
+    private shouldValidateEditFields(
+        current: UserRegistrationForm,
+        fields: readonly (keyof UserRegistrationForm)[],
+    ): boolean {
+        if (!this.isEditMode()) {
+            return true;
+        }
+
+        const initialSnapshot = this.initialEditFormSnapshot;
+
+        if (!initialSnapshot) {
+            return true;
+        }
+
+        return fields.some(
+            (field) => !this.areEditFieldValuesEqual(initialSnapshot[field], current[field]),
+        );
+    }
+
+    private shouldValidateAssignedProfiles(): boolean {
+        if (!this.isEditMode()) {
+            return true;
+        }
+
+        return this.buildAssignedProfileSignature(this.initialAssignedProfiles) !==
+            this.buildAssignedProfileSignature(this.assignedSystemProfiles());
+    }
+
+    private areEditFieldValuesEqual(
+        initialValue: UserRegistrationForm[keyof UserRegistrationForm],
+        currentValue: UserRegistrationForm[keyof UserRegistrationForm],
+    ): boolean {
+        if (Array.isArray(initialValue) && Array.isArray(currentValue)) {
+            return (
+                initialValue.length === currentValue.length &&
+                initialValue.every((value, index) => value === currentValue[index])
+            );
+        }
+
+        return initialValue === currentValue;
+    }
+
+    private buildAssignedProfileSignature(
+        profiles: readonly AssignedSystemProfile[],
+    ): string {
+        return profiles
+            .map((profile) => `${profile.system}|${profile.role}`)
+            .sort()
+            .join('||');
+    }
+
+    private validateChangedIdentityFields(): boolean {
+        const current = this.form();
+
+        if (!this.shouldValidateIdentityFields(current)) {
+            this.clearIdentityFieldErrors();
+            return true;
+        }
+
+        const nextErrors: Record<string, string> = {};
+        this.addIdentityValidationErrors(current, nextErrors);
+
+        this.formErrors.update((currentErrors) => ({
+            ...this.withoutIdentityFieldErrors(currentErrors),
+            ...nextErrors,
+        }));
+
+        return Object.keys(nextErrors).length === 0;
+    }
+
+    private clearIdentityFieldErrors(): void {
+        this.formErrors.update((currentErrors) => this.withoutIdentityFieldErrors(currentErrors));
+    }
+
+    private withoutIdentityFieldErrors(errors: Record<string, string>): Record<string, string> {
+        const nextErrors = { ...errors };
+
+        ['curp', 'rfc', 'birthDate'].forEach((field) => delete nextErrors[field]);
+
+        return nextErrors;
+    }
+
     private getStepValidationFields(stepId: WizardStepId): readonly string[] {
         const fieldsByStep: Record<WizardStepId, readonly string[]> = {
             'personal-data': [
+                'cuip',
                 'curp',
                 'rfc',
                 'firstName',
                 'lastName',
+                'secondLastName',
                 'gender',
                 'civilStatus',
                 'birthDate',
@@ -2962,6 +3953,8 @@ export class UserRegistrationWizard {
                 'entity',
                 'municipality',
                 'institution',
+                'position',
+                'functions',
                 'admissionDate',
                 'employeeNumber',
             ],
@@ -2970,6 +3963,7 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
+                'commissionAdmissionDate',
             ],
             documents: [],
             contact: [
@@ -2983,7 +3977,6 @@ export class UserRegistrationWizard {
                 'password',
                 'confirmPassword',
                 'expressJustification',
-                'submit',
             ],
         };
 
@@ -3048,7 +4041,99 @@ export class UserRegistrationWizard {
     private isValidCurp(value: string): boolean {
         const curp = this.toText(value).toUpperCase();
 
-        return /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/.test(curp);
+        return (
+            /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/.test(curp) &&
+            this.getBirthDateFromCurp(curp) !== null
+        );
+    }
+
+    private normalizeRfc(value: string): string {
+        return this.toText(value).toUpperCase().slice(0, 13);
+    }
+
+    /**
+     * El RFC toma siempre sus primeros 10 caracteres de la CURP. La persona
+     * administradora sólo captura la homoclave de tres posiciones.
+     */
+    private getRfcPrefixFromCurp(value: string): string | null {
+        const prefix = this.toText(value).toUpperCase().slice(0, 10);
+
+        return /^[A-Z0-9]{10}$/.test(prefix) ? prefix : null;
+    }
+
+    private buildRfcFromCurp(curp: string): string {
+        const prefix = this.getRfcPrefixFromCurp(curp);
+
+        return prefix ?? '';
+    }
+
+    private getRfcHomoclave(value: string, prefix: string, currentRfc: string): string {
+        const entered = this.normalizeRfc(value);
+
+        if (entered.startsWith(prefix)) {
+            return entered.slice(prefix.length, prefix.length + 3).replace(/[^A-Z0-9]/g, '');
+        }
+
+        const existing = this.normalizeRfc(currentRfc);
+
+        return existing.startsWith(prefix)
+            ? existing.slice(prefix.length, prefix.length + 3).replace(/[^A-Z0-9]/g, '')
+            : '';
+    }
+
+    private rfcMatchesCurp(rfc: string, curp: string): boolean {
+        const normalizedRfc = this.toText(rfc).toUpperCase();
+        const normalizedCurp = this.toText(curp).toUpperCase();
+
+        return normalizedRfc.slice(0, 10) === normalizedCurp.slice(0, 10);
+    }
+
+    private rfcBirthDateMatchesDate(rfc: string, birthDate: string): boolean {
+        const rfcDateCode = this.getBirthDateCodeFromRfc(rfc);
+        const parsedBirthDate = this.parseDateInput(birthDate);
+
+        if (!rfcDateCode || !parsedBirthDate) {
+            return false;
+        }
+
+        return rfcDateCode === this.formatRfcBirthDateCode(parsedBirthDate);
+    }
+
+    private getBirthDateCodeFromRfc(value: string): string | null {
+        const rfc = this.toText(value).toUpperCase();
+
+        if (!this.isValidRfc(rfc)) {
+            return null;
+        }
+
+        const prefixLength = rfc.length === 13 ? 4 : 3;
+        const dateCode = rfc.slice(prefixLength, prefixLength + 6);
+
+        return /^\d{6}$/.test(dateCode) ? dateCode : null;
+    }
+
+    private formatRfcBirthDateCode(date: Date): string {
+        const year = String(date.getFullYear()).slice(-2);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${year}${month}${day}`;
+    }
+
+    private getBirthDateFromCurp(value: string): string | null {
+        const curp = this.toText(value).toUpperCase();
+
+        if (curp.length !== 18) {
+            return null;
+        }
+
+        const shortYear = Number(curp.slice(4, 6));
+        const month = curp.slice(6, 8);
+        const day = curp.slice(8, 10);
+        const century = /^\d$/.test(curp.charAt(16)) ? 1900 : 2000;
+        const birthDate = `${century + shortYear}-${month}-${day}`;
+
+        return this.isValidDateInput(birthDate) ? birthDate : null;
     }
 
     private isValidRfc(value: string): boolean {
@@ -3060,7 +4145,7 @@ export class UserRegistrationWizard {
     private isValidEmail(value: string): boolean {
         const email = this.normalizeEmail(value);
 
-        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+        return email.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(email);
     }
 
     private normalizeEmail(value: unknown): string {
@@ -3070,24 +4155,137 @@ export class UserRegistrationWizard {
             .trim();
     }
 
-    private isAdult(dateValue: string): boolean {
-        const birthDate = new Date(`${dateValue}T00:00:00`);
+    private formatPhoneForDisplay(value: unknown): string {
+        const digits = this.toText(value).replace(/\D/g, '').slice(0, 10);
 
-        if (Number.isNaN(birthDate.getTime())) {
+        if (digits.length !== 10) {
+            return digits;
+        }
+
+        return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`;
+    }
+
+    protected maximumBirthDate(): string {
+        return this.formatDateInputValue(this.getAdultCutoffDate());
+    }
+
+    protected maximumTodayDate(): string {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return this.formatDateInputValue(today);
+    }
+
+    private isDateOnOrBeforeToday(value: string): boolean {
+        const date = this.parseDateInput(value);
+
+        if (!date) {
             return false;
         }
 
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        const dayDiff = today.getDate() - birthDate.getDate();
+        return date.getTime() <= today.getTime();
+    }
 
-        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-            age -= 1;
+    private isCommissionStartDateValid(
+        commissionDateValue: string,
+        admissionDateValue: string,
+    ): boolean {
+        const commissionDate = this.parseDateInput(commissionDateValue);
+
+        if (!commissionDate || !this.isDateOnOrBeforeToday(commissionDateValue)) {
+            return false;
         }
 
-        return age >= 18;
+        if (!this.hasText(admissionDateValue)) {
+            return true;
+        }
+
+        const admissionDate = this.parseDateInput(admissionDateValue);
+
+        return admissionDate !== null && commissionDate.getTime() >= admissionDate.getTime();
+    }
+
+    private isValidTextWithinRange(value: string, minimum: number, maximum: number): boolean {
+        const text = this.toText(value);
+
+        return (
+            text.length >= minimum &&
+            text.length <= maximum &&
+            /^[A-Z0-9ÁÉÍÓÚÜÑ\s\-.,!#$%&/()=?¿¡+@:;_"]+$/i.test(text)
+        );
+    }
+
+    private isAdult(dateValue: string): boolean {
+        const birthDate = this.parseDateInput(dateValue);
+
+        if (!birthDate) {
+            return false;
+        }
+
+        return birthDate.getTime() <= this.getAdultCutoffDate().getTime();
+    }
+
+    private getAdultCutoffDate(): Date {
+        const cutoffDate = new Date();
+
+        cutoffDate.setHours(0, 0, 0, 0);
+        cutoffDate.setFullYear(cutoffDate.getFullYear() - 18);
+
+        return cutoffDate;
+    }
+
+    private isValidDateInput(value: string): boolean {
+        return this.parseDateInput(value) !== null;
+    }
+
+    private parseDateInput(value: string): Date | null {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(this.toText(value));
+
+        if (!match) {
+            return null;
+        }
+
+        const [, rawYear, rawMonth, rawDay] = match;
+        const year = Number(rawYear);
+        const month = Number(rawMonth);
+        const day = Number(rawDay);
+        const date = new Date(year, month - 1, day);
+
+        if (
+            date.getFullYear() !== year ||
+            date.getMonth() !== month - 1 ||
+            date.getDate() !== day
+        ) {
+            return null;
+        }
+
+        date.setHours(0, 0, 0, 0);
+
+        return date;
+    }
+
+    private formatDateInputValue(date: Date): string {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${year}-${month}-${day}`;
+    } private toEditFormSnapshot(form: UserRegistrationForm): UserRegistrationForm {
+        return {
+            ...form,
+            profiles: [...form.profiles],
+        };
+    }
+
+    private toIdentitySnapshot(form: UserRegistrationForm): IdentitySnapshot {
+        return {
+            curp: this.toText(form.curp).toUpperCase(),
+            rfc: this.toText(form.rfc).toUpperCase(),
+            birthDate: this.toDateInputValue(form.birthDate),
+        };
     }
 
     private normalizeText(value: string): string {
@@ -3096,5 +4294,12 @@ export class UserRegistrationWizard {
             .replace(/[\u0300-\u036f]/g, '')
             .trim()
             .toLowerCase();
+    }
+    private hasCompleteRenapoPersonalData(data: RenapoCurpData): boolean {
+        return (
+            this.hasText(data.nombre) &&
+            this.hasText(data.primerApellido) &&
+            this.hasText(this.resolveRenapoGender(data.sexo))
+        );
     }
 }

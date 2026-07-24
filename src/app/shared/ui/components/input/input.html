@@ -3,22 +3,15 @@
     {{ label() }}
 
     @if (required()) {
-      <strong>*</strong>
+    <strong>*</strong>
     }
   </span>
 
-  <input
-    class="siau-input__control"
-    [type]="type()"
-    [value]="value()"
-    [placeholder]="placeholder()"
-    [required]="required()"
-    [disabled]="disabled()"
-    [attr.maxlength]="maxLength()"
-    (input)="handleInput($event)"
-  />
+  <input class="siau-input__control" [type]="type()" [value]="value()" [placeholder]="placeholder()"
+    [required]="required()" [disabled]="disabled()" [attr.maxlength]="maxLength()" [attr.min]="min()" [attr.max]="max()"
+    (input)="handleInput($event)" />
 
   @if (hint()) {
-    <span class="siau-input__hint">{{ hint() }}</span>
+  <span class="siau-input__hint">{{ hint() }}</span>
   }
 </label>
