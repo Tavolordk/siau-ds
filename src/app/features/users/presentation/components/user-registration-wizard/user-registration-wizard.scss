@@ -5,9 +5,9 @@
 
 .registration-wizard {
   width: 100%;
-  height: 574px;
-  min-height: 574px;
-  max-height: 574px;
+  height: 640px;
+  min-height: 640px;
+  max-height: 640px;
   display: flex;
   overflow: hidden;
   background: rgb(241, 247, 251);
@@ -24,14 +24,14 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  padding: 12px 0;
+  padding: 10px 0;
   background: rgb(132, 148, 168);
   border-right: 1px solid rgba(255, 255, 255, 0.18);
   overflow: hidden;
 }
 
 .registration-wizard__sidebar-title {
-  padding: 0 14px 8px;
+  padding: 0 14px 6px;
   color: rgba(255, 255, 255, 0.42);
   font-size: 9px;
   font-weight: 800;
@@ -47,15 +47,15 @@
   flex-direction: column;
   gap: 2px;
   padding: 0 8px;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 }
 
 .registration-wizard__step {
   position: relative;
   width: 100%;
-  min-height: 44px;
-  padding: 9px 10px 9px 12px;
+  min-height: 40px;
+  padding: 7px 10px 7px 12px;
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
@@ -106,8 +106,8 @@
 }
 
 .registration-wizard__step-icon {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   flex: none;
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.14);
@@ -140,8 +140,8 @@
 
 .registration-wizard__sidebar-progress {
   flex: none;
-  margin-top: 6px;
-  padding: 10px 14px 0;
+  margin-top: 5px;
+  padding: 8px 14px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
@@ -1939,10 +1939,10 @@
 
 .registration-wizard__curp-validation {
   min-width: 0;
-  padding: 11px 10px;
+  padding: 8px 9px;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 6px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 12px;
   color: rgb(255, 255, 255);
@@ -1952,9 +1952,8 @@
 }
 
 .registration-wizard__curp-validation--sidebar {
-  flex: 1 1 134px;
-  min-height: 134px;
-  margin-top: 10px;
+  flex: none;
+  margin: 8px 8px 0;
 }
 
 .registration-wizard__curp-validation--mobile {
@@ -1969,8 +1968,8 @@
 }
 
 .registration-wizard__curp-validation-icon {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   flex: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
@@ -2009,12 +2008,12 @@
 .registration-wizard__curp-validation-list {
   margin: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .registration-wizard__curp-validation-row {
   min-width: 0;
-  padding: 7px 8px;
+  padding: 5px 7px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.08);
@@ -2041,8 +2040,8 @@
 }
 
 .registration-wizard__curp-validation-pill {
-  min-height: 21px;
-  padding: 4px 6px;
+  min-height: 19px;
+  padding: 3px 6px;
   border: 1px solid transparent;
   border-radius: 999px;
   display: inline-flex;
@@ -2070,15 +2069,6 @@
   border-color: rgba(255, 255, 255, 0.18);
   color: rgb(255, 255, 255);
   background: rgba(255, 255, 255, 0.14);
-}
-
-.registration-wizard__curp-validation-validity {
-  max-width: 104px;
-  overflow-wrap: anywhere;
-  color: rgb(255, 255, 255);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.25;
 }
 
 @media (max-width: 920px) {
@@ -2109,8 +2099,7 @@
     color: rgba(27, 31, 74, 0.52);
   }
 
-  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-header strong,
-  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-validity {
+  .registration-wizard__curp-validation--mobile .registration-wizard__curp-validation-header strong {
     color: rgb(27, 31, 74);
   }
 

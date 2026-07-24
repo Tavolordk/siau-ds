@@ -6,10 +6,12 @@ export const DEFAULT_AUTHENTICATED_ROUTE = '/solicitudes';
 export const SESSION_TOKEN_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 export const SESSION_REFRESH_BEFORE_EXPIRY_MS = 5 * 60 * 1000;
 
-// A los 5 minutos sin actividad comienza el aviso de cierre automático.
-export const SESSION_INACTIVITY_PROMPT_MS = 5 * 60 * 1000;
+// La sesión se cierra a los 30 minutos sin actividad. Se avisa durante los
+// últimos dos minutos para que el usuario pueda renovar la sesión de forma explícita.
+export const SESSION_INACTIVITY_PROMPT_MS = 28 * 60 * 1000;
 
-// El aviso dura dos minutos. Al llegar a cero se cierra la sesión automáticamente.
+// El aviso dura dos minutos. Al llegar a cero se cumple el límite de 30 minutos
+// y la sesión se cierra automáticamente.
 export const SESSION_INACTIVITY_COUNTDOWN_MS = 2 * 60 * 1000;
 export const SESSION_INACTIVITY_LIMIT_MS =
     SESSION_INACTIVITY_PROMPT_MS + SESSION_INACTIVITY_COUNTDOWN_MS;

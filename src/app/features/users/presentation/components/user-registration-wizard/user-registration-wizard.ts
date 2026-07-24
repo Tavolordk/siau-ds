@@ -34,6 +34,7 @@ import {
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
+import { UserRegistrationDraftStorage } from '../../../data-access/user-registration-draft.storage';
 import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
     ActualizarAdminRequest,
@@ -120,7 +121,6 @@ interface IdentitySnapshot {
 interface CurpValidationSummary {
     readonly personal: CurpPersonalStatus;
     readonly eccc: CurpEcccStatus;
-    readonly ecccValidity: string | null;
 }
 
 interface UserProfileOption {
@@ -168,7 +168,6 @@ const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
 const HARDCODED_CURP_VALIDATION_SUMMARY: CurpValidationSummary = {
     personal: 'no-information',
     eccc: 'no-information',
-    ecccValidity: null,
 };
 
 const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
@@ -249,6 +248,7 @@ export class UserRegistrationWizard {
     private readonly correoFacade = inject(CorreoFacade);
     private readonly renapoFacade = inject(RenapoFacade);
     private readonly authStorage = inject(AuthStorage);
+    private readonly draftStorage = inject(UserRegistrationDraftStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
@@ -258,6 +258,8 @@ export class UserRegistrationWizard {
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
     private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
     private readonly catalogosReady = signal<boolean>(false);
+    private readonly draftPersistenceEnabled = signal<boolean>(false);
+    private defaultSiauProfileLoading = false;
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly editEnabled = signal<boolean>(true);
@@ -266,6 +268,7 @@ export class UserRegistrationWizard {
     protected readonly isSubmitting = signal<boolean>(false);
     protected readonly formErrors = signal<Record<string, string>>({});
     protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
+    protected readonly recoveredDraftAt = signal<string | null>(null);
     protected readonly renapoLookupStatus = signal<RenapoLookupStatus>('idle');
     protected readonly renapoMessage = signal<string>('');
     protected readonly curpLocked = signal<boolean>(false);
@@ -299,12 +302,30 @@ export class UserRegistrationWizard {
     protected readonly commissionDecentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionAdministrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
 
-    protected readonly isAssignmentFederalInstitution = computed(() =>
-        this.isFederalInstitutionValue(this.form().institutionType),
+    protected readonly assignmentRequiresEntity = computed(() =>
+        this.requiresEntityForInstitution(this.form().institutionType),
     );
 
-    protected readonly isCommissionFederalInstitution = computed(() =>
-        this.isFederalInstitutionValue(this.form().commissionInstitutionType),
+    protected readonly assignmentRequiresMunicipality = computed(() =>
+        this.requiresMunicipalityForInstitution(this.form().institutionType),
+    );
+
+    protected readonly commissionRequiresEntity = computed(() =>
+        this.requiresEntityForInstitution(this.form().commissionInstitutionType),
+    );
+
+    protected readonly commissionRequiresMunicipality = computed(() =>
+        this.requiresMunicipalityForInstitution(this.form().commissionInstitutionType),
+    );
+
+    /** HU05: la comisión sólo se captura después de una adscripción válida. */
+    protected readonly canConfigureCommission = computed(() =>
+        this.hasValidAssignmentForCommission(this.form()),
+    );
+
+    /** HU07: la asignación manual de accesos requiere estructura válida. */
+    protected readonly canAssignProfiles = computed(() =>
+        this.hasProfileAssignmentContext(this.form()),
     );
 
     protected readonly emailRequired = computed(() => true);
@@ -316,18 +337,10 @@ export class UserRegistrationWizard {
         ),
     );
 
-    protected readonly isSelectedSiauBlocked = computed(() =>
-        this.hasAssignedSiauProfile() && this.isSiauSystem(this.selectedSystem()),
-    );
-
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
 
         if (!system) {
-            return [];
-        }
-
-        if (this.isSelectedSiauBlocked()) {
             return [];
         }
 
@@ -337,7 +350,7 @@ export class UserRegistrationWizard {
             : this.findDetailRoleOptionsForSystem(system);
 
         return sourceOptions.filter(
-            (option) => !this.isRoleAlreadyAssigned(system, option),
+            (option) => this.isSiauSystem(system) || !this.isRoleAlreadyAssigned(system, option),
         );
     });
 
@@ -346,10 +359,6 @@ export class UserRegistrationWizard {
         const role = this.selectedRole();
 
         if (!system || !role) {
-            return false;
-        }
-
-        if (this.isSelectedSiauBlocked()) {
             return false;
         }
 
@@ -389,13 +398,7 @@ export class UserRegistrationWizard {
         },
     ];
 
-    protected readonly stepOrder = computed<readonly WizardStepId[]>(() => {
-        const isNormalCreation = this.mode() === 'create' && !this.form().expressCreation;
-
-        return isNormalCreation
-            ? ALL_WIZARD_STEPS.filter((stepId) => stepId !== 'account')
-            : ALL_WIZARD_STEPS;
-    });
+    protected readonly stepOrder = computed<readonly WizardStepId[]>(() => ALL_WIZARD_STEPS);
 
     protected readonly steps = computed<readonly SiauStep[]>(() => {
         const completed = this.completedSteps();
@@ -469,10 +472,17 @@ export class UserRegistrationWizard {
         return `${prefix} · ${this.activeIndex() + 1}/${this.stepOrder().length} secciones`;
     }); protected readonly isEditMode = computed(() => this.mode() === 'edit');
 
-    protected readonly rfcHint = computed(
-        () =>
-            'Al cambiar la CURP se regeneran sus primeros 10 caracteres. Captura los últimos 3 de la homoclave; su fecha (AAMMDD) debe coincidir con la CURP.',
-    );
+    protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
+
+    protected readonly rfcRequired = computed(() => Boolean(this.rfcPrefix()));
+
+    protected readonly rfcHint = computed(() => {
+        const prefix = this.rfcPrefix();
+
+        return prefix
+            ? `Los primeros 10 caracteres (${prefix}) se generan desde la CURP. Captura sólo los 3 de la homoclave.`
+            : 'Captura la CURP para generar automáticamente los primeros 10 caracteres.';
+    });
 
     protected readonly isFormDisabled = computed(() =>
         this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
@@ -509,8 +519,9 @@ export class UserRegistrationWizard {
             return true;
         }
 
-        // La fecha se obtiene directamente de la CURP válida, incluso si RENAPO no responde.
-        return !this.isEditMode() && this.getBirthDateFromCurp(this.form().curp) !== null;
+        // Solo RENAPO bloquea los datos que confirmó; si RENAPO no responde o no
+        // encuentra la CURP, el administrador debe poder capturar la fecha manualmente.
+        return !this.isEditMode() && this.renapoLookupStatus() === 'success';
     });
 
     protected readonly showCurpUnlock = computed(() =>
@@ -522,7 +533,7 @@ export class UserRegistrationWizard {
             case 'loading':
                 return 'Consultando RENAPO';
             case 'success':
-                return 'CURP validada';
+                return 'Validado en RENAPO';
             case 'not-found':
                 return 'CURP sin resultados';
             case 'error':
@@ -642,12 +653,47 @@ export class UserRegistrationWizard {
 
             untracked(() => {
                 if (mode === 'edit') {
+                    this.draftPersistenceEnabled.set(false);
                     this.hydrateEditForm(detail?.datos ?? {}, user);
                     return;
                 }
 
                 this.resetWizard();
+                this.restoreRegistrationDraft();
                 this.editEnabled.set(true);
+                this.draftPersistenceEnabled.set(true);
+                this.ensureDefaultSiauProfile();
+            });
+        });
+
+        effect(() => {
+            const shouldPersist =
+                this.open() &&
+                this.mode() === 'create' &&
+                this.draftPersistenceEnabled() &&
+                !this.isSubmitting();
+
+            if (!shouldPersist) {
+                return;
+            }
+
+            const form = this.form();
+            const profiles = this.assignedSystemProfiles();
+            const activeStepId = this.activeStepId();
+            const completedSteps = this.completedSteps();
+
+            untracked(() => {
+                if (!this.hasRegistrationDraftContent(form, profiles)) {
+                    this.draftStorage.clear();
+                    return;
+                }
+
+                this.draftStorage.save({
+                    form,
+                    profiles,
+                    activeStepId,
+                    completedSteps,
+                });
             });
         });
     }
@@ -734,9 +780,23 @@ export class UserRegistrationWizard {
     }
 
     protected closeSaveSuccessModal(): void {
+        if (!this.isEditMode()) {
+            this.draftStorage.clear();
+        }
         this.saveSuccess.set(null);
         this.closed.emit();
         this.resetWizard();
+    }
+
+    protected discardRecoveredDraft(): void {
+        if (this.isEditMode()) {
+            return;
+        }
+
+        this.draftStorage.clear();
+        this.resetWizard();
+        this.draftPersistenceEnabled.set(true);
+        this.ensureDefaultSiauProfile();
     }
 
     protected submit(): void {
@@ -827,6 +887,7 @@ export class UserRegistrationWizard {
             .subscribe({
                 next: ({ response, emailDelivery }) => {
                     this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
+                    this.draftStorage.clear();
                     this.saveSuccess.set(
                         this.buildSaveSuccessModalState(response, isExpress, emailDelivery),
                     );
@@ -865,19 +926,6 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (key === 'birthDate' && !this.isEditMode()) {
-            const curpBirthDate = this.getBirthDateFromCurp(this.form().curp);
-
-            if (curpBirthDate) {
-                this.form.update((current) => ({
-                    ...current,
-                    birthDate: curpBirthDate,
-                }));
-                this.clearFieldError('birthDate');
-                return;
-            }
-        }
-
         const normalizedValue = this.normalizeFormInputValue(key, value);
 
         this.form.update((current) => ({
@@ -912,7 +960,6 @@ export class UserRegistrationWizard {
             this.form.update((current) => ({
                 ...current,
                 curp,
-                rfc: this.regenerateRfcFromCurp(curp),
             }));
             this.clearFieldError('curp');
             this.clearFieldError('rfc');
@@ -931,8 +978,6 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
-            rfc: this.regenerateRfcFromCurp(curp),
-            birthDate: this.getBirthDateFromCurp(curp) ?? '',
         }));
         this.clearFieldError('curp');
         this.clearFieldError('rfc');
@@ -958,7 +1003,11 @@ export class UserRegistrationWizard {
             return;
         }
 
-        const rfc = this.normalizeRfc(value);
+        const current = this.form();
+        const prefix = this.getRfcPrefixFromCurp(current.curp);
+        const rfc = prefix
+            ? `${prefix}${this.getRfcHomoclave(value, prefix, current.rfc)}`
+            : this.normalizeRfc(value);
 
         this.form.update((form) => ({
             ...form,
@@ -1020,6 +1069,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (checked && !this.canConfigureCommission()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                commissionInstitutionType:
+                    'Primero registra una adscripción válida antes de capturar la comisión.',
+            }));
+            return;
+        }
+
         this.form.update((current) => ({
             ...current,
             commissionEnabled: checked,
@@ -1062,19 +1120,19 @@ export class UserRegistrationWizard {
         }
 
         const institutionType = value ?? '';
-        const isFederal = this.isFederalInstitutionValue(institutionType);
+        const requiresEntity = this.requiresEntityForInstitution(institutionType);
 
         this.form.update((current) => ({
             ...current,
             institutionType,
-            entity: isFederal ? '' : current.entity,
+            entity: requiresEntity ? current.entity : '',
             municipality: '',
             institution: '',
             decentralizedBody: '',
             administrativeUnit: '',
         }));
 
-        if (isFederal) {
+        if (!this.requiresMunicipalityForInstitution(institutionType)) {
             this.municipalityOptions.set([]);
         }
 
@@ -1089,7 +1147,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isAssignmentFederalInstitution()) {
+        if (!this.assignmentRequiresEntity()) {
             this.form.update((current) => ({
                 ...current,
                 entity: '',
@@ -1112,7 +1170,9 @@ export class UserRegistrationWizard {
         this.institutionOptions.set([]);
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
-        this.loadMunicipalities(value, this.municipalityOptions);
+        if (this.assignmentRequiresMunicipality()) {
+            this.loadMunicipalities(value, this.municipalityOptions);
+        }
         this.loadAssignmentInstitutions();
     }
 
@@ -1121,12 +1181,22 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isAssignmentFederalInstitution()) {
-            this.updateForm('municipality', '');
+        if (!this.assignmentRequiresMunicipality()) {
+            this.form.update((current) => ({ ...current, municipality: '' }));
             return;
         }
 
-        this.updateForm('municipality', value);
+        this.form.update((current) => ({
+            ...current,
+            municipality: value ?? '',
+            institution: '',
+            decentralizedBody: '',
+            administrativeUnit: '',
+        }));
+        this.institutionOptions.set([]);
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+        this.loadAssignmentInstitutions();
     }
 
     protected updateAssignmentInstitution(value: string | null): void {
@@ -1143,7 +1213,6 @@ export class UserRegistrationWizard {
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
         this.loadAssignmentChildren(value, this.decentralizedBodyOptions);
-        this.loadAssignmentChildren(value, this.administrativeUnitOptions);
     }
 
     protected updateAssignmentDecentralizedBody(value: string | null): void {
@@ -1157,7 +1226,7 @@ export class UserRegistrationWizard {
             administrativeUnit: '',
         }));
         this.administrativeUnitOptions.set([]);
-        this.loadAssignmentChildren(value || this.form().institution, this.administrativeUnitOptions);
+        this.loadAssignmentChildren(value, this.administrativeUnitOptions);
     }
 
     protected updateCommissionInstitutionType(value: string | null): void {
@@ -1166,12 +1235,12 @@ export class UserRegistrationWizard {
         }
 
         const commissionInstitutionType = value ?? '';
-        const isFederal = this.isFederalInstitutionValue(commissionInstitutionType);
+        const requiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
 
         this.form.update((current) => ({
             ...current,
             commissionInstitutionType,
-            commissionEntity: isFederal ? '' : current.commissionEntity,
+            commissionEntity: requiresEntity ? current.commissionEntity : '',
             commissionMunicipality: '',
             commissionInstitution: '',
             commissionDependency: '',
@@ -1179,7 +1248,7 @@ export class UserRegistrationWizard {
             commissionAdministrativeUnit: '',
         }));
 
-        if (isFederal) {
+        if (!this.requiresMunicipalityForInstitution(commissionInstitutionType)) {
             this.commissionMunicipalityOptions.set([]);
         }
 
@@ -1195,7 +1264,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isCommissionFederalInstitution()) {
+        if (!this.commissionRequiresEntity()) {
             this.form.update((current) => ({
                 ...current,
                 commissionEntity: '',
@@ -1220,7 +1289,9 @@ export class UserRegistrationWizard {
         this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
-        this.loadMunicipalities(value, this.commissionMunicipalityOptions);
+        if (this.commissionRequiresMunicipality()) {
+            this.loadMunicipalities(value, this.commissionMunicipalityOptions);
+        }
         this.loadCommissionInstitutions();
     }
 
@@ -1229,12 +1300,24 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isCommissionFederalInstitution()) {
-            this.updateForm('commissionMunicipality', '');
+        if (!this.commissionRequiresMunicipality()) {
+            this.form.update((current) => ({ ...current, commissionMunicipality: '' }));
             return;
         }
 
-        this.updateForm('commissionMunicipality', value);
+        this.form.update((current) => ({
+            ...current,
+            commissionMunicipality: value ?? '',
+            commissionInstitution: '',
+            commissionDependency: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+        }));
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDependencyOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.loadCommissionInstitutions();
     }
 
     protected updateCommissionInstitution(value: string | null): void {
@@ -1254,7 +1337,6 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionChildren(value, this.commissionDependencyOptions);
         this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions);
-        this.loadCommissionChildren(value, this.commissionAdministrativeUnitOptions);
     }
 
     protected updateCommissionDependency(value: string | null): void {
@@ -1265,19 +1347,7 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             commissionDependency: value ?? '',
-            commissionDecentralizedBody: '',
-            commissionAdministrativeUnit: '',
         }));
-        this.commissionDecentralizedBodyOptions.set([]);
-        this.commissionAdministrativeUnitOptions.set([]);
-        this.loadCommissionChildren(
-            value || this.form().commissionInstitution,
-            this.commissionDecentralizedBodyOptions,
-        );
-        this.loadCommissionChildren(
-            value || this.form().commissionInstitution,
-            this.commissionAdministrativeUnitOptions,
-        );
     }
 
     protected updateCommissionDecentralizedBody(value: string | null): void {
@@ -1292,7 +1362,7 @@ export class UserRegistrationWizard {
         }));
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionChildren(
-            value || this.form().commissionDependency || this.form().commissionInstitution,
+            value,
             this.commissionAdministrativeUnitOptions,
         );
     }
@@ -1327,6 +1397,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.canAssignProfiles()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles:
+                    'Registra una adscripción o una comisión válida antes de asignar perfiles.',
+            }));
+            return;
+        }
+
         const system = value ?? '';
 
         this.selectedSystem.set(system);
@@ -1349,19 +1428,19 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.canAssignProfiles()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles:
+                    'Registra una adscripción o una comisión válida antes de asignar perfiles.',
+            }));
+            return;
+        }
+
         const system = this.selectedSystem();
         const role = this.selectedRole();
 
         if (!system || !role) {
-            return;
-        }
-
-        if (
-            this.isSiauSystem(system) &&
-            this.assignedSystemProfiles().some((profile) =>
-                this.isSiauSystem(profile.system, profile.systemLabel),
-            )
-        ) {
             return;
         }
 
@@ -1377,7 +1456,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.isRoleAlreadyAssigned(system, roleOption)) {
+        if (!this.isSiauSystem(system) && this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
 
@@ -1389,7 +1468,21 @@ export class UserRegistrationWizard {
             roleLabel: roleOption.label,
         };
 
-        this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.assignedSystemProfiles.update((current) => {
+            if (!this.isSiauSystem(system, systemOption.label)) {
+                return [...current, newItem];
+            }
+
+            // HU07: SIAU siempre conserva un único perfil. Al seleccionar otro,
+            // se sustituye el perfil "Usuario" (o el SIAU existente) sin pedir
+            // que el administrador lo elimine manualmente.
+            return [
+                ...current.filter((profile) =>
+                    !this.isSiauSystem(profile.system, profile.systemLabel),
+                ),
+                newItem,
+            ];
+        });
         this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
@@ -1401,7 +1494,27 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const profile = this.assignedSystemProfiles().find((item) => item.id === id);
+
+        if (!profile || !this.canRemoveAssignedProfile(profile)) {
+            return;
+        }
+
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
+    }
+
+    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean {
+        if (!this.isSiauSystem(profile.system, profile.systemLabel)) {
+            return true;
+        }
+
+        const assignedToSiau = this.assignedSystemProfiles().filter((item) =>
+            this.isSiauSystem(item.system, item.systemLabel),
+        );
+
+        // El perfil base de SIAU no puede quedar eliminado si es el único que
+        // mantiene el usuario para dicho sistema.
+        return assignedToSiau.length > 1;
     }
 
     protected togglePasswordVisibility(): void {
@@ -1470,6 +1583,15 @@ export class UserRegistrationWizard {
 
         const requestSequence = ++this.curpLookupSequence;
 
+        // Cada consulta representa una nueva validación de identidad: se vuelve
+        // a generar el prefijo del RFC desde la CURP y se exige capturar de nuevo
+        // la homoclave de tres caracteres.
+        this.form.update((current) => ({
+            ...current,
+            rfc: this.buildRfcFromCurp(normalizedCurp),
+        }));
+        this.clearFieldError('rfc');
+
         this.loadHardcodedCurpValidationSummary(normalizedCurp);
         this.curpUnlockChecked.set(false);
         this.curpLocked.set(false);
@@ -1503,7 +1625,7 @@ export class UserRegistrationWizard {
 
                     this.renapoLookupStatus.set('not-found');
                     this.renapoMessage.set(
-                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos y sexo; la fecha de nacimiento se obtiene de la CURP.',
+                        'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos, sexo y fecha de nacimiento.',
                     );
                 },
                 error: (error: unknown) => {
@@ -1518,7 +1640,7 @@ export class UserRegistrationWizard {
                     this.curpLocked.set(true);
                     this.renapoLookupStatus.set('error');
                     this.renapoMessage.set(
-                        'No fue posible consultar RENAPO. Puedes desbloquear la CURP para reintentar o capturar manualmente nombre(s), apellidos y sexo; la fecha de nacimiento se obtiene de la CURP.',
+                        'No fue posible consultar RENAPO. Puedes reintentar o capturar manualmente nombre(s), apellidos, sexo y fecha de nacimiento.',
                     );
                     console.error('Error consultando CURP en RENAPO.', error);
                 },
@@ -1536,7 +1658,7 @@ export class UserRegistrationWizard {
             firstName: this.toText(data.nombre).toUpperCase(),
             lastName: this.toText(data.primerApellido).toUpperCase(),
             secondLastName: this.toText(data.segundoApellido).toUpperCase(),
-            birthDate: this.getBirthDateFromCurp(curp) ?? current.birthDate,
+            birthDate: this.toDateInputValue(data.fechaNacimiento) || this.getBirthDateFromCurp(curp) || current.birthDate,
             gender: gender || current.gender,
         }));
 
@@ -1750,7 +1872,7 @@ export class UserRegistrationWizard {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
                 curp: this.requireText(current.curp, 'Captura la CURP.').toUpperCase(),
-                rfc: this.requireText(current.rfc, 'Captura el RFC.').toUpperCase(),
+                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
@@ -1759,9 +1881,10 @@ export class UserRegistrationWizard {
                     current.birthDate,
                     'Captura la fecha de nacimiento.',
                 ),
-                estadoCivilId: isExpress
-                    ? this.resolveOptionalCatalogId(current.civilStatus, this.civilStatusOptions(), 1)
-                    : this.requireCatalogId(current.civilStatus, 'Selecciona el estado civil.'),
+                estadoCivilId: this.requireCatalogId(
+                    current.civilStatus,
+                    'Selecciona el estado civil.',
+                ),
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -1814,10 +1937,7 @@ export class UserRegistrationWizard {
                 'Captura la CURP.',
             ).toUpperCase(),
 
-            rfc: this.requireText(
-                current.rfc,
-                'Captura el RFC.',
-            ).toUpperCase(),
+            rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
 
             nombres: this.requireText(
                 current.firstName,
@@ -1915,6 +2035,15 @@ export class UserRegistrationWizard {
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
+                cuip: this.toNullableText(current.cuip),
+                curp: this.toNullableText(current.curp)?.toUpperCase() ?? null,
+                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
+                segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
+                fechaNacimiento: this.toNullableText(current.birthDate),
+                estadoCivilId: this.requireCatalogId(
+                    current.civilStatus,
+                    'Selecciona el estado civil.',
+                ),
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -2078,14 +2207,6 @@ export class UserRegistrationWizard {
         return text;
     }
 
-    private resolveOptionalCatalogId(
-        value: string,
-        options: readonly SiauSelectOption[],
-        fallback: number,
-    ): number {
-        return this.toCatalogId(value) ?? this.resolveDefaultCatalogId(options, fallback);
-    }
-
     private toNullableText(value: string | null | undefined): string | null {
         const text = this.toText(value);
 
@@ -2138,8 +2259,8 @@ export class UserRegistrationWizard {
             ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
             this.institutionTypeOptions,
         );
-        const assignmentIsFederal = this.isFederalInstitutionValue(institutionType);
-        const assignmentEntity = assignmentIsFederal
+        const assignmentRequiresEntity = this.requiresEntityForInstitution(institutionType);
+        const assignmentEntity = !assignmentRequiresEntity
             ? ''
             : this.resolveRecordSelectValue(
                 assignment,
@@ -2163,10 +2284,10 @@ export class UserRegistrationWizard {
             ));
         }
 
-        const commissionIsFederal = this.isFederalInstitutionValue(commissionInstitutionType);
+        const commissionRequiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
         const commissionEntityId = this.toText(commission['estadoId']);
         const commissionEntityLabel = this.toText(commission['estado']);
-        const commissionEntity = commissionIsFederal
+        const commissionEntity = !commissionRequiresEntity
             ? ''
             : commissionEntityId || commissionEntityLabel;
 
@@ -2211,7 +2332,7 @@ export class UserRegistrationWizard {
 
             institutionType,
             entity: assignmentEntity,
-            municipality: assignmentIsFederal
+            municipality: !this.requiresMunicipalityForInstitution(institutionType)
                 ? ''
                 : this.resolveRecordSelectValue(
                     assignment,
@@ -2245,7 +2366,7 @@ export class UserRegistrationWizard {
             commissionEnabled: hasCommissionData,
             commissionInstitutionType,
             commissionEntity,
-            commissionMunicipality: commissionIsFederal
+            commissionMunicipality: !this.requiresMunicipalityForInstitution(commissionInstitutionType)
                 ? ''
                 : this.resolveRecordSelectValue(
                     commission,
@@ -2490,6 +2611,12 @@ export class UserRegistrationWizard {
                 normalized.includes('siau') ||
                 normalized.includes('sistema integral de administracion de usuarios');
         });
+    }
+
+    private isDefaultSiauRole(roleValue: string, roleLabel = ''): boolean {
+        return [roleValue, roleLabel].some(
+            (value) => this.normalizeText(this.toText(value)) === 'usuario',
+        );
     }
 
     private isRoleAlreadyAssigned(system: string, roleOption: SiauSelectOption): boolean {
@@ -2757,6 +2884,7 @@ export class UserRegistrationWizard {
     }
 
     private resetWizard(): void {
+        this.draftPersistenceEnabled.set(false);
         this.resetRenapoLookupState();
         this.initialIdentitySnapshot = null;
         this.initialEditFormSnapshot = null;
@@ -2768,6 +2896,7 @@ export class UserRegistrationWizard {
         this.isSubmitting.set(false);
         this.formErrors.set({});
         this.saveSuccess.set(null);
+        this.recoveredDraftAt.set(null);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -2786,8 +2915,84 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
     }
 
+    private restoreRegistrationDraft(): void {
+        const draft = this.draftStorage.load<UserRegistrationForm, AssignedSystemProfile>();
+
+        if (!draft) {
+            return;
+        }
+
+        const form = this.toRegistrationDraftForm(draft.form);
+        const profiles = this.toRegistrationDraftProfiles(draft.profiles);
+        const stepOrder = this.stepOrder();
+        const activeStepId = this.isWizardStep(draft.activeStepId) && stepOrder.includes(draft.activeStepId)
+            ? draft.activeStepId
+            : 'personal-data';
+        const completedSteps = draft.completedSteps.filter(
+            (stepId): stepId is WizardStepId =>
+                this.isWizardStep(stepId) && stepOrder.includes(stepId as WizardStepId),
+        );
+
+        this.form.set(form);
+        this.assignedSystemProfiles.set(profiles);
+        this.activeStepId.set(activeStepId);
+        this.completedSteps.set(completedSteps);
+        this.recoveredDraftAt.set(draft.savedAt);
+        this.loadHydratedAssignmentCatalogs(form);
+    }
+
+    private hasRegistrationDraftContent(
+        form: UserRegistrationForm,
+        profiles: readonly AssignedSystemProfile[],
+    ): boolean {
+        const hasNonDefaultProfile = profiles.some(
+            (profile) =>
+                !(
+                    this.isSiauSystem(profile.system, profile.systemLabel) &&
+                    this.isDefaultSiauRole(profile.role, profile.roleLabel)
+                ),
+        );
+
+        return hasNonDefaultProfile || Object.entries(form).some(([key, value]) => {
+            if (key === 'profiles' || key === 'password' || key === 'confirmPassword') {
+                return false;
+            }
+
+            return typeof value === 'boolean' ? value : this.hasText(value);
+        });
+    }
+
+    private toRegistrationDraftForm(value: UserRegistrationForm): UserRegistrationForm {
+        return {
+            ...INITIAL_FORM,
+            ...value,
+            profiles: [],
+            password: '',
+            confirmPassword: '',
+            commissionEnabled: Boolean(value?.commissionEnabled),
+            expressCreation: Boolean(value?.expressCreation),
+            accountStatus: this.toAccountStatus(this.toText(value?.accountStatus)),
+        };
+    }
+
+    private toRegistrationDraftProfiles(value: readonly AssignedSystemProfile[]): AssignedSystemProfile[] {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+
+        return value
+            .map((profile, index) => ({
+                id: this.toText(profile?.id) || `draft-profile-${index}`,
+                system: this.toText(profile?.system),
+                systemLabel: this.toText(profile?.systemLabel),
+                role: this.toText(profile?.role),
+                roleLabel: this.toText(profile?.roleLabel),
+            }))
+            .filter((profile) => Boolean(profile.system && profile.role));
+    }
+
     private loadHydratedAssignmentCatalogs(form: UserRegistrationForm): void {
-        if (!this.isFederalInstitutionValue(form.institutionType) && form.entity) {
+        if (this.requiresMunicipalityForInstitution(form.institutionType) && form.entity) {
             this.loadMunicipalities(form.entity, this.municipalityOptions);
         }
 
@@ -2797,7 +3002,6 @@ export class UserRegistrationWizard {
 
         if (form.institution) {
             this.loadAssignmentChildren(form.institution, this.decentralizedBodyOptions);
-            this.loadAssignmentChildren(form.institution, this.administrativeUnitOptions);
         }
 
         if (form.decentralizedBody) {
@@ -2808,7 +3012,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (!this.isFederalInstitutionValue(form.commissionInstitutionType) && form.commissionEntity) {
+        if (this.requiresMunicipalityForInstitution(form.commissionInstitutionType) && form.commissionEntity) {
             this.loadMunicipalities(form.commissionEntity, this.commissionMunicipalityOptions);
         }
 
@@ -2819,12 +3023,6 @@ export class UserRegistrationWizard {
         if (form.commissionInstitution) {
             this.loadCommissionChildren(form.commissionInstitution, this.commissionDependencyOptions);
             this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions);
-            this.loadCommissionChildren(form.commissionInstitution, this.commissionAdministrativeUnitOptions);
-        }
-
-        if (form.commissionDependency) {
-            this.loadCommissionChildren(form.commissionDependency, this.commissionDecentralizedBodyOptions);
-            this.loadCommissionChildren(form.commissionDependency, this.commissionAdministrativeUnitOptions);
         }
 
         if (form.commissionDecentralizedBody) {
@@ -2863,6 +3061,7 @@ export class UserRegistrationWizard {
                         this.mergeSelectOptions(current, catalogos.estados),
                     );
                     this.catalogosReady.set(true);
+                    this.ensureDefaultSiauProfile();
                 },
                 error: (error: unknown) => {
                     this.catalogosReady.set(true);
@@ -2942,11 +3141,14 @@ export class UserRegistrationWizard {
     private loadAssignmentInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.institutionType);
-        const estadoId = this.isFederalInstitutionValue(current.institutionType)
+        const estadoId = !this.requiresEntityForInstitution(current.institutionType)
             ? undefined
             : this.toCatalogId(current.entity);
+        const municipioId = !this.requiresMunicipalityForInstitution(current.institutionType)
+            ? undefined
+            : this.toCatalogId(current.municipality);
 
-        if (!tipoInstitucionId && !estadoId) {
+        if (!tipoInstitucionId && !estadoId && !municipioId) {
             this.institutionOptions.set([]);
             return;
         }
@@ -2954,6 +3156,7 @@ export class UserRegistrationWizard {
         this.loadOrgOptions(this.institutionOptions, {
             tipoInstitucionId,
             estadoId,
+            municipioId,
         });
     }
 
@@ -2971,9 +3174,12 @@ export class UserRegistrationWizard {
 
         this.loadOrgOptions(target, {
             tipoInstitucionId: this.toCatalogId(current.institutionType),
-            estadoId: this.isFederalInstitutionValue(current.institutionType)
+            estadoId: !this.requiresEntityForInstitution(current.institutionType)
                 ? undefined
                 : this.toCatalogId(current.entity),
+            municipioId: !this.requiresMunicipalityForInstitution(current.institutionType)
+                ? undefined
+                : this.toCatalogId(current.municipality),
             padreId,
         });
     }
@@ -2981,11 +3187,14 @@ export class UserRegistrationWizard {
     private loadCommissionInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.commissionInstitutionType);
-        const estadoId = this.isFederalInstitutionValue(current.commissionInstitutionType)
+        const estadoId = !this.requiresEntityForInstitution(current.commissionInstitutionType)
             ? undefined
             : this.toCatalogId(current.commissionEntity);
+        const municipioId = !this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
+            ? undefined
+            : this.toCatalogId(current.commissionMunicipality);
 
-        if (!tipoInstitucionId && !estadoId) {
+        if (!tipoInstitucionId && !estadoId && !municipioId) {
             this.commissionInstitutionOptions.set([]);
             return;
         }
@@ -2993,6 +3202,7 @@ export class UserRegistrationWizard {
         this.loadOrgOptions(this.commissionInstitutionOptions, {
             tipoInstitucionId,
             estadoId,
+            municipioId,
         });
     }
 
@@ -3010,9 +3220,12 @@ export class UserRegistrationWizard {
 
         this.loadOrgOptions(target, {
             tipoInstitucionId: this.toCatalogId(current.commissionInstitutionType),
-            estadoId: this.isFederalInstitutionValue(current.commissionInstitutionType)
+            estadoId: !this.requiresEntityForInstitution(current.commissionInstitutionType)
                 ? undefined
                 : this.toCatalogId(current.commissionEntity),
+            municipioId: !this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
+                ? undefined
+                : this.toCatalogId(current.commissionMunicipality),
             padreId,
         });
     }
@@ -3022,6 +3235,7 @@ export class UserRegistrationWizard {
         query: {
             tipoInstitucionId?: number;
             estadoId?: number;
+            municipioId?: number;
             padreId?: number;
         },
     ): void {
@@ -3070,15 +3284,94 @@ export class UserRegistrationWizard {
         return Number.isFinite(id) && id > 0 ? id : undefined;
     }
 
-    private isFederalInstitutionValue(value: string | null | undefined): boolean {
+    private ensureDefaultSiauProfile(): void {
+        if (
+            !this.open() ||
+            this.mode() !== 'create' ||
+            this.defaultSiauProfileLoading ||
+            this.assignedSystemProfiles().some((profile) =>
+                this.isSiauSystem(profile.system, profile.systemLabel),
+            )
+        ) {
+            return;
+        }
+
+        const systemOption = this.systemOptions().find((option) =>
+            this.isSiauSystem(option.value, option.label),
+        );
+
+        if (!systemOption) {
+            return;
+        }
+
+        this.defaultSiauProfileLoading = true;
+        const system = systemOption.value || systemOption.label;
+
+        this.catalogosFacade
+            .obtenerSistemaPerfilesOptions(this.resolveSistemaPerfilesQueryValue(system))
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => {
+                    this.defaultSiauProfileLoading = false;
+                }),
+            )
+            .subscribe({
+                next: (options) => {
+                    if (
+                        !this.open() ||
+                        this.mode() !== 'create' ||
+                        this.assignedSystemProfiles().some((profile) =>
+                            this.isSiauSystem(profile.system, profile.systemLabel),
+                        )
+                    ) {
+                        return;
+                    }
+
+                    const userRole = options.find((option) =>
+                        this.normalizeText(option.label) === 'usuario' ||
+                        this.normalizeText(option.value) === 'usuario',
+                    );
+
+                    if (!userRole) {
+                        console.warn('No se localizó el perfil base "Usuario" para SIAU.');
+                        return;
+                    }
+
+                    this.assignedSystemProfiles.update((current) => [
+                        ...current,
+                        {
+                            id: `${system}-${userRole.value}-default`,
+                            system,
+                            systemLabel: systemOption.label,
+                            role: userRole.value,
+                            roleLabel: userRole.label,
+                        },
+                    ]);
+                },
+                error: (error: unknown) => {
+                    console.error('No fue posible cargar el perfil base de SIAU.', error);
+                },
+            });
+    }
+
+    private requiresEntityForInstitution(value: string | null | undefined): boolean {
+        const label = this.getInstitutionTypeLabel(value);
+
+        return label.includes('estatal') || label.includes('municipal');
+    }
+
+    private requiresMunicipalityForInstitution(value: string | null | undefined): boolean {
+        return this.getInstitutionTypeLabel(value).includes('municipal');
+    }
+
+    private getInstitutionTypeLabel(value: string | null | undefined): string {
         if (!value) {
-            return false;
+            return '';
         }
 
         const option = this.institutionTypeOptions().find((item) => item.value === value);
-        const label = option?.label ?? value;
 
-        return this.normalizeText(label).includes('federal');
+        return this.normalizeText(option?.label ?? value);
     }
 
     private validateAllSteps(): boolean {
@@ -3102,6 +3395,8 @@ export class UserRegistrationWizard {
                 this.addIdentityValidationErrors(current, nextErrors);
             }
 
+            this.addPersonalFieldValidationErrors(current, nextErrors);
+
             if (
                 this.shouldValidateEditFields(current, ['firstName']) &&
                 !this.hasText(current.firstName)
@@ -3124,7 +3419,6 @@ export class UserRegistrationWizard {
             }
 
             if (
-                !isExpress &&
                 this.shouldValidateEditFields(current, ['civilStatus']) &&
                 !this.hasText(current.civilStatus)
             ) {
@@ -3141,7 +3435,7 @@ export class UserRegistrationWizard {
             }
 
             if (
-                !this.isAssignmentFederalInstitution() &&
+                this.assignmentRequiresEntity() &&
                 this.shouldValidateEditFields(current, ['institutionType', 'entity']) &&
                 !this.hasText(current.entity)
             ) {
@@ -3149,7 +3443,7 @@ export class UserRegistrationWizard {
             }
 
             if (
-                !this.isAssignmentFederalInstitution() &&
+                this.assignmentRequiresMunicipality() &&
                 this.shouldValidateEditFields(current, ['institutionType', 'entity', 'municipality']) &&
                 !this.hasText(current.municipality)
             ) {
@@ -3174,15 +3468,30 @@ export class UserRegistrationWizard {
             }
 
             if (
+                this.shouldValidateEditFields(current, ['admissionDate']) &&
+                this.hasText(current.admissionDate) &&
+                !this.isDateOnOrBeforeToday(current.admissionDate)
+            ) {
+                nextErrors['admissionDate'] = 'La fecha de ingreso debe ser válida y no posterior a la fecha actual.';
+            }
+
+            if (
                 this.shouldValidateEditFields(current, ['employeeNumber']) &&
                 !this.hasText(current.employeeNumber)
             ) {
                 nextErrors['employeeNumber'] = 'El número de empleado es obligatorio.';
             }
+
+            this.addAssignmentFormatValidationErrors(current, nextErrors);
         }
 
         if (stepId === 'commission') {
             if (current.commissionEnabled) {
+                if (!this.hasValidAssignmentForCommission(current)) {
+                    nextErrors['commissionInstitutionType'] =
+                        'Primero registra una adscripción válida antes de capturar la comisión.';
+                }
+
                 if (
                     this.shouldValidateEditFields(
                         current,
@@ -3194,7 +3503,7 @@ export class UserRegistrationWizard {
                 }
 
                 if (
-                    !this.isCommissionFederalInstitution() &&
+                    this.commissionRequiresEntity() &&
                     this.shouldValidateEditFields(
                         current,
                         ['commissionEnabled', 'commissionInstitutionType', 'commissionEntity'],
@@ -3205,7 +3514,7 @@ export class UserRegistrationWizard {
                 }
 
                 if (
-                    !this.isCommissionFederalInstitution() &&
+                    this.commissionRequiresMunicipality() &&
                     this.shouldValidateEditFields(
                         current,
                         [
@@ -3235,6 +3544,21 @@ export class UserRegistrationWizard {
                 ) {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
                 }
+
+                if (
+                    this.shouldValidateEditFields(
+                        current,
+                        ['commissionAdmissionDate', 'admissionDate'],
+                    ) &&
+                    this.hasText(current.commissionAdmissionDate) &&
+                    !this.isCommissionStartDateValid(
+                        current.commissionAdmissionDate,
+                        current.admissionDate,
+                    )
+                ) {
+                    nextErrors['commissionAdmissionDate'] =
+                        'La fecha de inicio de comisión debe ser válida, no posterior a hoy y no anterior a la fecha de ingreso.';
+                }
             }
         }
 
@@ -3263,6 +3587,15 @@ export class UserRegistrationWizard {
         if (stepId === 'profiles') {
             if (this.shouldValidateAssignedProfiles() && this.assignedSystemProfiles().length === 0) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
+            }
+
+            if (
+                this.shouldValidateAssignedProfiles() &&
+                this.assignedSystemProfiles().length > 0 &&
+                !this.hasProfileAssignmentContext(current)
+            ) {
+                nextErrors['profiles'] =
+                    'Registra una adscripción o una comisión válida antes de asignar perfiles.';
             }
         }
 
@@ -3317,44 +3650,187 @@ export class UserRegistrationWizard {
             validCurp = true;
         }
 
-        if (!hasRfc && !identityDocumentsAreOptional) {
-            errors['rfc'] = 'El RFC es obligatorio.';
-        } else if (!this.isValidRfc(current.rfc)) {
-            if (hasRfc) {
-                errors['rfc'] = 'El RFC no tiene un formato válido.';
-            }
+        if (hasRfc && !this.isValidRfc(current.rfc)) {
+            errors['rfc'] = 'El RFC no tiene un formato válido.';
         } else {
-            validRfc = true;
+            validRfc = hasRfc;
         }
 
-        if (!hasBirthDate) {
+        if (!hasBirthDate && !identityDocumentsAreOptional) {
             errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
-        } else if (!this.isValidDateInput(current.birthDate)) {
+        } else if (hasBirthDate && !this.isValidDateInput(current.birthDate)) {
             errors['birthDate'] = 'La fecha de nacimiento no es válida.';
-        } else if (!this.isAdult(current.birthDate)) {
+        } else if (hasBirthDate && !this.isDateOnOrBeforeToday(current.birthDate)) {
+            errors['birthDate'] = 'La fecha de nacimiento no puede ser posterior a la fecha actual.';
+        } else if (hasBirthDate && !this.isAdult(current.birthDate)) {
             errors['birthDate'] = 'El usuario debe ser mayor de edad.';
         }
 
-        if (validCurp && validRfc && !this.rfcBirthDateMatchesCurp(current.rfc, current.curp)) {
-            errors['rfc'] =
-                'La fecha del RFC debe coincidir con la fecha registrada en la CURP.';
+        if (validCurp && validRfc && !this.rfcMatchesCurp(current.rfc, current.curp)) {
+            errors['rfc'] = 'Los primeros 10 caracteres del RFC deben coincidir con la CURP.';
+        }
+
+        if (validRfc && hasBirthDate && !this.rfcBirthDateMatchesDate(current.rfc, current.birthDate)) {
+            errors['rfc'] = 'La fecha contenida en el RFC debe coincidir con la fecha de nacimiento.';
         }
 
         const curpBirthDate = validCurp ? this.getBirthDateFromCurp(current.curp) : null;
 
-        if (!curpBirthDate) {
-            return;
-        }
-
-        if (!this.isAdult(curpBirthDate)) {
+        if (curpBirthDate && !this.isAdult(curpBirthDate)) {
             errors['curp'] =
                 'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de edad.';
         }
 
-        if (hasBirthDate && current.birthDate !== curpBirthDate) {
+        if (curpBirthDate && hasBirthDate && current.birthDate !== curpBirthDate) {
             errors['birthDate'] =
-                'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP y el RFC.';
+                'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
         }
+    }
+
+    private addPersonalFieldValidationErrors(
+        current: UserRegistrationForm,
+        errors: Record<string, string>,
+    ): void {
+        if (
+            this.shouldValidateEditFields(current, ['cuip']) &&
+            this.hasText(current.cuip) &&
+            !/^[A-Z0-9]{20}$/.test(this.toText(current.cuip).toUpperCase())
+        ) {
+            errors['cuip'] = 'La CUIP debe tener exactamente 20 caracteres alfanuméricos.';
+        }
+
+        this.addNameValidationError(
+            current.firstName,
+            'firstName',
+            'El nombre',
+            this.shouldValidateEditFields(current, ['firstName']),
+            errors,
+        );
+        this.addNameValidationError(
+            current.lastName,
+            'lastName',
+            'El primer apellido',
+            this.shouldValidateEditFields(current, ['lastName']),
+            errors,
+        );
+        this.addNameValidationError(
+            current.secondLastName,
+            'secondLastName',
+            'El segundo apellido',
+            this.shouldValidateEditFields(current, ['secondLastName']),
+            errors,
+        );
+    }
+
+    private addNameValidationError(
+        value: string,
+        key: string,
+        label: string,
+        shouldValidate: boolean,
+        errors: Record<string, string>,
+    ): void {
+        if (!shouldValidate || !this.hasText(value)) {
+            return;
+        }
+
+        const normalized = this.toText(value).toUpperCase();
+
+        if (normalized.length > 100 || !/^[A-ZÁÉÍÓÚÜÑ\s]+$/.test(normalized)) {
+            errors[key] = `${label} debe contener únicamente letras y espacios (máximo 100 caracteres).`;
+        }
+    }
+
+    private addAssignmentFormatValidationErrors(
+        current: UserRegistrationForm,
+        errors: Record<string, string>,
+    ): void {
+        if (
+            this.shouldValidateEditFields(current, ['position']) &&
+            this.hasText(current.position) &&
+            !this.isValidTextWithinRange(current.position, 2, 150)
+        ) {
+            errors['position'] = 'El cargo debe tener entre 2 y 150 caracteres válidos.';
+        }
+
+        if (
+            this.shouldValidateEditFields(current, ['functions']) &&
+            this.hasText(current.functions) &&
+            !this.isValidTextWithinRange(current.functions, 5, 500)
+        ) {
+            errors['functions'] = 'Las funciones deben tener entre 5 y 500 caracteres válidos.';
+        }
+
+        if (
+            this.shouldValidateEditFields(current, ['employeeNumber']) &&
+            this.hasText(current.employeeNumber) &&
+            !/^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+        ) {
+            errors['employeeNumber'] =
+                'El número de empleado debe contener de 3 a 20 letras, números o espacios.';
+        }
+    }
+
+    private hasValidAssignmentForCommission(current: UserRegistrationForm): boolean {
+        if (
+            !this.hasText(current.institutionType) ||
+            !this.hasText(current.institution) ||
+            !this.hasText(current.admissionDate) ||
+            !this.hasText(current.employeeNumber)
+        ) {
+            return false;
+        }
+
+        if (this.requiresEntityForInstitution(current.institutionType) && !this.hasText(current.entity)) {
+            return false;
+        }
+
+        if (
+            this.requiresMunicipalityForInstitution(current.institutionType) &&
+            !this.hasText(current.municipality)
+        ) {
+            return false;
+        }
+
+        return (
+            this.isDateOnOrBeforeToday(current.admissionDate) &&
+            /^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+        );
+    }
+
+    private hasValidCommissionContext(current: UserRegistrationForm): boolean {
+        if (
+            !current.commissionEnabled ||
+            !this.hasText(current.commissionInstitutionType) ||
+            !this.hasText(current.commissionInstitution)
+        ) {
+            return false;
+        }
+
+        if (
+            this.requiresEntityForInstitution(current.commissionInstitutionType) &&
+            !this.hasText(current.commissionEntity)
+        ) {
+            return false;
+        }
+
+        if (
+            this.requiresMunicipalityForInstitution(current.commissionInstitutionType) &&
+            !this.hasText(current.commissionMunicipality)
+        ) {
+            return false;
+        }
+
+        return (
+            !this.hasText(current.commissionAdmissionDate) ||
+            this.isCommissionStartDateValid(current.commissionAdmissionDate, current.admissionDate)
+        );
+    }
+
+    private hasProfileAssignmentContext(current: UserRegistrationForm): boolean {
+        return (
+            this.hasValidAssignmentForCommission(current) ||
+            this.hasValidCommissionContext(current)
+        );
     }
 
     private shouldValidateIdentityFields(current: UserRegistrationForm): boolean {
@@ -3462,10 +3938,12 @@ export class UserRegistrationWizard {
     private getStepValidationFields(stepId: WizardStepId): readonly string[] {
         const fieldsByStep: Record<WizardStepId, readonly string[]> = {
             'personal-data': [
+                'cuip',
                 'curp',
                 'rfc',
                 'firstName',
                 'lastName',
+                'secondLastName',
                 'gender',
                 'civilStatus',
                 'birthDate',
@@ -3475,6 +3953,8 @@ export class UserRegistrationWizard {
                 'entity',
                 'municipality',
                 'institution',
+                'position',
+                'functions',
                 'admissionDate',
                 'employeeNumber',
             ],
@@ -3483,6 +3963,7 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
+                'commissionAdmissionDate',
             ],
             documents: [],
             contact: [
@@ -3570,17 +4051,52 @@ export class UserRegistrationWizard {
         return this.toText(value).toUpperCase().slice(0, 13);
     }
 
-    private regenerateRfcFromCurp(curp: string): string {
-        // Cada CURP nueva inicia un RFC nuevo: se conservan únicamente sus primeros
-        // 10 caracteres y la homoclave queda vacía para que el usuario la capture.
-        return this.toText(curp).toUpperCase().slice(0, 10);
+    /**
+     * El RFC toma siempre sus primeros 10 caracteres de la CURP. La persona
+     * administradora sólo captura la homoclave de tres posiciones.
+     */
+    private getRfcPrefixFromCurp(value: string): string | null {
+        const prefix = this.toText(value).toUpperCase().slice(0, 10);
+
+        return /^[A-Z0-9]{10}$/.test(prefix) ? prefix : null;
     }
 
-    private rfcBirthDateMatchesCurp(rfc: string, curp: string): boolean {
-        const curpDateCode = this.toText(curp).toUpperCase().slice(4, 10);
-        const rfcDateCode = this.getBirthDateCodeFromRfc(rfc);
+    private buildRfcFromCurp(curp: string): string {
+        const prefix = this.getRfcPrefixFromCurp(curp);
 
-        return Boolean(curpDateCode) && curpDateCode === rfcDateCode;
+        return prefix ?? '';
+    }
+
+    private getRfcHomoclave(value: string, prefix: string, currentRfc: string): string {
+        const entered = this.normalizeRfc(value);
+
+        if (entered.startsWith(prefix)) {
+            return entered.slice(prefix.length, prefix.length + 3).replace(/[^A-Z0-9]/g, '');
+        }
+
+        const existing = this.normalizeRfc(currentRfc);
+
+        return existing.startsWith(prefix)
+            ? existing.slice(prefix.length, prefix.length + 3).replace(/[^A-Z0-9]/g, '')
+            : '';
+    }
+
+    private rfcMatchesCurp(rfc: string, curp: string): boolean {
+        const normalizedRfc = this.toText(rfc).toUpperCase();
+        const normalizedCurp = this.toText(curp).toUpperCase();
+
+        return normalizedRfc.slice(0, 10) === normalizedCurp.slice(0, 10);
+    }
+
+    private rfcBirthDateMatchesDate(rfc: string, birthDate: string): boolean {
+        const rfcDateCode = this.getBirthDateCodeFromRfc(rfc);
+        const parsedBirthDate = this.parseDateInput(birthDate);
+
+        if (!rfcDateCode || !parsedBirthDate) {
+            return false;
+        }
+
+        return rfcDateCode === this.formatRfcBirthDateCode(parsedBirthDate);
     }
 
     private getBirthDateCodeFromRfc(value: string): string | null {
@@ -3594,6 +4110,14 @@ export class UserRegistrationWizard {
         const dateCode = rfc.slice(prefixLength, prefixLength + 6);
 
         return /^\d{6}$/.test(dateCode) ? dateCode : null;
+    }
+
+    private formatRfcBirthDateCode(date: Date): string {
+        const year = String(date.getFullYear()).slice(-2);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${year}${month}${day}`;
     }
 
     private getBirthDateFromCurp(value: string): string | null {
@@ -3621,7 +4145,7 @@ export class UserRegistrationWizard {
     private isValidEmail(value: string): boolean {
         const email = this.normalizeEmail(value);
 
-        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+        return email.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(email);
     }
 
     private normalizeEmail(value: unknown): string {
@@ -3643,6 +4167,55 @@ export class UserRegistrationWizard {
 
     protected maximumBirthDate(): string {
         return this.formatDateInputValue(this.getAdultCutoffDate());
+    }
+
+    protected maximumTodayDate(): string {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return this.formatDateInputValue(today);
+    }
+
+    private isDateOnOrBeforeToday(value: string): boolean {
+        const date = this.parseDateInput(value);
+
+        if (!date) {
+            return false;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return date.getTime() <= today.getTime();
+    }
+
+    private isCommissionStartDateValid(
+        commissionDateValue: string,
+        admissionDateValue: string,
+    ): boolean {
+        const commissionDate = this.parseDateInput(commissionDateValue);
+
+        if (!commissionDate || !this.isDateOnOrBeforeToday(commissionDateValue)) {
+            return false;
+        }
+
+        if (!this.hasText(admissionDateValue)) {
+            return true;
+        }
+
+        const admissionDate = this.parseDateInput(admissionDateValue);
+
+        return admissionDate !== null && commissionDate.getTime() >= admissionDate.getTime();
+    }
+
+    private isValidTextWithinRange(value: string, minimum: number, maximum: number): boolean {
+        const text = this.toText(value);
+
+        return (
+            text.length >= minimum &&
+            text.length <= maximum &&
+            /^[A-Z0-9ÁÉÍÓÚÜÑ\s\-.,!#$%&/()=?¿¡+@:;_"]+$/i.test(text)
+        );
     }
 
     private isAdult(dateValue: string): boolean {

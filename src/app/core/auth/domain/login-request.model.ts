@@ -1,4 +1,4 @@
-export type LoginContactMethod = 'correo' | 'telegram';
+export type LoginContactMethod = 'correo' | 'telefono';
 
 export interface LoginRequest {
     username: string;

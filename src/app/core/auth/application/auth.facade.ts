@@ -48,6 +48,7 @@ export class AuthFacade {
     private readonly sessionPromptLoadingState = signal(false);
     private readonly sessionPromptErrorState = signal<string | null>(null);
     private readonly sessionPromptRemainingSecondsState = signal(0);
+    private challengeCaptchaToken: string | null = null;
 
     private sessionMonitorId: ReturnType<typeof setInterval> | null = null;
     private sessionPromptCountdownId: ReturnType<typeof setInterval> | null = null;
@@ -162,6 +163,9 @@ export class AuthFacade {
         this.captcha
             .verifyAnswer(request.captcha)
             .pipe(
+                tap((verification) => {
+                    this.challengeCaptchaToken = verification.token;
+                }),
                 switchMap((verification) =>
                     this.api.login({
                         ...request,
@@ -173,9 +177,50 @@ export class AuthFacade {
             .subscribe({
                 next: (result) => this.handleLoginResult(result),
                 error: (error: Error) => {
+                    this.challengeCaptchaToken = null;
                     this.errorState.set(error.message);
                     this.captcha.refresh();
                 },
+            });
+    }
+
+    /**
+     * HU02/RN07-RN08: solicita una nueva emisión al mismo proceso de
+     * autenticación. El backend conserva la autoridad para invalidar el OTP
+     * anterior, contar intentos y aplicar el bloqueo configurado.
+     */
+    resendCode(): void {
+        const challenge = this.challenge();
+        const captchaToken = this.challengeCaptchaToken;
+
+        if (!challenge || !captchaToken) {
+            this.errorState.set(
+                'Por seguridad, vuelve al inicio de sesión para validar un nuevo CAPTCHA antes de solicitar otro código.',
+            );
+            return;
+        }
+
+        if (this.loading()) {
+            return;
+        }
+
+        this.loadingState.set(true);
+        this.errorState.set(null);
+
+        this.api
+            .login({
+                username: challenge.username,
+                contact: challenge.contact,
+                captcha: '',
+                captchaToken,
+            })
+            .pipe(finalize(() => this.loadingState.set(false)))
+            .subscribe({
+                next: (nextChallenge) => {
+                    this.storage.saveChallenge(nextChallenge);
+                    this.errorState.set(null);
+                },
+                error: (error: Error) => this.errorState.set(error.message),
             });
     }
 
@@ -188,6 +233,7 @@ export class AuthFacade {
             .pipe(finalize(() => this.loadingState.set(false)))
             .subscribe({
                 next: (session) => {
+                    this.challengeCaptchaToken = null;
                     this.storage.saveSession(session);
                     this.restartSessionMonitor();
                     void this.router.navigateByUrl(DEFAULT_AUTHENTICATED_ROUTE);
@@ -198,6 +244,8 @@ export class AuthFacade {
 
     logout(motivo = 'USER_LOGOUT'): void {
         const currentSession = this.session();
+
+        this.challengeCaptchaToken = null;
 
         this.stopSessionMonitor();
         this.clearSessionPrompt();
@@ -609,6 +657,7 @@ export class AuthFacade {
 
     private handleLoginResult(result: AuthSession | PendingAuthChallenge): void {
         if (this.isAuthSession(result)) {
+            this.challengeCaptchaToken = null;
             this.storage.saveSession(result);
             this.restartSessionMonitor();
             void this.router.navigateByUrl(DEFAULT_AUTHENTICATED_ROUTE);
@@ -626,6 +675,7 @@ export class AuthFacade {
     }
 
     private forceLocalLogout(message: string): void {
+        this.challengeCaptchaToken = null;
         this.stopSessionMonitor();
         this.clearSessionPrompt();
         this.storage.clearAll();
@@ -634,6 +684,7 @@ export class AuthFacade {
     }
 
     private forceTabTakeoverLogout(): void {
+        this.challengeCaptchaToken = null;
         this.stopSessionMonitor();
         this.clearSessionPrompt();
         this.storage.clearLocalAuthState();

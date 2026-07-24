@@ -89,7 +89,7 @@ export class CaptchaFacade implements OnDestroy {
 
     verifyAnswer(answer: string): Observable<CaptchaVerification> {
         const challenge = this.challenge();
-        const normalizedAnswer = answer.trim().toUpperCase();
+        const normalizedAnswer = answer.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
         if (!challenge) {
             return throwError(() => new Error('Primero genera un captcha válido.'));
@@ -100,8 +100,8 @@ export class CaptchaFacade implements OnDestroy {
             return throwError(() => new Error('El captcha caducó. Generamos uno nuevo, inténtalo de nuevo.'));
         }
 
-        if (!normalizedAnswer) {
-            return throwError(() => new Error('Escribe el captcha para continuar.'));
+        if (!/^[A-Z0-9]{7}$/.test(normalizedAnswer)) {
+            return throwError(() => new Error('El captcha debe tener exactamente 7 caracteres alfanuméricos.'));
         }
 
         this.verifyingState.set(true);
