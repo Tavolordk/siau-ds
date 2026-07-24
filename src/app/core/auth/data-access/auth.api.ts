@@ -179,12 +179,12 @@ export class AuthApi {
             return response.data;
         }
 
-        const apiMessage =
-            response.errors?.find((error) => error.detail || error.message)?.detail ??
-            response.errors?.find((error) => error.message)?.message ??
-            fallbackMessage;
+        const apiError = response.errors?.find((error) => error.detail || error.message);
+        const apiMessage = apiError?.detail ?? apiError?.message ?? fallbackMessage;
 
-        throw new Error(apiMessage);
+        // En el endpoint de refresh, una respuesta de negocio sin datos significa
+        // que el backend rechazó la renovación; el facade la trata como terminal.
+        throw new AuthHttpError(apiMessage, 400);
     }
 
     private toPendingChallenge(

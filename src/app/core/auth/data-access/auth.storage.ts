@@ -1,10 +1,12 @@
 import { Injectable, signal } from '@angular/core';
+import { SESSION_INACTIVITY_LIMIT_MS } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge } from '../domain/auth-session.model';
 
 const SESSION_KEY = 'siau.auth.session';
 const CHALLENGE_KEY = 'siau.auth.challenge';
 const REFRESH_LOCK_KEY = 'siau.auth.refresh-lock';
 const ACTIVE_TAB_KEY = 'siau.auth.active-tab';
+const LAST_ACTIVITY_KEY = 'siau.auth.last-activity-at';
 
 interface ActiveTabRecord {
     tabId: string;
@@ -123,6 +125,38 @@ export class AuthStorage {
         return latestSession;
     }
 
+    /**
+     * La actividad se persiste para que cerrar y volver a abrir SIAU no reinicie
+     * el tiempo de inactividad. Solo la pestaña propietaria puede actualizarla.
+     */
+    saveLastActivityAt(timestamp = Date.now()): void {
+        if (!this.isCurrentTabOwner()) {
+            return;
+        }
+
+        localStorage.setItem(LAST_ACTIVITY_KEY, String(timestamp));
+    }
+
+    readLastActivityAt(): number | null {
+        try {
+            const rawValue = localStorage.getItem(LAST_ACTIVITY_KEY);
+            const parsedValue = Number(rawValue);
+
+            if (!rawValue || !Number.isFinite(parsedValue) || parsedValue <= 0) {
+                if (rawValue) {
+                    localStorage.removeItem(LAST_ACTIVITY_KEY);
+                }
+
+                return null;
+            }
+
+            // Un reloj local adelantado no debe prolongar artificialmente la sesión.
+            return Math.min(Math.trunc(parsedValue), Date.now());
+        } catch {
+            return null;
+        }
+    }
+
     saveChallenge(challenge: PendingAuthChallenge): void {
         localStorage.setItem(CHALLENGE_KEY, JSON.stringify(challenge));
         this.challengeState.set(challenge);
@@ -137,6 +171,7 @@ export class AuthStorage {
         this.claimTabOwnership();
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         this.sessionState.set(session);
+        this.saveLastActivityAt();
         this.clearChallenge();
     }
 
@@ -153,6 +188,7 @@ export class AuthStorage {
     clearSession(): void {
         if (this.isCurrentTabOwner()) {
             localStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(LAST_ACTIVITY_KEY);
             this.releaseTabOwnership();
         }
 
@@ -277,7 +313,33 @@ export class AuthStorage {
     }
 
     private readSessionFromStorage(): AuthSession | null {
-        return this.readJson<AuthSession>(SESSION_KEY);
+        const session = this.readJson<AuthSession>(SESSION_KEY);
+
+        if (!session || !this.hasStoredSessionReachedInactivityLimit()) {
+            return session;
+        }
+
+        // Al abrir SIAU después del límite no se debe renderizar ni intentar
+        // refrescar una sesión que ya venció por inactividad.
+        this.clearExpiredSessionFromStorage();
+        return null;
+    }
+
+    private hasStoredSessionReachedInactivityLimit(): boolean {
+        const lastActivityAt = this.readLastActivityAt();
+
+        return lastActivityAt !== null && Date.now() - lastActivityAt >= SESSION_INACTIVITY_LIMIT_MS;
+    }
+
+    private clearExpiredSessionFromStorage(): void {
+        try {
+            localStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(LAST_ACTIVITY_KEY);
+            localStorage.removeItem(ACTIVE_TAB_KEY);
+        } catch {
+            // Si el navegador bloquea localStorage, la signal local seguirá
+            // devolviendo una sesión nula y la guarda enviará al login.
+        }
     }
 
     private readChallengeFromStorage(): PendingAuthChallenge | null {

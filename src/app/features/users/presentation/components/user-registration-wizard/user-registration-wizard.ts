@@ -907,7 +907,7 @@ export class UserRegistrationWizard {
                 return;
             }
 
-            this.clearCurpValidationSummary();
+            this.clearCurpLookupResultsForEdit();
 
             this.form.update((current) => ({
                 ...current,
@@ -926,25 +926,19 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.clearCurpValidationSummary();
+        this.clearCurpLookupResultsForEdit();
 
-        if (this.lastRenapoCurp && curp !== this.lastRenapoCurp) {
-            this.clearRenapoPersonalData();
-        }
-
-        this.curpLookupSequence += 1;
         this.form.update((current) => ({
             ...current,
             curp,
             rfc: this.regenerateRfcFromCurp(curp),
             birthDate: this.getBirthDateFromCurp(curp) ?? '',
         }));
-        this.curpLocked.set(false);
-        this.renapoLookupStatus.set('idle');
-        this.renapoMessage.set('');
         this.clearFieldError('curp');
         this.clearFieldError('rfc');
-        this.clearFieldError('birthDate'); if (curp.length !== 18) {
+        this.clearFieldError('birthDate');
+
+        if (curp.length !== 18) {
             return;
         }
 
@@ -1563,6 +1557,7 @@ export class UserRegistrationWizard {
             firstName: '',
             lastName: '',
             secondLastName: '',
+            birthDate: '',
             gender: '',
         }));
 
@@ -1575,6 +1570,23 @@ export class UserRegistrationWizard {
 
             return next;
         });
+    }
+
+    /**
+     * Una CURP diferente invalida por completo la respuesta anterior: se oculta
+     * el mensaje, se cancela su secuencia y se limpian los datos autollenados
+     * antes de mostrar el resultado de la nueva consulta.
+     */
+    private clearCurpLookupResultsForEdit(): void {
+        const hadRenapoResult =
+            this.lastRenapoCurp !== '' ||
+            this.renapoLookupStatus() !== 'idle';
+
+        if (hadRenapoResult) {
+            this.clearRenapoPersonalData();
+        }
+
+        this.resetRenapoLookupState();
     }
 
     private resolveRenapoGender(value: string): string {
@@ -3288,24 +3300,29 @@ export class UserRegistrationWizard {
         current: UserRegistrationForm,
         errors: Record<string, string>,
     ): void {
+        const identityDocumentsAreOptional = !this.isEditMode() && current.expressCreation;
         const hasCurp = this.hasText(current.curp);
         const hasRfc = this.hasText(current.rfc);
         const hasBirthDate = this.hasText(current.birthDate);
         let validCurp = false;
         let validRfc = false;
 
-        if (!hasCurp) {
+        if (!hasCurp && !identityDocumentsAreOptional) {
             errors['curp'] = 'La CURP es obligatoria.';
         } else if (!this.isValidCurp(current.curp)) {
-            errors['curp'] = 'La CURP no tiene un formato o una fecha válidos.';
+            if (hasCurp) {
+                errors['curp'] = 'La CURP no tiene un formato o una fecha válidos.';
+            }
         } else {
             validCurp = true;
         }
 
-        if (!hasRfc) {
+        if (!hasRfc && !identityDocumentsAreOptional) {
             errors['rfc'] = 'El RFC es obligatorio.';
         } else if (!this.isValidRfc(current.rfc)) {
-            errors['rfc'] = 'El RFC no tiene un formato válido.';
+            if (hasRfc) {
+                errors['rfc'] = 'El RFC no tiene un formato válido.';
+            }
         } else {
             validRfc = true;
         }

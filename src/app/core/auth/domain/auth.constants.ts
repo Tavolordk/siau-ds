@@ -14,6 +14,10 @@ export const SESSION_INACTIVITY_COUNTDOWN_MS = 2 * 60 * 1000;
 export const SESSION_INACTIVITY_LIMIT_MS =
     SESSION_INACTIVITY_PROMPT_MS + SESSION_INACTIVITY_COUNTDOWN_MS;
 
+// La última actividad se conserva entre recargas/pestañas. Se limita la escritura
+// para no tocar localStorage por cada evento de mouse, sin perder precisión útil.
+export const SESSION_ACTIVITY_STORAGE_THROTTLE_MS = 1 * 1000;
+
 // Al volver después de esta pausa, renovar inmediatamente sin esperar al monitor.
 export const SESSION_REFRESH_AFTER_IDLE_MS = 2 * 60 * 1000;
 
