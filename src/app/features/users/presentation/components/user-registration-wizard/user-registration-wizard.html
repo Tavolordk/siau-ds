@@ -103,7 +103,7 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Nombre(s), primer apellido, sexo y estado civil son obligatorios. CURP, RFC y fecha de nacimiento
+                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC, estado civil y fecha de nacimiento
                             se pueden complementar posteriormente; si se capturan, se validarán.</small>
                     </span>
                 </label>
@@ -155,7 +155,7 @@
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
-                            [required]="!form().expressCreation" [maxLength]="18" [value]="form().curp"
+                            [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true" [value]="form().curp"
                             [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
                             (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
 
@@ -181,14 +181,14 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
-                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
+                        [maxLength]="100" [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
-                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
+                        [maxLength]="100" [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
+                    <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
@@ -197,7 +197,7 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
-                        [required]="true" [options]="civilStatusOptions()"
+                        [options]="civilStatusOptions()"
                         [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
                         [disabled]="isFormDisabled()" />
 

@@ -1655,9 +1655,9 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
-            firstName: this.toText(data.nombre).toUpperCase(),
-            lastName: this.toText(data.primerApellido).toUpperCase(),
-            secondLastName: this.toText(data.segundoApellido).toUpperCase(),
+            firstName: this.normalizeNameInput(data.nombre),
+            lastName: this.normalizeNameInput(data.primerApellido),
+            secondLastName: this.normalizeNameInput(data.segundoApellido),
             birthDate: this.toDateInputValue(data.fechaNacimiento) || this.getBirthDateFromCurp(curp) || current.birthDate,
             gender: gender || current.gender,
         }));
@@ -1881,10 +1881,7 @@ export class UserRegistrationWizard {
                     current.birthDate,
                     'Captura la fecha de nacimiento.',
                 ),
-                estadoCivilId: this.requireCatalogId(
-                    current.civilStatus,
-                    'Selecciona el estado civil.',
-                ),
+                estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -1963,10 +1960,7 @@ export class UserRegistrationWizard {
                 'Captura la fecha de nacimiento.',
             ),
 
-            estadoCivilId: this.requireCatalogId(
-                current.civilStatus,
-                'Selecciona el estado civil.',
-            ),
+            estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
 
             cuip: this.toNullableText(current.cuip),
 
@@ -2040,10 +2034,7 @@ export class UserRegistrationWizard {
                 rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
                 fechaNacimiento: this.toNullableText(current.birthDate),
-                estadoCivilId: this.requireCatalogId(
-                    current.civilStatus,
-                    'Selecciona el estado civil.',
-                ),
+                estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -3418,12 +3409,6 @@ export class UserRegistrationWizard {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
-            if (
-                this.shouldValidateEditFields(current, ['civilStatus']) &&
-                !this.hasText(current.civilStatus)
-            ) {
-                nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
-            }
         }
 
         if (stepId === 'assignment') {
@@ -3733,9 +3718,9 @@ export class UserRegistrationWizard {
             return;
         }
 
-        const normalized = this.toText(value).toUpperCase();
+        const normalized = this.toText(value).normalize('NFC');
 
-        if (normalized.length > 100 || !/^[A-ZÁÉÍÓÚÜÑ\s]+$/.test(normalized)) {
+        if (normalized.length > 100 || !/^[\p{L}\s]+$/u.test(normalized)) {
             errors[key] = `${label} debe contener únicamente letras y espacios (máximo 100 caracteres).`;
         }
     }
@@ -4006,6 +3991,18 @@ export class UserRegistrationWizard {
 
         const textValue = this.toText(value);
 
+        if (key === 'curp') {
+            return textValue
+                .normalize('NFKC')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 18) as UserRegistrationForm[K];
+        }
+
+        if (this.isNameField(key)) {
+            return this.normalizeNameInput(textValue) as UserRegistrationForm[K];
+        }
+
         if (this.shouldUppercaseField(key)) {
             return textValue.toUpperCase() as UserRegistrationForm[K];
         }
@@ -4036,6 +4033,19 @@ export class UserRegistrationWizard {
             'username',
             'expressJustification',
         ].includes(key);
+    }
+
+    private isNameField(key: keyof UserRegistrationForm): boolean {
+        return ['firstName', 'lastName', 'secondLastName'].includes(key);
+    }
+
+    private normalizeNameInput(value: unknown): string {
+        return this.toText(value)
+            .normalize('NFC')
+            .replace(/[^\p{L}\s]/gu, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toUpperCase();
     }
 
     private isValidCurp(value: string): boolean {

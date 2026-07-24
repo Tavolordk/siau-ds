@@ -53,7 +53,7 @@ export interface RegistroDatosPersonales {
     readonly segundoApellido: string | null;
     readonly sexoId: number;
     readonly fechaNacimiento: string;
-    readonly estadoCivilId: number;
+    readonly estadoCivilId: number | null;
 }
 
 export interface RegistroAsignacion {
@@ -191,7 +191,7 @@ export interface ActualizarAdminRequest {
     readonly segundoApellido: string | null;
     readonly sexoId: number;
     readonly fechaNacimiento: string;
-    readonly estadoCivilId: number;
+    readonly estadoCivilId: number | null;
     readonly cuip: string | null;
     readonly adscripcion: RegistroAsignacion;
     readonly comision: RegistroAsignacion | null;
