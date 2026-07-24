@@ -28,6 +28,8 @@ export class SiauInput {
   readonly max = input<string | null>(null);
   readonly readonlyPrefix = input<string>('');
   readonly alphanumericOnly = input<boolean>(false);
+  readonly alphabeticOnly = input<boolean>(false);
+  readonly numericOnly = input<boolean>(false);
   readonly hint = input<string | null>(null);
 
   readonly valueChange = output<string>();
@@ -41,6 +43,32 @@ export class SiauInput {
       const normalizedValue = inputElement.value
         .normalize('NFKC')
         .replace(/[^A-Za-z0-9]/g, '');
+
+      inputElement.value =
+        maxLength === null ? normalizedValue : normalizedValue.slice(0, maxLength);
+      this.valueChange.emit(inputElement.value);
+      return;
+    }
+
+    if (this.alphabeticOnly()) {
+      const maxLength = this.maxLength();
+      const normalizedValue = inputElement.value
+        .normalize('NFC')
+        .replace(/[^\p{L}\s]/gu, '')
+        .replace(/\s+/g, ' ')
+        .replace(/^\s+/, '');
+
+      inputElement.value =
+        maxLength === null ? normalizedValue : normalizedValue.slice(0, maxLength);
+      this.valueChange.emit(inputElement.value);
+      return;
+    }
+
+    if (this.numericOnly()) {
+      const maxLength = this.maxLength();
+      const normalizedValue = inputElement.value
+        .normalize('NFKC')
+        .replace(/\D/g, '');
 
       inputElement.value =
         maxLength === null ? normalizedValue : normalizedValue.slice(0, maxLength);

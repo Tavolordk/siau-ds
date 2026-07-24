@@ -3991,12 +3991,12 @@ export class UserRegistrationWizard {
 
         const textValue = this.toText(value);
 
+        if (key === 'cuip') {
+            return this.normalizeAlphanumericInput(textValue, 20) as UserRegistrationForm[K];
+        }
+
         if (key === 'curp') {
-            return textValue
-                .normalize('NFKC')
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, '')
-                .slice(0, 18) as UserRegistrationForm[K];
+            return this.normalizeAlphanumericInput(textValue, 18) as UserRegistrationForm[K];
         }
 
         if (this.isNameField(key)) {
@@ -4008,7 +4008,7 @@ export class UserRegistrationWizard {
         }
 
         if (key === 'phone') {
-            return textValue.replace(/\D/g, '').slice(0, 10) as UserRegistrationForm[K];
+            return this.normalizeNumericInput(textValue, 10) as UserRegistrationForm[K];
         }
 
         if (key === 'email') {
@@ -4048,6 +4048,21 @@ export class UserRegistrationWizard {
             .toUpperCase();
     }
 
+    private normalizeAlphanumericInput(value: unknown, maxLength: number): string {
+        return this.toText(value)
+            .normalize('NFKC')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '')
+            .slice(0, maxLength);
+    }
+
+    private normalizeNumericInput(value: unknown, maxLength: number): string {
+        return this.toText(value)
+            .normalize('NFKC')
+            .replace(/\D/g, '')
+            .slice(0, maxLength);
+    }
+
     private isValidCurp(value: string): boolean {
         const curp = this.toText(value).toUpperCase();
 
@@ -4058,7 +4073,7 @@ export class UserRegistrationWizard {
     }
 
     private normalizeRfc(value: string): string {
-        return this.toText(value).toUpperCase().slice(0, 13);
+        return this.normalizeAlphanumericInput(value, 13);
     }
 
     /**
@@ -4149,7 +4164,7 @@ export class UserRegistrationWizard {
     private isValidRfc(value: string): boolean {
         const rfc = this.toText(value).toUpperCase();
 
-        return /^([A-ZÑ&]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
+        return /^([A-Z]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
     }
 
     private isValidEmail(value: string): boolean {

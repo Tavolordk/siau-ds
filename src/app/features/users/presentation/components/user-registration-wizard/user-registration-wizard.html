@@ -151,7 +151,7 @@
 
                 <div class="registration-wizard__grid">
                     <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
-                        [maxLength]="20" (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
+                        [maxLength]="20" [alphanumericOnly]="true" (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
@@ -177,22 +177,22 @@
                     </div>
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="rfcRequired()"
-                        [maxLength]="13" [hint]="rfcHint()" [value]="form().rfc" (valueChange)="updateRfc($event)"
+                        [maxLength]="13" [alphanumericOnly]="true" [hint]="rfcHint()" [value]="form().rfc" (valueChange)="updateRfc($event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
-                        [maxLength]="100" [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
+                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
-                        [maxLength]="100" [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
+                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100" [value]="form().secondLastName"
+                    <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100" [alphabeticOnly]="true" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions()"
+                    <siau-select label="Sexo" placeholder="Seleccione sexo" [required]="true" [options]="genderOptions()"
                         [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
@@ -550,7 +550,7 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
-                        [maxLength]="10" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
+                        [maxLength]="10" [numericOnly]="true" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
@@ -650,12 +650,12 @@
                         <div class="registration-wizard__profiles-add-title">Agregar sistema</div>
 
                         <div class="registration-wizard__profiles-add-grid">
-                            <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
+                            <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
                                 [required]="true" [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
-                            <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
+                            <siau-select label="Perfil / Rol" placeholder="Seleccione rol" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles() || !selectedSystem()" />
                             }
