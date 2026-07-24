@@ -1204,9 +1204,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const institution = value ?? '';
+        this.clearAssignedProfilesAfterInstitutionChange(
+            this.form().institution,
+            institution,
+        );
+
         this.form.update((current) => ({
             ...current,
-            institution: value ?? '',
+            institution,
             decentralizedBody: '',
             administrativeUnit: '',
         }));
@@ -1325,9 +1331,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const commissionInstitution = value ?? '';
+        this.clearAssignedProfilesAfterInstitutionChange(
+            this.form().commissionInstitution,
+            commissionInstitution,
+        );
+
         this.form.update((current) => ({
             ...current,
-            commissionInstitution: value ?? '',
+            commissionInstitution,
             commissionDependency: '',
             commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
@@ -1515,6 +1527,44 @@ export class UserRegistrationWizard {
         // El perfil base de SIAU no puede quedar eliminado si es el único que
         // mantiene el usuario para dicho sistema.
         return assignedToSiau.length > 1;
+    }
+
+    private clearAssignedProfilesAfterInstitutionChange(
+        previousInstitution: string | null | undefined,
+        nextInstitution: string | null | undefined,
+    ): void {
+        const previousValue = String(previousInstitution ?? '').trim();
+        const nextValue = String(nextInstitution ?? '').trim();
+
+        if (!previousValue || previousValue === nextValue) {
+            return;
+        }
+
+        const hasAssignedProfiles =
+            this.assignedSystemProfiles().length > 0 || this.form().profiles.length > 0;
+
+        if (!hasAssignedProfiles) {
+            return;
+        }
+
+        this.assignedSystemProfiles.set([]);
+        this.form.update((current) => ({
+            ...current,
+            profiles: [],
+        }));
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+        this.roleOptions.set([]);
+
+        this.completedSteps.update((current) =>
+            current.filter((stepId) => stepId !== 'profiles'),
+        );
+
+        this.formErrors.update((current) => ({
+            ...current,
+            profiles:
+                'La institución cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+        }));
     }
 
     protected togglePasswordVisibility(): void {
