@@ -155,10 +155,9 @@
 
                                     @if (shouldShowUnlockButton(user)) {
                                     <button type="button" class="users-table__action users-table__action--unlock"
-                                        title="Desbloquear usuario. Endpoint pendiente de integración"
-                                        aria-label="Desbloquear usuario. Endpoint pendiente de integración"
-                                        [disabled]="isDetailLoading()"
-                                        (click)="showUnlockPendingMessage(user)">
+                                        title="Desbloquear usuario" aria-label="Desbloquear usuario"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting()"
+                                        (click)="openUnlockModal(user)">
                                         <siau-lucide-icon name="unlock" size="16" strokeWidth="2"
                                             aria-hidden="true" />
                                     </button>
@@ -205,7 +204,7 @@
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
     [userDetail]="selectedUserDetail()"
     [readonlyMode]="selectedUser() !== null && (isUserSuspended(selectedUser()!) || isUserBlocked(selectedUser()!))"
-    (closed)="closeUserWizard()"></app-user-registration-wizard>
+    (saved)="handleUserSaved()" (closed)="closeUserWizard()"></app-user-registration-wizard>
 
 <siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
     subtitle="Esta acción dará de baja al usuario seleccionado" icon="trash-2" size="md" headerBadge="Solicitud de baja"
@@ -329,3 +328,65 @@
         </footer>
     </section>
 </siau-modal>
+
+@if (operationSuccess(); as success) {
+<siau-modal [open]="true" [title]="success.title"
+    subtitle="El estatus de la cuenta se modificó correctamente" [icon]="success.icon" size="md"
+    [headerBadge]="success.badge" (close)="closeOperationSuccessModal()">
+    <section class="account-operation-success">
+        <div class="account-operation-success__hero">
+            <span class="account-operation-success__icon" aria-hidden="true">
+                <siau-lucide-icon [name]="success.icon" size="38" strokeWidth="1.9" />
+            </span>
+
+            <div>
+                <p class="account-operation-success__eyebrow">Cambio de estatus confirmado</p>
+                <h3>{{ success.heading }}</h3>
+                <p>{{ success.message }}</p>
+            </div>
+        </div>
+
+        <section class="account-operation-success__account">
+            <div class="account-operation-success__account-heading">
+                <span>Cuenta modificada</span>
+                <strong>{{ success.username }}</strong>
+            </div>
+
+            <dl class="account-operation-success__details">
+                <div>
+                    <dt>Nombre</dt>
+                    <dd>{{ success.fullName }}</dd>
+                </div>
+
+                <div>
+                    <dt>Correo</dt>
+                    <dd>{{ success.email }}</dd>
+                </div>
+
+                <div>
+                    <dt>ID de usuario</dt>
+                    <dd>{{ success.userId }}</dd>
+                </div>
+
+                <div>
+                    <dt>Nuevo estatus</dt>
+                    <dd>
+                        <span class="account-operation-success__status">{{ success.newStatus }}</span>
+                    </dd>
+                </div>
+            </dl>
+        </section>
+
+        <div class="account-operation-success__refresh-note">
+            <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>La lista principal de usuarios se actualizará al cerrar este mensaje.</span>
+        </div>
+
+        <button type="button" class="account-operation-success__button"
+            (click)="closeOperationSuccessModal()">
+            <siau-lucide-icon name="check" size="15" strokeWidth="2" aria-hidden="true" />
+            Aceptar y actualizar lista
+        </button>
+    </section>
+</siau-modal>
+}

@@ -242,6 +242,7 @@ export class UserRegistrationWizard {
     readonly userDetail = input<UserDetailRecord | null>(null);
     readonly readonlyMode = input<boolean>(false);
     readonly closed = output<void>();
+    readonly saved = output<void>();
 
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly usersFacade = inject(UsersFacade);
@@ -784,6 +785,7 @@ export class UserRegistrationWizard {
             this.draftStorage.clear();
         }
         this.saveSuccess.set(null);
+        this.saved.emit();
         this.closed.emit();
         this.resetWizard();
     }

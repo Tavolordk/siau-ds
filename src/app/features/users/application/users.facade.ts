@@ -62,4 +62,10 @@ export class UsersFacade {
     ): Observable<SolicitudOperacionResponse> {
         return this.repository.reactivarUsuario(request);
     }
+
+    desbloquearUsuario(
+        request: SolicitudOperacionRequest,
+    ): Observable<SolicitudOperacionResponse> {
+        return this.repository.desbloquearUsuario(request);
+    }
 }

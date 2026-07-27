@@ -25,6 +25,7 @@ const ACTUALIZAR_ADMIN_PATH = '/api/v1/solicitudes/actualizar_admin';
 const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
 const SOLICITUD_SUSPENDER_PATH = '/api/v1/solicitudes/suspender';
 const SOLICITUD_REACTIVAR_PATH = '/api/v1/solicitudes/reactivar';
+const SOLICITUD_DESBLOQUEO_PATH = '/api/v1/solicitudes/desbloqueo';
 
 interface ApiErrorDto {
     readonly code?: string | null;
@@ -219,7 +220,28 @@ export class UsersApiRepository {
                 catchError((error: unknown) =>
                     this.handleError(
                         error,
-                        'No fue posible habilitar al usuario.',
+                        'No fue posible reactivar al usuario.',
+                    ),
+                ),
+            );
+    }
+
+    desbloquearUsuario(
+        request: SolicitudOperacionRequest,
+    ): Observable<SolicitudOperacionResponse> {
+        return this.http
+            .patch<SolicitudOperacionResponse>(
+                `${this.baseUrl}${SOLICITUD_DESBLOQUEO_PATH}`,
+                request,
+            )
+            .pipe(
+                map((response) =>
+                    response ?? { mensaje: null, datos: null },
+                ),
+                catchError((error: unknown) =>
+                    this.handleError(
+                        error,
+                        'No fue posible desbloquear al usuario.',
                     ),
                 ),
             );
