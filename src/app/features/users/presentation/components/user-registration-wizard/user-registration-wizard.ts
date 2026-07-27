@@ -49,7 +49,7 @@ import {
     UserRecord,
 } from '../../../domain/models/user-record.model';
 
-type AccountStatus = 'active' | 'disabled' | 'suspended';
+type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
 type CurpPersonalStatus = 'active' | 'inactive' | 'no-information';
@@ -1583,6 +1583,18 @@ export class UserRegistrationWizard {
         return;
     }
 
+    protected getReadonlyModeTitle(): string {
+        return this.form().accountStatus === 'blocked'
+            ? 'Vista de usuario bloqueado'
+            : 'Vista de usuario suspendido';
+    }
+
+    protected getReadonlyModeDescription(): string {
+        return this.form().accountStatus === 'blocked'
+            ? 'El usuario está bloqueado por seguridad. Solo puedes consultar su detalle.'
+            : 'El usuario está suspendido. Solo puedes consultar su detalle.';
+    }
+
     protected getStepIcon(step: SiauStep): string {
         return step.completed ? 'check' : step.icon;
     }
@@ -2058,9 +2070,12 @@ export class UserRegistrationWizard {
 
     private resolveAccountStatusId(status: AccountStatus): number {
         switch (status) {
-            case 'disabled': return 2;
+            case 'baja':
+                return 2;
             case 'suspended':
                 return 3;
+            case 'blocked':
+                return 4;
             default:
                 return 1;
         }
@@ -2899,16 +2914,21 @@ export class UserRegistrationWizard {
     private toAccountStatus(value: string): AccountStatus {
         const normalizedValue = this.normalizeText(value);
 
+        if (normalizedValue.includes('bloque')) {
+            return 'blocked';
+        }
+
         if (normalizedValue.includes('suspend')) {
             return 'suspended';
         }
 
         if (
+            normalizedValue.includes('baja') ||
             normalizedValue.includes('inhabil') ||
             normalizedValue.includes('inactivo') ||
-            normalizedValue.includes('baja')
+            normalizedValue.includes('deshabil')
         ) {
-            return 'disabled';
+            return 'baja';
         }
 
         return 'active';

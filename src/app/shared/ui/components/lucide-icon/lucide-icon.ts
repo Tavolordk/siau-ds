@@ -376,6 +376,11 @@ const LUCIDE_ICONS: Record<string, string> = {
     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
   `,
 
+  unlock: `
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+  `,
+
   bell: `
     <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
     <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path>

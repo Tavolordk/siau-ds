@@ -43,6 +43,13 @@
             </div>
             }
 
+            @if (informationMessage(); as information) {
+            <div class="users-table-card__message users-table-card__message--info" role="status">
+                <siau-lucide-icon name="info" size="17" strokeWidth="2" aria-hidden="true" />
+                <span>{{ information }}</span>
+            </div>
+            }
+
             @if (isDetailLoading()) {
             <div class="users-table-card__message users-table-card__message--info" role="status">
                 <span class="users-table__loader" aria-hidden="true"></span>
@@ -108,7 +115,7 @@
                             </td>
 
                             <td data-label="Estatus">
-                                <span class="badge" [class]="'badge badge--' + getStatusTone(user.status)">
+                                <span class="badge" [class]="'badge badge--' + getStatusTone(user)">
                                     {{ user.status }}
                                 </span>
                             </td>
@@ -128,20 +135,31 @@
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
                                     <button type="button" class="users-table__action users-table__action--detail"
-                                        [attr.title]="isUserSuspended(user) || isUserInactiveNonReactivable(user) ? 'Ver detalle. Usuario sin edición.' : 'Ver / editar'"
-                                        [attr.aria-label]="isUserSuspended(user) || isUserInactiveNonReactivable(user) ? 'Ver detalle de usuario sin edición' : 'Ver o editar usuario'"
+                                        [attr.title]="isUserSuspended(user) || isUserBlocked(user) ? 'Ver detalle. Usuario sin edición.' : 'Ver / editar'"
+                                        [attr.aria-label]="isUserSuspended(user) || isUserBlocked(user) ? 'Ver detalle de usuario sin edición' : 'Ver o editar usuario'"
                                         [disabled]="isDetailLoading() || isUserBaja(user)"
                                         (click)="openUserDetail(user)">
                                         <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
                                     @if (shouldShowStatusButton(user)) {
-                                    <button type="button" [class]="getToggleActionClass(user.status)"
-                                        [attr.title]="getToggleTitle(user.status)"
-                                        [attr.aria-label]="getToggleTitle(user.status) + ' usuario'"
+                                    <button type="button" [class]="getToggleActionClass(user)"
+                                        [attr.title]="getToggleTitle(user)"
+                                        [attr.aria-label]="getToggleTitle(user) + ' usuario'"
                                         [disabled]="isDetailLoading() || isStatusSubmitting()"
                                         (click)="openStatusModal(user)">
-                                        <siau-lucide-icon [name]="getToggleIcon(user.status)" size="16" strokeWidth="2"
+                                        <siau-lucide-icon [name]="getToggleIcon(user)" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                    }
+
+                                    @if (shouldShowUnlockButton(user)) {
+                                    <button type="button" class="users-table__action users-table__action--unlock"
+                                        title="Desbloquear usuario. Endpoint pendiente de integración"
+                                        aria-label="Desbloquear usuario. Endpoint pendiente de integración"
+                                        [disabled]="isDetailLoading()"
+                                        (click)="showUnlockPendingMessage(user)">
+                                        <siau-lucide-icon name="unlock" size="16" strokeWidth="2"
                                             aria-hidden="true" />
                                     </button>
                                     }
@@ -186,7 +204,7 @@
 
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
     [userDetail]="selectedUserDetail()"
-    [readonlyMode]="selectedUser() !== null && (isUserSuspended(selectedUser()!) || isUserInactiveNonReactivable(selectedUser()!))"
+    [readonlyMode]="selectedUser() !== null && (isUserSuspended(selectedUser()!) || isUserBlocked(selectedUser()!))"
     (closed)="closeUserWizard()"></app-user-registration-wizard>
 
 <siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"

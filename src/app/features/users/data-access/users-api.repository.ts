@@ -198,7 +198,7 @@ export class UsersApiRepository {
                 catchError((error: unknown) =>
                     this.handleError(
                         error,
-                        'No fue posible inhabilitar al usuario.',
+                        'No fue posible suspender al usuario.',
                     ),
                 ),
             );

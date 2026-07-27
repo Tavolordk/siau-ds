@@ -428,6 +428,14 @@
   background: rgba(197, 101, 26, 0.15);
 }
 
+.users-table__action--unlock {
+  color: #1e5b4f;
+}
+
+.users-table__action--unlock:hover {
+  background: rgba(30, 91, 79, 0.15);
+}
+
 .users-table__action--delete {
   color: #611232;
 }
@@ -1943,13 +1951,22 @@
   background: rgba(30, 91, 79, 0.15);
 }
 
-/* Botón inhabilitar */
+/* Botón suspender */
 .users-table__action--ban {
   color: #c5651a;
 }
 
 .users-table__action--ban:hover {
   background: rgba(197, 101, 26, 0.15);
+}
+
+/* Botón desbloquear */
+.users-table__action--unlock {
+  color: #1e5b4f;
+}
+
+.users-table__action--unlock:hover {
+  background: rgba(30, 91, 79, 0.15);
 }
 
 /* Botón baja */

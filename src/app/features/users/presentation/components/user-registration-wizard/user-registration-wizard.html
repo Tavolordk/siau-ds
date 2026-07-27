@@ -70,11 +70,11 @@
             <div class="registration-wizard__edit-bar"
                 [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
                 <div class="registration-wizard__edit-bar-text">
-                    <strong>{{ readonlyMode() ? 'Vista de usuario suspendido' : (editEnabled() ? 'Edición habilitada' :
+                    <strong>{{ readonlyMode() ? getReadonlyModeTitle() : (editEnabled() ? 'Edición habilitada' :
                         'Vista de usuario') }}</strong>
                     <span>
                         {{ readonlyMode()
-                        ? 'El usuario está suspendido. Solo puedes consultar su detalle.'
+                        ? getReadonlyModeDescription()
                         : (editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
                         Presiona Editar para modificarlos.') }}
                     </span>
@@ -785,16 +785,16 @@
                             </button>
 
                             <button type="button" class="registration-wizard__status-card"
-                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
-                                [disabled]="isAccountStatusDisabled('disabled')" (click)="setAccountStatus('disabled')">
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'baja'"
+                                [disabled]="isAccountStatusDisabled('baja')" (click)="setAccountStatus('baja')">
                                 <div class="registration-wizard__status-card-title">
-                                    @if (form().accountStatus === 'disabled') {
+                                    @if (form().accountStatus === 'baja') {
                                     <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
                                     }
-                                    Inhabilitado
+                                    Baja
                                 </div>
                                 <div class="registration-wizard__status-card-text">
-                                    La cuenta se crea bloqueada de forma permanente
+                                    Cuenta bloqueada de forma permanente
                                 </div>
                             </button>
 
@@ -809,7 +809,21 @@
                                     Suspendido
                                 </div>
                                 <div class="registration-wizard__status-card-text">
-                                    Acceso bloqueado temporalmente hasta resolución
+                                    Acceso bloqueado temporalmente hasta resolución del caso
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'blocked'"
+                                [disabled]="isAccountStatusDisabled('blocked')" (click)="setAccountStatus('blocked')">
+                                <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'blocked') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
+                                    Bloqueado
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Acceso bloqueado temporalmente por seguridad
                                 </div>
                             </button>
                         </div>
