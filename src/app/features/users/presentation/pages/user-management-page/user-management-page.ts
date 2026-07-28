@@ -8,6 +8,7 @@ import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/
 import { UsersFacade } from '../../../application/users.facade';
 import {
     SolicitudOperacionRequest,
+    SolicitudOperacionResponse,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -17,6 +18,21 @@ import { UserRegistrationWizard } from '../../components/user-registration-wizar
 
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'dark' | 'light';
 type UserWizardMode = 'create' | 'edit';
+type AccountOperationKind = 'baja' | 'suspension' | 'reactivacion' | 'desbloqueo';
+
+interface AccountOperationSuccessState {
+    readonly operation: AccountOperationKind;
+    readonly title: string;
+    readonly heading: string;
+    readonly message: string;
+    readonly icon: string;
+    readonly badge: string;
+    readonly newStatus: string;
+    readonly fullName: string;
+    readonly username: string;
+    readonly email: string;
+    readonly userId: number;
+}
 
 const DEFAULT_PAGINATION: UserPagination = {
     totalRegistros: 0,
@@ -45,6 +61,7 @@ export class UserManagementPage {
     protected readonly pagination = signal<UserPagination>(DEFAULT_PAGINATION);
     protected readonly isLoading = signal<boolean>(false);
     protected readonly errorMessage = signal<string | null>(null);
+    protected readonly informationMessage = signal<string | null>(null);
 
     protected readonly isUserWizardOpen = signal<boolean>(false);
     protected readonly userWizardMode = signal<UserWizardMode>('create');
@@ -63,6 +80,8 @@ export class UserManagementPage {
     protected readonly statusComment = signal<string>('');
     protected readonly statusCommentError = signal<string | null>(null);
     protected readonly isStatusSubmitting = signal<boolean>(false);
+
+    protected readonly operationSuccess = signal<AccountOperationSuccessState | null>(null);
 
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly shownUsersCount = computed(() => {
@@ -121,6 +140,7 @@ export class UserManagementPage {
         this.selectedUserDetail.set(null);
         this.isDetailLoading.set(false);
         this.errorMessage.set(null);
+        this.informationMessage.set(null);
         this.isUserWizardOpen.set(true);
     }
 
@@ -143,6 +163,7 @@ export class UserManagementPage {
         this.selectedUserDetail.set(null);
         this.userWizardMode.set('edit');
         this.errorMessage.set(null);
+        this.informationMessage.set(null);
         this.isDetailLoading.set(true);
         this.isUserWizardOpen.set(true);
 
@@ -189,6 +210,7 @@ export class UserManagementPage {
         this.bajaComment.set('');
         this.bajaCommentError.set(null);
         this.errorMessage.set(null);
+        this.informationMessage.set(null);
         this.isBajaModalOpen.set(true);
 
         if (this.isUserBaja(user)) {
@@ -265,13 +287,13 @@ export class UserManagementPage {
             .darDeBajaUsuario(request)
             .pipe(finalize(() => this.isBajaSubmitting.set(false)))
             .subscribe({
-                next: () => {
+                next: (response) => {
                     this.isBajaSubmitting.set(false);
                     this.isBajaModalOpen.set(false);
                     this.bajaTargetUser.set(null);
                     this.bajaComment.set('');
                     this.bajaCommentError.set(null);
-                    this.reloadUsers();
+                    this.showOperationSuccess('baja', user, response);
                 },
                 error: (error: unknown) => {
                     this.bajaCommentError.set(this.toFriendlyError(error));
@@ -281,20 +303,42 @@ export class UserManagementPage {
 
     protected openStatusModal(user: UserRecord): void {
         if (this.isCurrentSessionUser(user)) {
-            this.errorMessage.set('No puedes inhabilitar la cuenta con la que tienes la sesión activa.');
+            this.errorMessage.set('No puedes suspender la cuenta con la que tienes la sesión activa.');
             return;
         }
 
+        if (this.isUserBaja(user) || this.isUserBlocked(user)) {
+            this.errorMessage.set(
+                this.isUserBlocked(user)
+                    ? 'Utiliza la acción de desbloqueo para esta cuenta.'
+                    : 'La cuenta dada de baja no es reactivable.',
+            );
+            return;
+        }
+
+        this.prepareStatusModal(user);
+    }
+
+    protected openUnlockModal(user: UserRecord): void {
+        if (!this.isUserBlocked(user)) {
+            return;
+        }
+
+        if (this.isCurrentSessionUser(user)) {
+            this.errorMessage.set('No puedes desbloquear la cuenta con la que tienes la sesión activa.');
+            return;
+        }
+
+        this.prepareStatusModal(user);
+    }
+
+    private prepareStatusModal(user: UserRecord): void {
         this.statusTargetUser.set(user);
         this.statusComment.set('');
         this.statusCommentError.set(null);
         this.errorMessage.set(null);
+        this.informationMessage.set(null);
         this.isStatusModalOpen.set(true);
-
-        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
-            this.statusCommentError.set('La cuenta inhabilitada o dada de baja no es reactivable.');
-            return;
-        }
 
         if (!this.resolveTargetUserId(user)) {
             this.statusCommentError.set('No se encontró el identificador interno del usuario. Revisa el mapeo de usuarioId.');
@@ -336,8 +380,8 @@ export class UserManagementPage {
             return;
         }
 
-        if (this.isUserBaja(user) || this.isUserInactiveNonReactivable(user)) {
-            this.statusCommentError.set('La cuenta inhabilitada o dada de baja no es reactivable.');
+        if (this.isUserBaja(user)) {
+            this.statusCommentError.set('La cuenta dada de baja no es reactivable.');
             return;
         }
 
@@ -348,18 +392,26 @@ export class UserManagementPage {
             return;
         }
 
+        const operationName: AccountOperationKind = this.isUserBlocked(user)
+            ? 'desbloqueo'
+            : this.isUserSuspended(user)
+                ? 'reactivacion'
+                : 'suspension';
+
         const request: SolicitudOperacionRequest = {
             usuarioId: userId,
             comentario: comentarioNormalizado,
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
-                correlationId: `siau-status-${Date.now()}`,
+                correlationId: `siau-${operationName}-${Date.now()}`,
             },
         };
 
-        const operation$ = this.isUserSuspended(user)
-            ? this.usersFacade.reactivarUsuario(request)
-            : this.usersFacade.suspenderUsuario(request);
+        const operation$ = this.isUserBlocked(user)
+            ? this.usersFacade.desbloquearUsuario(request)
+            : this.isUserSuspended(user)
+                ? this.usersFacade.reactivarUsuario(request)
+                : this.usersFacade.suspenderUsuario(request);
 
         this.isStatusSubmitting.set(true);
         this.errorMessage.set(null);
@@ -368,13 +420,13 @@ export class UserManagementPage {
         operation$
             .pipe(finalize(() => this.isStatusSubmitting.set(false)))
             .subscribe({
-                next: () => {
+                next: (response) => {
                     this.isStatusSubmitting.set(false);
                     this.isStatusModalOpen.set(false);
                     this.statusTargetUser.set(null);
                     this.statusComment.set('');
                     this.statusCommentError.set(null);
-                    this.reloadUsers();
+                    this.showOperationSuccess(operationName, user, response);
                 },
                 error: (error: unknown) => {
                     this.statusCommentError.set(this.toFriendlyError(error));
@@ -382,16 +434,98 @@ export class UserManagementPage {
             });
     }
 
-    protected getToggleTitle(status: UserRecord['status']): string {
-        return this.isSuspendedStatus(status) ? 'Habilitar' : 'Inhabilitar';
+    protected handleUserSaved(): void {
+        this.reloadUsers();
     }
 
-    protected getToggleIcon(status: UserRecord['status']): string {
-        return this.isSuspendedStatus(status) ? 'check' : 'ban';
+    protected closeOperationSuccessModal(): void {
+        if (!this.operationSuccess()) {
+            return;
+        }
+
+        this.operationSuccess.set(null);
+        this.reloadUsers();
     }
 
-    protected getToggleActionClass(status: UserRecord['status']): string {
-        return this.isSuspendedStatus(status)
+    private showOperationSuccess(
+        operation: AccountOperationKind,
+        user: UserRecord,
+        response: SolicitudOperacionResponse,
+    ): void {
+        const config = this.getOperationSuccessConfig(operation);
+        const responseUserId = this.toPositiveNumber(response.datos?.usuarioId);
+
+        this.operationSuccess.set({
+            operation,
+            title: config.title,
+            heading: config.heading,
+            message: response.mensaje?.trim() || config.defaultMessage,
+            icon: config.icon,
+            badge: 'Operación exitosa',
+            newStatus: config.newStatus,
+            fullName: user.fullName,
+            username: user.username,
+            email: user.email,
+            userId: responseUserId ?? this.resolveTargetUserId(user) ?? user.userId,
+        });
+    }
+
+    private getOperationSuccessConfig(operation: AccountOperationKind): {
+        readonly title: string;
+        readonly heading: string;
+        readonly defaultMessage: string;
+        readonly icon: string;
+        readonly newStatus: string;
+    } {
+        switch (operation) {
+            case 'baja':
+                return {
+                    title: 'Baja realizada correctamente',
+                    heading: 'La cuenta fue dada de baja',
+                    defaultMessage: 'La baja del usuario se procesó correctamente.',
+                    icon: 'trash-2',
+                    newStatus: 'Baja',
+                };
+            case 'suspension':
+                return {
+                    title: 'Suspensión realizada correctamente',
+                    heading: 'La cuenta fue suspendida',
+                    defaultMessage: 'La suspensión del usuario se procesó correctamente.',
+                    icon: 'ban',
+                    newStatus: 'Suspendido',
+                };
+            case 'reactivacion':
+                return {
+                    title: 'Reactivación realizada correctamente',
+                    heading: 'La cuenta fue reactivada',
+                    defaultMessage: 'La reactivación del usuario se procesó correctamente.',
+                    icon: 'circle-check',
+                    newStatus: 'Activo',
+                };
+            case 'desbloqueo':
+                return {
+                    title: 'Desbloqueo realizado correctamente',
+                    heading: 'La cuenta fue desbloqueada',
+                    defaultMessage: 'El desbloqueo del usuario se procesó correctamente.',
+                    icon: 'unlock',
+                    newStatus: 'Activo',
+                };
+        }
+
+        const unsupportedOperation: never = operation;
+        throw new Error(`Operación de cuenta no soportada: ${unsupportedOperation}`);
+    }
+
+    protected getToggleTitle(user: UserRecord): string {
+        return this.isUserSuspended(user) ? 'Reactivar' : 'Suspender';
+    }
+
+    protected getToggleIcon(user: UserRecord): string {
+        return this.isUserSuspended(user) ? 'check' : 'ban';
+    }
+
+    protected getToggleActionClass(user: UserRecord): string {
+        return this.isUserSuspended(user)
             ? 'users-table__action users-table__action--activate'
             : 'users-table__action users-table__action--ban';
     }
@@ -399,11 +533,19 @@ export class UserManagementPage {
     protected getStatusModalTitle(): string {
         const user = this.statusTargetUser();
 
-        return user && this.isUserSuspended(user) ? 'Habilitar usuario' : 'Inhabilitar usuario';
+        if (user && this.isUserBlocked(user)) {
+            return 'Desbloquear usuario';
+        }
+
+        return user && this.isUserSuspended(user) ? 'Reactivar usuario' : 'Suspender usuario';
     }
 
     protected getStatusModalSubtitle(): string {
         const user = this.statusTargetUser();
+
+        if (user && this.isUserBlocked(user)) {
+            return 'Esta acción desbloqueará el acceso del usuario seleccionado';
+        }
 
         return user && this.isUserSuspended(user)
             ? 'Esta acción reactivará el acceso del usuario seleccionado'
@@ -413,11 +555,19 @@ export class UserManagementPage {
     protected getStatusModalIcon(): string {
         const user = this.statusTargetUser();
 
+        if (user && this.isUserBlocked(user)) {
+            return 'unlock';
+        }
+
         return user && this.isUserSuspended(user) ? 'check' : 'ban';
     }
 
     protected getStatusModalBadge(): string {
         const user = this.statusTargetUser();
+
+        if (user && this.isUserBlocked(user)) {
+            return 'Solicitud de desbloqueo';
+        }
 
         return user && this.isUserSuspended(user)
             ? 'Solicitud de reactivación'
@@ -427,6 +577,10 @@ export class UserManagementPage {
     protected getStatusModalWarning(): string {
         const user = this.statusTargetUser();
 
+        if (user && this.isUserBlocked(user)) {
+            return 'El usuario bloqueado recuperará el acceso cuando el desbloqueo se procese correctamente.';
+        }
+
         return user && this.isUserSuspended(user)
             ? 'El usuario suspendido volverá a tener acceso cuando la operación sea procesada correctamente.'
             : 'El usuario quedará suspendido y no podrá acceder mientras esté en ese estado.';
@@ -434,6 +588,10 @@ export class UserManagementPage {
 
     protected getStatusCommentPlaceholder(): string {
         const user = this.statusTargetUser();
+
+        if (user && this.isUserBlocked(user)) {
+            return 'ESCRIBE EL MOTIVO DEL DESBLOQUEO';
+        }
 
         return user && this.isUserSuspended(user)
             ? 'ESCRIBE EL MOTIVO DE LA REACTIVACIÓN'
@@ -443,6 +601,10 @@ export class UserManagementPage {
     protected getStatusConfirmLabel(): string {
         const user = this.statusTargetUser();
 
+        if (user && this.isUserBlocked(user)) {
+            return 'Confirmar desbloqueo';
+        }
+
         return user && this.isUserSuspended(user)
             ? 'Confirmar reactivación'
             : 'Confirmar suspensión';
@@ -451,32 +613,30 @@ export class UserManagementPage {
     protected isStatusReactivateOperation(): boolean {
         const user = this.statusTargetUser();
 
-        return user ? this.isUserSuspended(user) : false;
+        return user
+            ? this.isUserSuspended(user) || this.isUserBlocked(user)
+            : false;
     }
 
     protected shouldShowStatusButton(user: UserRecord): boolean {
-        if (
-            this.isCurrentSessionUser(user) ||
-            this.isUserBaja(user) ||
-            this.isUserInactiveNonReactivable(user)
-        ) {
-            return false;
-        }
+        return (
+            !this.isCurrentSessionUser(user) &&
+            !this.isUserBaja(user) &&
+            !this.isUserBlocked(user)
+        );
+    }
 
-        return true;
+    protected shouldShowUnlockButton(user: UserRecord): boolean {
+        return this.isUserBlocked(user) && !this.isCurrentSessionUser(user);
     }
 
     protected shouldShowDeleteButton(user: UserRecord): boolean {
-        if (
-            this.isCurrentSessionUser(user) ||
-            this.isUserBaja(user) ||
-            this.isUserSuspended(user) ||
-            this.isUserInactiveNonReactivable(user)
-        ) {
-            return false;
-        }
-
-        return true;
+        return (
+            !this.isCurrentSessionUser(user) &&
+            !this.isUserBaja(user) &&
+            !this.isUserSuspended(user) &&
+            !this.isUserBlocked(user)
+        );
     }
 
     protected isCurrentSessionUser(user: UserRecord): boolean {
@@ -500,59 +660,57 @@ export class UserManagementPage {
     }
 
     protected isUserBaja(user: UserRecord): boolean {
-        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
-
-        if (!status) {
-            return false;
-        }
-
-        if (
-            status.includes('no dado de baja') ||
-            status.includes('no baja') ||
-            status.includes('sin baja')
-        ) {
-            return false;
-        }
-
-        return (
-            status === 'baja' ||
-            status === 'bajado' ||
-            status === 'dado de baja' ||
-            status.includes(' dado de baja') ||
-            status.includes(' estatus baja') ||
-            status.includes(' baja ')
-        );
+        return this.getAccountStatusKey(user) === 'BAJA';
     }
 
     protected isUserSuspended(user: UserRecord): boolean {
-        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
-
-        return this.isSuspendedStatus(status);
+        return this.getAccountStatusKey(user) === 'SUSPENDIDO';
     }
 
-    protected isUserInactiveNonReactivable(user: UserRecord): boolean {
-        const status = this.normalizeForCompare(`${user.status} ${user.statusKey}`);
+    protected isUserBlocked(user: UserRecord): boolean {
+        return this.getAccountStatusKey(user) === 'BLOQUEADO';
+    }
 
-        if (this.isUserSuspended(user)) {
-            return false;
+    private getAccountStatusKey(user: UserRecord): string {
+        const statusKey = String(user.statusKey ?? '').trim();
+
+        if (statusKey) {
+            return this.normalizeAccountStatusKey(statusKey);
         }
 
-        return (
-            status.includes('inhabil') ||
-            status.includes('inactivo') ||
-            status.includes('deshabil')
-        );
+        return this.normalizeAccountStatusKey(user.status);
     }
 
-    private isSuspendedStatus(status: string): boolean {
-        const value = this.normalizeForCompare(status);
+    private normalizeAccountStatusKey(value: string): string {
+        const normalizedValue = value
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toUpperCase();
 
-        return (
-            value.includes('suspend') ||
-            value.includes('suspension') ||
-            value.includes('suspendido') ||
-            value.includes('suspendida')
-        );
+        if (normalizedValue.includes('SUSPEND')) {
+            return 'SUSPENDIDO';
+        }
+
+        if (normalizedValue.includes('BLOQUE')) {
+            return 'BLOQUEADO';
+        }
+
+        if (
+            normalizedValue === 'BAJA' ||
+            normalizedValue.includes('DADO DE BAJA') ||
+            normalizedValue.includes('INHABIL') ||
+            normalizedValue.includes('DESHABIL') ||
+            normalizedValue === 'INACTIVO'
+        ) {
+            return 'BAJA';
+        }
+
+        if (normalizedValue.includes('ACTIVO')) {
+            return 'ACTIVO';
+        }
+
+        return normalizedValue;
     }
 
     private loadUsers(page = 1, search = this.searchTerm().trim()): void {
@@ -564,6 +722,7 @@ export class UserManagementPage {
 
         this.isLoading.set(true);
         this.errorMessage.set(null);
+        this.informationMessage.set(null);
 
         this.usersFacade
             .getUsers(query)
@@ -660,31 +819,18 @@ export class UserManagementPage {
         return 'light';
     }
 
-    protected getStatusTone(status: UserRecord['status']): BadgeTone {
-        const value = this.normalizeForCompare(status);
-
-        if (value.includes('activo') && !value.includes('inactivo')) {
-            return 'success';
+    protected getStatusTone(user: UserRecord): BadgeTone {
+        switch (this.getAccountStatusKey(user)) {
+            case 'ACTIVO':
+                return 'success';
+            case 'SUSPENDIDO':
+                return 'warning';
+            case 'BAJA':
+            case 'BLOQUEADO':
+                return 'danger';
+            default:
+                return 'info';
         }
-
-        if (
-            value.includes('suspend') ||
-            value.includes('suspendido') ||
-            value.includes('suspension')
-        ) {
-            return 'warning';
-        }
-
-        if (
-            value.includes('inhabil') ||
-            value.includes('inactivo') ||
-            value.includes('deshabil') ||
-            value.includes('baja')
-        ) {
-            return 'danger';
-        }
-
-        return 'info';
     }
 
     protected getRegistryTone(status: UserRecord['rnpsp']): BadgeTone {

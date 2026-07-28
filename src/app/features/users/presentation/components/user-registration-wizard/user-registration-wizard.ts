@@ -49,7 +49,7 @@ import {
     UserRecord,
 } from '../../../domain/models/user-record.model';
 
-type AccountStatus = 'active' | 'disabled' | 'suspended';
+type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
 type CurpPersonalStatus = 'active' | 'inactive' | 'no-information';
@@ -242,6 +242,7 @@ export class UserRegistrationWizard {
     readonly userDetail = input<UserDetailRecord | null>(null);
     readonly readonlyMode = input<boolean>(false);
     readonly closed = output<void>();
+    readonly saved = output<void>();
 
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly usersFacade = inject(UsersFacade);
@@ -784,6 +785,7 @@ export class UserRegistrationWizard {
             this.draftStorage.clear();
         }
         this.saveSuccess.set(null);
+        this.saved.emit();
         this.closed.emit();
         this.resetWizard();
     }
@@ -1204,9 +1206,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const institution = value ?? '';
+        this.clearAssignedProfilesAfterInstitutionChange(
+            this.form().institution,
+            institution,
+        );
+
         this.form.update((current) => ({
             ...current,
-            institution: value ?? '',
+            institution,
             decentralizedBody: '',
             administrativeUnit: '',
         }));
@@ -1325,9 +1333,15 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const commissionInstitution = value ?? '';
+        this.clearAssignedProfilesAfterInstitutionChange(
+            this.form().commissionInstitution,
+            commissionInstitution,
+        );
+
         this.form.update((current) => ({
             ...current,
-            commissionInstitution: value ?? '',
+            commissionInstitution,
             commissionDependency: '',
             commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
@@ -1517,6 +1531,44 @@ export class UserRegistrationWizard {
         return assignedToSiau.length > 1;
     }
 
+    private clearAssignedProfilesAfterInstitutionChange(
+        previousInstitution: string | null | undefined,
+        nextInstitution: string | null | undefined,
+    ): void {
+        const previousValue = String(previousInstitution ?? '').trim();
+        const nextValue = String(nextInstitution ?? '').trim();
+
+        if (!previousValue || previousValue === nextValue) {
+            return;
+        }
+
+        const hasAssignedProfiles =
+            this.assignedSystemProfiles().length > 0 || this.form().profiles.length > 0;
+
+        if (!hasAssignedProfiles) {
+            return;
+        }
+
+        this.assignedSystemProfiles.set([]);
+        this.form.update((current) => ({
+            ...current,
+            profiles: [],
+        }));
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+        this.roleOptions.set([]);
+
+        this.completedSteps.update((current) =>
+            current.filter((stepId) => stepId !== 'profiles'),
+        );
+
+        this.formErrors.update((current) => ({
+            ...current,
+            profiles:
+                'La institución cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+        }));
+    }
+
     protected togglePasswordVisibility(): void {
         this.showPassword.update((value) => !value);
     }
@@ -1531,6 +1583,18 @@ export class UserRegistrationWizard {
 
     protected setAccountStatus(_status: AccountStatus): void {
         return;
+    }
+
+    protected getReadonlyModeTitle(): string {
+        return this.form().accountStatus === 'blocked'
+            ? 'Vista de usuario bloqueado'
+            : 'Vista de usuario suspendido';
+    }
+
+    protected getReadonlyModeDescription(): string {
+        return this.form().accountStatus === 'blocked'
+            ? 'El usuario está bloqueado por seguridad. Solo puedes consultar su detalle.'
+            : 'El usuario está suspendido. Solo puedes consultar su detalle.';
     }
 
     protected getStepIcon(step: SiauStep): string {
@@ -1655,9 +1719,9 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             curp,
-            firstName: this.toText(data.nombre).toUpperCase(),
-            lastName: this.toText(data.primerApellido).toUpperCase(),
-            secondLastName: this.toText(data.segundoApellido).toUpperCase(),
+            firstName: this.normalizeNameInput(data.nombre),
+            lastName: this.normalizeNameInput(data.primerApellido),
+            secondLastName: this.normalizeNameInput(data.segundoApellido),
             birthDate: this.toDateInputValue(data.fechaNacimiento) || this.getBirthDateFromCurp(curp) || current.birthDate,
             gender: gender || current.gender,
         }));
@@ -1881,10 +1945,7 @@ export class UserRegistrationWizard {
                     current.birthDate,
                     'Captura la fecha de nacimiento.',
                 ),
-                estadoCivilId: this.requireCatalogId(
-                    current.civilStatus,
-                    'Selecciona el estado civil.',
-                ),
+                estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -1963,10 +2024,7 @@ export class UserRegistrationWizard {
                 'Captura la fecha de nacimiento.',
             ),
 
-            estadoCivilId: this.requireCatalogId(
-                current.civilStatus,
-                'Selecciona el estado civil.',
-            ),
+            estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
 
             cuip: this.toNullableText(current.cuip),
 
@@ -2014,9 +2072,12 @@ export class UserRegistrationWizard {
 
     private resolveAccountStatusId(status: AccountStatus): number {
         switch (status) {
-            case 'disabled': return 2;
+            case 'baja':
+                return 2;
             case 'suspended':
                 return 3;
+            case 'blocked':
+                return 4;
             default:
                 return 1;
         }
@@ -2040,10 +2101,7 @@ export class UserRegistrationWizard {
                 rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
                 fechaNacimiento: this.toNullableText(current.birthDate),
-                estadoCivilId: this.requireCatalogId(
-                    current.civilStatus,
-                    'Selecciona el estado civil.',
-                ),
+                estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -2858,16 +2916,21 @@ export class UserRegistrationWizard {
     private toAccountStatus(value: string): AccountStatus {
         const normalizedValue = this.normalizeText(value);
 
+        if (normalizedValue.includes('bloque')) {
+            return 'blocked';
+        }
+
         if (normalizedValue.includes('suspend')) {
             return 'suspended';
         }
 
         if (
+            normalizedValue.includes('baja') ||
             normalizedValue.includes('inhabil') ||
             normalizedValue.includes('inactivo') ||
-            normalizedValue.includes('baja')
+            normalizedValue.includes('deshabil')
         ) {
-            return 'disabled';
+            return 'baja';
         }
 
         return 'active';
@@ -3418,12 +3481,6 @@ export class UserRegistrationWizard {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
-            if (
-                this.shouldValidateEditFields(current, ['civilStatus']) &&
-                !this.hasText(current.civilStatus)
-            ) {
-                nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
-            }
         }
 
         if (stepId === 'assignment') {
@@ -3733,9 +3790,9 @@ export class UserRegistrationWizard {
             return;
         }
 
-        const normalized = this.toText(value).toUpperCase();
+        const normalized = this.toText(value).normalize('NFC');
 
-        if (normalized.length > 100 || !/^[A-ZÁÉÍÓÚÜÑ\s]+$/.test(normalized)) {
+        if (normalized.length > 100 || !/^[\p{L}\s]+$/u.test(normalized)) {
             errors[key] = `${label} debe contener únicamente letras y espacios (máximo 100 caracteres).`;
         }
     }
@@ -4006,12 +4063,24 @@ export class UserRegistrationWizard {
 
         const textValue = this.toText(value);
 
+        if (key === 'cuip') {
+            return this.normalizeAlphanumericInput(textValue, 20) as UserRegistrationForm[K];
+        }
+
+        if (key === 'curp') {
+            return this.normalizeAlphanumericInput(textValue, 18) as UserRegistrationForm[K];
+        }
+
+        if (this.isNameField(key)) {
+            return this.normalizeNameInput(textValue) as UserRegistrationForm[K];
+        }
+
         if (this.shouldUppercaseField(key)) {
             return textValue.toUpperCase() as UserRegistrationForm[K];
         }
 
         if (key === 'phone') {
-            return textValue.replace(/\D/g, '').slice(0, 10) as UserRegistrationForm[K];
+            return this.normalizeNumericInput(textValue, 10) as UserRegistrationForm[K];
         }
 
         if (key === 'email') {
@@ -4038,6 +4107,34 @@ export class UserRegistrationWizard {
         ].includes(key);
     }
 
+    private isNameField(key: keyof UserRegistrationForm): boolean {
+        return ['firstName', 'lastName', 'secondLastName'].includes(key);
+    }
+
+    private normalizeNameInput(value: unknown): string {
+        return this.toText(value)
+            .normalize('NFC')
+            .replace(/[^\p{L}\s]/gu, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toUpperCase();
+    }
+
+    private normalizeAlphanumericInput(value: unknown, maxLength: number): string {
+        return this.toText(value)
+            .normalize('NFKC')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '')
+            .slice(0, maxLength);
+    }
+
+    private normalizeNumericInput(value: unknown, maxLength: number): string {
+        return this.toText(value)
+            .normalize('NFKC')
+            .replace(/\D/g, '')
+            .slice(0, maxLength);
+    }
+
     private isValidCurp(value: string): boolean {
         const curp = this.toText(value).toUpperCase();
 
@@ -4048,7 +4145,7 @@ export class UserRegistrationWizard {
     }
 
     private normalizeRfc(value: string): string {
-        return this.toText(value).toUpperCase().slice(0, 13);
+        return this.normalizeAlphanumericInput(value, 13);
     }
 
     /**
@@ -4139,7 +4236,7 @@ export class UserRegistrationWizard {
     private isValidRfc(value: string): boolean {
         const rfc = this.toText(value).toUpperCase();
 
-        return /^([A-ZÑ&]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
+        return /^([A-Z]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
     }
 
     private isValidEmail(value: string): boolean {

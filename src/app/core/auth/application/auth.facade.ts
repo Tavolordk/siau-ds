@@ -804,18 +804,17 @@ export class AuthFacade {
     private expireInactiveSession(): void {
         const currentSession = this.session();
 
-        // El cierre local es inmediato: no depende de que el refresh token ni el
-        // endpoint de logout sigan vigentes o respondan.
-        this.forceLocalLogout('La sesión se cerró por inactividad. Inicia sesión nuevamente.');
-
-        if (!currentSession) {
-            return;
+        // La suscripción debe iniciar antes de limpiar el almacenamiento local:
+        // el interceptor toma de ahí el Bearer para autorizar DELETE /sesiones.
+        // El cierre visual sigue siendo inmediato justo después de despachar la petición.
+        if (currentSession) {
+            this.api
+                .logout(currentSession, 'INACTIVITY_TIMEOUT')
+                .pipe(catchError(() => of(void 0)))
+                .subscribe();
         }
 
-        this.api
-            .logout(currentSession, 'INACTIVITY_TIMEOUT')
-            .pipe(catchError(() => of(void 0)))
-            .subscribe();
+        this.forceLocalLogout('La sesión se cerró por inactividad. Inicia sesión nuevamente.');
     }
 
     private registerActivityListeners(): void {

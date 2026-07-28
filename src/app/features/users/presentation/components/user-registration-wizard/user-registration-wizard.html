@@ -70,11 +70,11 @@
             <div class="registration-wizard__edit-bar"
                 [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
                 <div class="registration-wizard__edit-bar-text">
-                    <strong>{{ readonlyMode() ? 'Vista de usuario suspendido' : (editEnabled() ? 'Edición habilitada' :
+                    <strong>{{ readonlyMode() ? getReadonlyModeTitle() : (editEnabled() ? 'Edición habilitada' :
                         'Vista de usuario') }}</strong>
                     <span>
                         {{ readonlyMode()
-                        ? 'El usuario está suspendido. Solo puedes consultar su detalle.'
+                        ? getReadonlyModeDescription()
                         : (editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
                         Presiona Editar para modificarlos.') }}
                     </span>
@@ -103,7 +103,7 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Nombre(s), primer apellido, sexo y estado civil son obligatorios. CURP, RFC y fecha de nacimiento
+                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC, estado civil y fecha de nacimiento
                             se pueden complementar posteriormente; si se capturan, se validarán.</small>
                     </span>
                 </label>
@@ -151,11 +151,11 @@
 
                 <div class="registration-wizard__grid">
                     <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
-                        [maxLength]="20" (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
+                        [maxLength]="20" [alphanumericOnly]="true" (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
-                            [required]="!form().expressCreation" [maxLength]="18" [value]="form().curp"
+                            [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true" [value]="form().curp"
                             [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
                             (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
 
@@ -177,27 +177,27 @@
                     </div>
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="rfcRequired()"
-                        [maxLength]="13" [hint]="rfcHint()" [value]="form().rfc" (valueChange)="updateRfc($event)"
+                        [maxLength]="13" [alphanumericOnly]="true" [hint]="rfcHint()" [value]="form().rfc" (valueChange)="updateRfc($event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
-                        [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
+                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
-                        [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
+                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-input label="Segundo Apellido" placeholder="Opcional" [value]="form().secondLastName"
+                    <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100" [alphabeticOnly]="true" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-select label="Sexo" placeholder="" [required]="true" [options]="genderOptions()"
+                    <siau-select label="Sexo" placeholder="Seleccione sexo" [required]="true" [options]="genderOptions()"
                         [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
-                        [required]="true" [options]="civilStatusOptions()"
+                        [options]="civilStatusOptions()"
                         [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
                         [disabled]="isFormDisabled()" />
 
@@ -550,7 +550,7 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
-                        [maxLength]="10" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
+                        [maxLength]="10" [numericOnly]="true" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
@@ -650,12 +650,12 @@
                         <div class="registration-wizard__profiles-add-title">Agregar sistema</div>
 
                         <div class="registration-wizard__profiles-add-grid">
-                            <siau-select label="Sistema" placeholder="" [options]="systemOptions()"
+                            <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
                                 [required]="true" [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
-                            <siau-select label="Perfil / Rol" placeholder="" [options]="availableRoleOptions()"
+                            <siau-select label="Perfil / Rol" placeholder="Seleccione rol" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles() || !selectedSystem()" />
                             }
@@ -785,16 +785,16 @@
                             </button>
 
                             <button type="button" class="registration-wizard__status-card"
-                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'disabled'"
-                                [disabled]="isAccountStatusDisabled('disabled')" (click)="setAccountStatus('disabled')">
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'baja'"
+                                [disabled]="isAccountStatusDisabled('baja')" (click)="setAccountStatus('baja')">
                                 <div class="registration-wizard__status-card-title">
-                                    @if (form().accountStatus === 'disabled') {
+                                    @if (form().accountStatus === 'baja') {
                                     <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
                                     }
-                                    Inhabilitado
+                                    Baja
                                 </div>
                                 <div class="registration-wizard__status-card-text">
-                                    La cuenta se crea bloqueada de forma permanente
+                                    Cuenta bloqueada de forma permanente
                                 </div>
                             </button>
 
@@ -809,7 +809,21 @@
                                     Suspendido
                                 </div>
                                 <div class="registration-wizard__status-card-text">
-                                    Acceso bloqueado temporalmente hasta resolución
+                                    Acceso bloqueado temporalmente hasta resolución del caso
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'blocked'"
+                                [disabled]="isAccountStatusDisabled('blocked')" (click)="setAccountStatus('blocked')">
+                                <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'blocked') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
+                                    Bloqueado
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Acceso bloqueado temporalmente por seguridad
                                 </div>
                             </button>
                         </div>
