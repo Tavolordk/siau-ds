@@ -49,6 +49,15 @@
                         </dd>
                     </div>
 
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>Vencimiento ECCC</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass('')">
+                                {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </span>
+                        </dd>
+                    </div>
+
                 </dl>
             </section>
             }
@@ -252,6 +261,15 @@
                             <dd>
                                 <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
                                     {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                                </span>
+                            </dd>
+                        </div>
+
+                        <div class="registration-wizard__curp-validation-row">
+                            <dt>Vencimiento ECCC</dt>
+                            <dd>
+                                <span [class]="getCurpValidationStatusClass('')">
+                                    {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
                                 </span>
                             </dd>
                         </div>

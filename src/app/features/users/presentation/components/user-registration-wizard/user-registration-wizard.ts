@@ -34,6 +34,10 @@ import {
 } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
+import {
+    EcccPersonalApiRepository,
+    EcccPersonalLookupRequest,
+} from '../../../data-access/eccc-personal-api.repository';
 import { UserRegistrationDraftStorage } from '../../../data-access/user-registration-draft.storage';
 import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
@@ -52,9 +56,7 @@ import {
 type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
-type CurpPersonalStatus = 'active' | 'inactive' | 'no-information';
-type CurpEcccStatus = 'approved' | 'rejected' | 'no-information';
-type CurpValidationStatus = CurpPersonalStatus | CurpEcccStatus;
+type CurpValidationStatus = string;
 
 type WizardStepId =
     | 'personal-data'
@@ -119,8 +121,9 @@ interface IdentitySnapshot {
 }
 
 interface CurpValidationSummary {
-    readonly personal: CurpPersonalStatus;
-    readonly eccc: CurpEcccStatus;
+    readonly personal: string;
+    readonly eccc: string;
+    readonly expirationDate: string;
 }
 
 interface UserProfileOption {
@@ -161,13 +164,10 @@ interface SaveSuccessModalState {
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
 
-/**
- * Resultado temporal mientras se habilita el servicio de consulta complementaria.
- * Se evita simular una aprobación o una situación laboral que aún no fue validada.
- */
-const HARDCODED_CURP_VALIDATION_SUMMARY: CurpValidationSummary = {
-    personal: 'no-information',
-    eccc: 'no-information',
+const PENDING_CURP_VALIDATION_SUMMARY: CurpValidationSummary = {
+    personal: 'Pendiente',
+    eccc: 'Pendiente',
+    expirationDate: 'Sin información',
 };
 
 const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
@@ -248,12 +248,15 @@ export class UserRegistrationWizard {
     private readonly usersFacade = inject(UsersFacade);
     private readonly correoFacade = inject(CorreoFacade);
     private readonly renapoFacade = inject(RenapoFacade);
+    private readonly ecccPersonalApi = inject(EcccPersonalApiRepository);
     private readonly authStorage = inject(AuthStorage);
     private readonly draftStorage = inject(UserRegistrationDraftStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
     private curpLookupSequence = 0;
+    private ecccPersonalLookupSequence = 0;
+    private lastEcccPersonalLookupKey = '';
     private lastRenapoCurp = '';
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
@@ -935,6 +938,15 @@ export class UserRegistrationWizard {
             [key]: normalizedValue,
         }));
 
+        if (
+            key === 'cuip' ||
+            key === 'firstName' ||
+            key === 'lastName' ||
+            key === 'secondLastName'
+        ) {
+            this.tryConsultEcccAndPersonal();
+        }
+
         if (key === 'email' || key === 'phone') {
             this.clearFieldError('email');
             this.clearFieldError('phone');
@@ -1016,6 +1028,7 @@ export class UserRegistrationWizard {
             rfc,
         }));
         this.clearFieldError('rfc');
+        this.tryConsultEcccAndPersonal();
     }
 
     protected toggleCurpUnlock(checked: boolean): void {
@@ -1614,26 +1627,17 @@ export class UserRegistrationWizard {
     }
 
     protected getCurpValidationStatusLabel(status: CurpValidationStatus): string {
-        switch (status) {
-            case 'active':
-                return 'Activo';
-            case 'inactive':
-                return 'Inactivo';
-            case 'approved':
-                return 'Aprobado';
-            case 'rejected':
-                return 'Reprobado';
-            default:
-                return 'Sin información';
-        }
+        return this.toText(status) || 'Sin información';
     }
 
     protected getCurpValidationStatusClass(status: CurpValidationStatus): string {
-        const tone = status === 'active' || status === 'approved'
-            ? 'success'
-            : status === 'inactive' || status === 'rejected'
-                ? 'danger'
-                : 'neutral';
+        const normalizedStatus = this.normalizeText(status);
+        const dangerStatuses = ['inactivo', 'reprobado', 'rechazado', 'vencido', 'no vigente'];
+        const successStatuses = ['activo', 'aprobado', 'vigente'];
+        const isDanger = dangerStatuses.some((value) => normalizedStatus.includes(value));
+        const isSuccess =
+            !isDanger && successStatuses.some((value) => normalizedStatus.includes(value));
+        const tone = isDanger ? 'danger' : isSuccess ? 'success' : 'neutral';
 
         return `registration-wizard__curp-validation-pill registration-wizard__curp-validation-pill--${tone}`;
     }
@@ -1656,7 +1660,7 @@ export class UserRegistrationWizard {
         }));
         this.clearFieldError('rfc');
 
-        this.loadHardcodedCurpValidationSummary(normalizedCurp);
+        this.prepareEcccPersonalValidation(normalizedCurp);
         this.curpUnlockChecked.set(false);
         this.curpLocked.set(false);
         this.renapoLookupStatus.set('loading');
@@ -1679,6 +1683,7 @@ export class UserRegistrationWizard {
 
                     if (response.exito && response.datos && this.hasCompleteRenapoPersonalData(response.datos)) {
                         this.applyRenapoPersonalData(response.datos, normalizedCurp);
+                        this.tryConsultEcccAndPersonal();
                         this.renapoLookupStatus.set('success');
                         this.renapoMessage.set(
                             response.mensaje ||
@@ -1805,6 +1810,105 @@ export class UserRegistrationWizard {
         return option?.value ?? '';
     }
 
+    private prepareEcccPersonalValidation(curp: string): void {
+        if (!this.isValidCurp(curp)) {
+            this.clearCurpValidationSummary();
+            return;
+        }
+
+        this.ecccPersonalLookupSequence += 1;
+        this.lastEcccPersonalLookupKey = '';
+        this.curpValidationSummary.set({ ...PENDING_CURP_VALIDATION_SUMMARY });
+    }
+
+    private tryConsultEcccAndPersonal(): void {
+        const current = this.form();
+
+        if (!this.isValidCurp(current.curp)) {
+            this.clearCurpValidationSummary();
+            return;
+        }
+
+        const request = this.buildEcccPersonalLookupRequest(current);
+
+        if (!request) {
+            this.ecccPersonalLookupSequence += 1;
+            this.lastEcccPersonalLookupKey = '';
+            this.curpValidationSummary.set({ ...PENDING_CURP_VALIDATION_SUMMARY });
+            return;
+        }
+
+        const lookupKey = JSON.stringify(request);
+
+        if (lookupKey === this.lastEcccPersonalLookupKey) {
+            return;
+        }
+
+        const requestSequence = ++this.ecccPersonalLookupSequence;
+        this.lastEcccPersonalLookupKey = lookupKey;
+        this.curpValidationSummary.set({
+            personal: 'Consultando...',
+            eccc: 'Consultando...',
+            expirationDate: 'Consultando...',
+        });
+
+        forkJoin({
+            eccc: this.ecccPersonalApi.consultarEccc(request).pipe(
+                catchError((error: unknown) => {
+                    console.error('Error consultando ECCC.', error);
+                    return of(null);
+                }),
+            ),
+            personal: this.ecccPersonalApi.consultarPersonal(request).pipe(
+                catchError((error: unknown) => {
+                    console.error('Error consultando Personal.', error);
+                    return of(null);
+                }),
+            ),
+        })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(({ eccc, personal }) => {
+                const currentRequest = this.buildEcccPersonalLookupRequest(this.form());
+                const currentLookupKey = currentRequest ? JSON.stringify(currentRequest) : '';
+
+                if (
+                    requestSequence !== this.ecccPersonalLookupSequence ||
+                    lookupKey !== currentLookupKey
+                ) {
+                    return;
+                }
+
+                this.curpValidationSummary.set({
+                    personal: this.toText(personal?.estatusPersonal) || 'Sin información',
+                    eccc: this.toText(eccc?.estatusActual) || 'Sin información',
+                    expirationDate:
+                        this.toText(eccc?.fechaVencimiento) || 'Sin información',
+                });
+            });
+    }
+
+    private buildEcccPersonalLookupRequest(
+        form: UserRegistrationForm,
+    ): EcccPersonalLookupRequest | null {
+        const cuip = this.toText(form.cuip).toUpperCase();
+        const nombre = this.toText(form.firstName);
+        const primerApellido = this.toText(form.lastName);
+        const segundoApellido = this.toText(form.secondLastName);
+        const rfc = this.toText(form.rfc).toUpperCase();
+
+        if (!cuip || !nombre || !primerApellido || !this.isValidRfc(rfc)) {
+            return null;
+        }
+
+        return {
+            cuip,
+            nombre,
+            primerApellido,
+            segundoApellido,
+            rfc,
+        };
+    }
+
     private resetRenapoLookupState(): void {
         this.curpLookupSequence += 1;
         this.lastRenapoCurp = '';
@@ -1815,16 +1919,9 @@ export class UserRegistrationWizard {
         this.clearCurpValidationSummary();
     }
 
-    private loadHardcodedCurpValidationSummary(curp: string): void {
-        if (!this.isValidCurp(curp)) {
-            this.clearCurpValidationSummary();
-            return;
-        }
-
-        this.curpValidationSummary.set({ ...HARDCODED_CURP_VALIDATION_SUMMARY });
-    }
-
     private clearCurpValidationSummary(): void {
+        this.ecccPersonalLookupSequence += 1;
+        this.lastEcccPersonalLookupKey = '';
         this.curpValidationSummary.set(null);
     }
 
