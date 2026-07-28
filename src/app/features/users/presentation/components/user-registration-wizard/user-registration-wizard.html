@@ -16,7 +16,7 @@
                 }
             </div>
 
-            @if (curpValidationSummaryForPersonalStep(); as curpValidation) {
+            @if (curpValidationSummaryForDisplay(); as curpValidation) {
             <section class="registration-wizard__curp-validation registration-wizard__curp-validation--sidebar"
                 aria-live="polite">
                 <div class="registration-wizard__curp-validation-header">
@@ -40,21 +40,15 @@
                         </dd>
                     </div>
 
-                    <div class="registration-wizard__curp-validation-row">
+                    <div class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
                         <dt>ECCC</dt>
-                        <dd>
+                        <dd class="registration-wizard__curp-validation-eccc">
                             <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
                                 {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
                             </span>
-                        </dd>
-                    </div>
-
-                    <div class="registration-wizard__curp-validation-row">
-                        <dt>Vencimiento ECCC</dt>
-                        <dd>
-                            <span [class]="getCurpValidationStatusClass('')">
-                                {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
-                            </span>
+                            <small class="registration-wizard__curp-validation-expiration">
+                                Vence: {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </small>
                         </dd>
                     </div>
 
@@ -128,6 +122,46 @@
                 </button>
             </div>
             }
+            }
+
+            @if (curpValidationSummaryForDisplay(); as curpValidation) {
+            <section class="registration-wizard__curp-validation registration-wizard__curp-validation--mobile"
+                aria-live="polite">
+                <div class="registration-wizard__curp-validation-header">
+                    <span class="registration-wizard__curp-validation-icon">
+                        <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div>
+                        <span>Validación CURP</span>
+                        <strong>Personal y ECCC</strong>
+                    </div>
+                </div>
+
+                <dl class="registration-wizard__curp-validation-list">
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>Personal</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
+                                {{ getCurpValidationStatusLabel(curpValidation.personal) }}
+                            </span>
+                        </dd>
+                    </div>
+
+                    <div class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
+                        <dt>ECCC</dt>
+                        <dd class="registration-wizard__curp-validation-eccc">
+                            <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
+                                {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                            </span>
+                            <small class="registration-wizard__curp-validation-expiration">
+                                Vence: {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </small>
+                        </dd>
+                    </div>
+
+                </dl>
+            </section>
             }
 
             @switch (activeStepId()) {
@@ -232,51 +266,6 @@
                 </div>
                 }
 
-                @if (curpValidationSummaryForPersonalStep(); as curpValidation) {
-                <section class="registration-wizard__curp-validation registration-wizard__curp-validation--mobile"
-                    aria-live="polite">
-                    <div class="registration-wizard__curp-validation-header">
-                        <span class="registration-wizard__curp-validation-icon">
-                            <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
-                        </span>
-
-                        <div>
-                            <span>Validación CURP</span>
-                            <strong>Personal y ECCC</strong>
-                        </div>
-                    </div>
-
-                    <dl class="registration-wizard__curp-validation-list">
-                        <div class="registration-wizard__curp-validation-row">
-                            <dt>Personal</dt>
-                            <dd>
-                                <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
-                                    {{ getCurpValidationStatusLabel(curpValidation.personal) }}
-                                </span>
-                            </dd>
-                        </div>
-
-                        <div class="registration-wizard__curp-validation-row">
-                            <dt>ECCC</dt>
-                            <dd>
-                                <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
-                                    {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
-                                </span>
-                            </dd>
-                        </div>
-
-                        <div class="registration-wizard__curp-validation-row">
-                            <dt>Vencimiento ECCC</dt>
-                            <dd>
-                                <span [class]="getCurpValidationStatusClass('')">
-                                    {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
-                                </span>
-                            </dd>
-                        </div>
-
-                    </dl>
-                </section>
-                }
             </section>
             }
 

@@ -164,12 +164,6 @@ interface SaveSuccessModalState {
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
 
-const PENDING_CURP_VALIDATION_SUMMARY: CurpValidationSummary = {
-    personal: 'Pendiente',
-    eccc: 'Pendiente',
-    expirationDate: 'Sin información',
-};
-
 const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
     'personal-data',
     'assignment',
@@ -558,13 +552,9 @@ export class UserRegistrationWizard {
         }
     });
 
-    protected readonly curpValidationSummaryForPersonalStep = computed(() => {
-        if (this.activeStepId() !== 'personal-data') {
-            return null;
-        }
-
-        return this.curpValidationSummary();
-    });
+    protected readonly curpValidationSummaryForDisplay = computed(() =>
+        this.curpValidationSummary(),
+    );
 
     protected readonly currentStepErrors = computed<readonly ValidationMessage[]>(() => {
         const errors = this.formErrors();
@@ -758,6 +748,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (current === 'personal-data') {
+            this.consultEcccAndPersonal();
+        }
+
         this.markCompleted(current);
 
         if (currentIndex < stepOrder.length - 1) {
@@ -944,7 +938,7 @@ export class UserRegistrationWizard {
             key === 'lastName' ||
             key === 'secondLastName'
         ) {
-            this.tryConsultEcccAndPersonal();
+            this.clearCurpValidationSummary();
         }
 
         if (key === 'email' || key === 'phone') {
@@ -1028,7 +1022,6 @@ export class UserRegistrationWizard {
             rfc,
         }));
         this.clearFieldError('rfc');
-        this.tryConsultEcccAndPersonal();
     }
 
     protected toggleCurpUnlock(checked: boolean): void {
@@ -1660,7 +1653,7 @@ export class UserRegistrationWizard {
         }));
         this.clearFieldError('rfc');
 
-        this.prepareEcccPersonalValidation(normalizedCurp);
+        this.clearCurpValidationSummary();
         this.curpUnlockChecked.set(false);
         this.curpLocked.set(false);
         this.renapoLookupStatus.set('loading');
@@ -1683,7 +1676,6 @@ export class UserRegistrationWizard {
 
                     if (response.exito && response.datos && this.hasCompleteRenapoPersonalData(response.datos)) {
                         this.applyRenapoPersonalData(response.datos, normalizedCurp);
-                        this.tryConsultEcccAndPersonal();
                         this.renapoLookupStatus.set('success');
                         this.renapoMessage.set(
                             response.mensaje ||
@@ -1810,31 +1802,11 @@ export class UserRegistrationWizard {
         return option?.value ?? '';
     }
 
-    private prepareEcccPersonalValidation(curp: string): void {
-        if (!this.isValidCurp(curp)) {
-            this.clearCurpValidationSummary();
-            return;
-        }
-
-        this.ecccPersonalLookupSequence += 1;
-        this.lastEcccPersonalLookupKey = '';
-        this.curpValidationSummary.set({ ...PENDING_CURP_VALIDATION_SUMMARY });
-    }
-
-    private tryConsultEcccAndPersonal(): void {
-        const current = this.form();
-
-        if (!this.isValidCurp(current.curp)) {
-            this.clearCurpValidationSummary();
-            return;
-        }
-
-        const request = this.buildEcccPersonalLookupRequest(current);
+    private consultEcccAndPersonal(): void {
+        const request = this.buildEcccPersonalLookupRequest(this.form());
 
         if (!request) {
-            this.ecccPersonalLookupSequence += 1;
-            this.lastEcccPersonalLookupKey = '';
-            this.curpValidationSummary.set({ ...PENDING_CURP_VALIDATION_SUMMARY });
+            this.clearCurpValidationSummary();
             return;
         }
 
@@ -1894,9 +1866,9 @@ export class UserRegistrationWizard {
         const nombre = this.toText(form.firstName);
         const primerApellido = this.toText(form.lastName);
         const segundoApellido = this.toText(form.secondLastName);
-        const rfc = this.toText(form.rfc).toUpperCase();
+        const curp = this.toText(form.curp).toUpperCase();
 
-        if (!cuip || !nombre || !primerApellido || !this.isValidRfc(rfc)) {
+        if (!cuip || !nombre || !primerApellido || !this.isValidCurp(curp)) {
             return null;
         }
 
@@ -1905,7 +1877,7 @@ export class UserRegistrationWizard {
             nombre,
             primerApellido,
             segundoApellido,
-            rfc,
+            curp,
         };
     }
 

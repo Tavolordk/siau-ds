@@ -11,7 +11,7 @@ export interface EcccPersonalLookupRequest {
     readonly nombre: string;
     readonly primerApellido: string;
     readonly segundoApellido: string;
-    readonly rfc: string;
+    readonly curp: string;
 }
 
 export interface EcccExamData {
@@ -19,7 +19,7 @@ export interface EcccExamData {
     readonly nombre: string;
     readonly primerApellido: string;
     readonly segundoApellido: string;
-    readonly rfc: string;
+    readonly curp: string;
     readonly estatusExamen: string;
     readonly fechaExamen: string;
     readonly fechaVencimiento: string;
@@ -32,7 +32,7 @@ export interface PersonalData {
     readonly nombre: string;
     readonly primerApellido: string;
     readonly segundoApellido: string;
-    readonly rfc: string;
+    readonly curp: string;
     readonly estatusPersonal: string;
 }
 
