@@ -52,6 +52,9 @@ const VALUE_KEYS = [
 const LABEL_KEYS = [
     // Perfiles por sistema
     // Estos van antes de "sistema" para no mostrar SIAU/CLC/CERTIAMX como perfil.
+    'perfilDescripcion',
+    'PerfilDescripcion',
+    'PERFILDESCRIPCION',
     'descripcionPerfil',
     'DescripcionPerfil',
     'DESCRIPCIONPERFIL',

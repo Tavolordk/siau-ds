@@ -7,6 +7,12 @@ export interface CatalogoResponse<T extends CatalogoRecord = CatalogoRecord> {
     readonly datos: readonly T[];
 }
 
+export interface EstructuraPerfilResponse {
+    readonly mensaje: string;
+    readonly sistemas: readonly CatalogoRecord[];
+    readonly perfiles: readonly CatalogoRecord[];
+}
+
 export interface CatalogoOption {
     readonly value: string;
     readonly label: string;

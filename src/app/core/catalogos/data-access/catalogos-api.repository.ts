@@ -9,6 +9,7 @@ import {
     EstructuraOrganizacionalQuery,
     EstructuraOrgQuery,
     EstructuraPerfilQuery,
+    EstructuraPerfilResponse,
     SistemaPerfilesQuery,
 } from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
@@ -87,7 +88,21 @@ export class CatalogosApiRepository implements CatalogosRepository {
     obtenerEstructuraPerfil(
         query: EstructuraPerfilQuery,
     ): Observable<readonly CatalogoRecord[]> {
-        return this.getCatalogo('estructura_perfil', query);
+        const url = `${this.apiBaseUrl}${CATALOGOS_PATH}/estructura_perfil`;
+
+        return this.http
+            .get<EstructuraPerfilResponse>(url, {
+                params: this.toHttpParams(query),
+            })
+            .pipe(
+                // Este endpoint no usa la envoltura genérica `datos`; cada perfil
+                // ya incluye idSistema/sistema, por lo que con esta colección se
+                // construyen tanto el select de sistemas como el de perfiles.
+                map((response) => response.perfiles ?? []),
+                catchError((error: HttpErrorResponse) =>
+                    throwError(() => new Error(this.getErrorMessage(error))),
+                ),
+            );
     }
 
     obtenerTipoEstructura(): Observable<readonly CatalogoRecord[]> {
