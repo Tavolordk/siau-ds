@@ -24,15 +24,14 @@ type CatalogoQuery =
     | SistemaPerfilesQuery;
 
 const QUERY_PARAM_NAMES: Record<string, string> = {
-    nivel: 'Nivel',
-    estadoId: 'EstadoId',
-    municipioId: 'MunicipioId',
-    soloActivos: 'SoloActivos',
-    tipoEstructuraId: 'TipoEstructuraId',
-    tipoInstitucionId: 'TipoInstitucionId',
-    padreId: 'PadreId',
-    busqueda: 'Busqueda',
-    sistema: 'Sistema',
+    nivel: 'nivel',
+    estadoId: 'estadoId',
+    soloActivos: 'soloActivos',
+    tipoEstructuraId: 'tipoEstructuraId',
+    tipoInstitucionId: 'tipoInstitucionId',
+    padreId: 'padreId',
+    busqueda: 'busqueda',
+    sistema: 'sistema',
     estructuraId: 'estructuraId',
 };
 

@@ -1291,7 +1291,7 @@ export class UserRegistrationWizard {
         }));
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
-        this.loadAssignmentChildren(value, this.decentralizedBodyOptions);
+        this.loadAssignmentChildren(value, this.decentralizedBodyOptions, 2);
     }
 
     protected updateAssignmentDecentralizedBody(value: string | null): void {
@@ -1428,7 +1428,7 @@ export class UserRegistrationWizard {
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionChildren(value, this.commissionDependencyOptions);
-        this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions);
+        this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions, 2);
     }
 
     protected updateCommissionDependency(value: string | null): void {
@@ -3206,7 +3206,7 @@ export class UserRegistrationWizard {
         }
 
         if (form.institution) {
-            this.loadAssignmentChildren(form.institution, this.decentralizedBodyOptions);
+            this.loadAssignmentChildren(form.institution, this.decentralizedBodyOptions, 2);
         }
 
         if (form.decentralizedBody) {
@@ -3227,7 +3227,7 @@ export class UserRegistrationWizard {
 
         if (form.commissionInstitution) {
             this.loadCommissionChildren(form.commissionInstitution, this.commissionDependencyOptions);
-            this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions);
+            this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions, 2);
         }
 
         if (form.commissionDecentralizedBody) {
@@ -3566,28 +3566,33 @@ export class UserRegistrationWizard {
     private loadAssignmentInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.institutionType);
-        const estadoId = !this.requiresEntityForInstitution(current.institutionType)
-            ? undefined
-            : this.toCatalogId(current.entity);
-        const municipioId = !this.requiresMunicipalityForInstitution(current.institutionType)
-            ? undefined
-            : this.toCatalogId(current.municipality);
+        const estadoId = this.requiresEntityForInstitution(current.institutionType)
+            ? this.toCatalogId(current.entity)
+            : undefined;
+        const padreId = this.requiresMunicipalityForInstitution(current.institutionType)
+            ? this.toCatalogId(current.municipality)
+            : undefined;
 
-        if (!tipoInstitucionId && !estadoId && !municipioId) {
+        if (
+            !tipoInstitucionId ||
+            (this.requiresEntityForInstitution(current.institutionType) && !estadoId) ||
+            (this.requiresMunicipalityForInstitution(current.institutionType) && !padreId)
+        ) {
             this.institutionOptions.set([]);
             return;
         }
 
-        this.loadOrgOptions(this.institutionOptions, {
+        this.loadRegionalOrgOptions(this.institutionOptions, {
             tipoInstitucionId,
             estadoId,
-            municipioId,
+            padreId,
         });
     }
 
     private loadAssignmentChildren(
         parentValue: string | null,
         target: WritableSignal<readonly SiauSelectOption[]>,
+        tipoEstructuraId?: number,
     ): void {
         const padreId = this.toCatalogId(parentValue);
         const current = this.form();
@@ -3597,14 +3602,19 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.loadOrgOptions(target, {
+        if (this.isFederalInstitutionType(current.institutionType)) {
+            this.loadFederalOrgOptions(target, {
+                tipoEstructuraId,
+                padreId,
+            });
+            return;
+        }
+
+        this.loadRegionalOrgOptions(target, {
             tipoInstitucionId: this.toCatalogId(current.institutionType),
-            estadoId: !this.requiresEntityForInstitution(current.institutionType)
-                ? undefined
-                : this.toCatalogId(current.entity),
-            municipioId: !this.requiresMunicipalityForInstitution(current.institutionType)
-                ? undefined
-                : this.toCatalogId(current.municipality),
+            estadoId: this.requiresEntityForInstitution(current.institutionType)
+                ? this.toCatalogId(current.entity)
+                : undefined,
             padreId,
         });
     }
@@ -3612,28 +3622,33 @@ export class UserRegistrationWizard {
     private loadCommissionInstitutions(): void {
         const current = this.form();
         const tipoInstitucionId = this.toCatalogId(current.commissionInstitutionType);
-        const estadoId = !this.requiresEntityForInstitution(current.commissionInstitutionType)
-            ? undefined
-            : this.toCatalogId(current.commissionEntity);
-        const municipioId = !this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
-            ? undefined
-            : this.toCatalogId(current.commissionMunicipality);
+        const estadoId = this.requiresEntityForInstitution(current.commissionInstitutionType)
+            ? this.toCatalogId(current.commissionEntity)
+            : undefined;
+        const padreId = this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
+            ? this.toCatalogId(current.commissionMunicipality)
+            : undefined;
 
-        if (!tipoInstitucionId && !estadoId && !municipioId) {
+        if (
+            !tipoInstitucionId ||
+            (this.requiresEntityForInstitution(current.commissionInstitutionType) && !estadoId) ||
+            (this.requiresMunicipalityForInstitution(current.commissionInstitutionType) && !padreId)
+        ) {
             this.commissionInstitutionOptions.set([]);
             return;
         }
 
-        this.loadOrgOptions(this.commissionInstitutionOptions, {
+        this.loadRegionalOrgOptions(this.commissionInstitutionOptions, {
             tipoInstitucionId,
             estadoId,
-            municipioId,
+            padreId,
         });
     }
 
     private loadCommissionChildren(
         parentValue: string | null,
         target: WritableSignal<readonly SiauSelectOption[]>,
+        tipoEstructuraId?: number,
     ): void {
         const padreId = this.toCatalogId(parentValue);
         const current = this.form();
@@ -3643,37 +3658,65 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.loadOrgOptions(target, {
+        if (this.isFederalInstitutionType(current.commissionInstitutionType)) {
+            this.loadFederalOrgOptions(target, {
+                tipoEstructuraId,
+                padreId,
+            });
+            return;
+        }
+
+        this.loadRegionalOrgOptions(target, {
             tipoInstitucionId: this.toCatalogId(current.commissionInstitutionType),
-            estadoId: !this.requiresEntityForInstitution(current.commissionInstitutionType)
-                ? undefined
-                : this.toCatalogId(current.commissionEntity),
-            municipioId: !this.requiresMunicipalityForInstitution(current.commissionInstitutionType)
-                ? undefined
-                : this.toCatalogId(current.commissionMunicipality),
+            estadoId: this.requiresEntityForInstitution(current.commissionInstitutionType)
+                ? this.toCatalogId(current.commissionEntity)
+                : undefined,
             padreId,
         });
     }
 
-    private loadOrgOptions(
+    private loadFederalOrgOptions(
         target: WritableSignal<readonly SiauSelectOption[]>,
         query: {
-            tipoInstitucionId?: number;
-            estadoId?: number;
-            municipioId?: number;
-            padreId?: number;
+            tipoEstructuraId?: number;
+            padreId: number;
         },
     ): void {
         this.catalogosFacade
-            .obtenerEstructuraOrgOptions({
-                ...query,
+            .obtenerEstructuraOrganizacionalOptions({
+                tipoEstructuraId: query.tipoEstructuraId,
+                padreId: query.padreId,
                 soloActivos: 1,
             })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: (options) => target.set(this.mergeSelectOptions(options, target())),
                 error: (error: unknown) => {
-                    console.error('Error cargando estructura orgánica.', error);
+                    console.error('Error cargando estructura organizacional federal.', error);
+                },
+            });
+    }
+
+    private loadRegionalOrgOptions(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+        query: {
+            tipoInstitucionId?: number;
+            estadoId?: number;
+            padreId?: number;
+        },
+    ): void {
+        this.catalogosFacade
+            .obtenerEstructuraOrgOptions({
+                tipoInstitucionId: query.tipoInstitucionId,
+                estadoId: query.estadoId,
+                padreId: query.padreId,
+                soloActivos: 1,
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => target.set(this.mergeSelectOptions(options, target())),
+                error: (error: unknown) => {
+                    console.error('Error cargando estructura orgánica estatal o municipal.', error);
                 },
             });
     }
@@ -3750,6 +3793,13 @@ export class UserRegistrationWizard {
                 roleLabel: userRole.label,
             },
         ]);
+    }
+
+    private isFederalInstitutionType(value: string | null | undefined): boolean {
+        return (
+            this.toCatalogId(value) === 1 ||
+            this.getInstitutionTypeLabel(value).includes('federal')
+        );
     }
 
     private requiresEntityForInstitution(value: string | null | undefined): boolean {
