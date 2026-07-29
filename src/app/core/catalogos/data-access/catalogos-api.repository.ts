@@ -8,6 +8,7 @@ import {
     EstadoMunicipioQuery,
     EstructuraOrganizacionalQuery,
     EstructuraOrgQuery,
+    EstructuraPerfilQuery,
     SistemaPerfilesQuery,
 } from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
@@ -18,6 +19,7 @@ type CatalogoQuery =
     | EstadoMunicipioQuery
     | EstructuraOrganizacionalQuery
     | EstructuraOrgQuery
+    | EstructuraPerfilQuery
     | SistemaPerfilesQuery;
 
 const QUERY_PARAM_NAMES: Record<string, string> = {
@@ -30,6 +32,7 @@ const QUERY_PARAM_NAMES: Record<string, string> = {
     padreId: 'PadreId',
     busqueda: 'Busqueda',
     sistema: 'Sistema',
+    estructuraId: 'estructuraId',
 };
 
 @Injectable({ providedIn: 'root' })
@@ -81,6 +84,12 @@ export class CatalogosApiRepository implements CatalogosRepository {
         return this.getCatalogo('sistema_perfiles', query);
     }
 
+    obtenerEstructuraPerfil(
+        query: EstructuraPerfilQuery,
+    ): Observable<readonly CatalogoRecord[]> {
+        return this.getCatalogo('estructura_perfil', query);
+    }
+
     obtenerTipoEstructura(): Observable<readonly CatalogoRecord[]> {
         return this.getCatalogo('tipo_estructura');
     }
@@ -94,7 +103,14 @@ export class CatalogosApiRepository implements CatalogosRepository {
     }
 
     private getCatalogo(endpoint: string, query?: CatalogoQuery): Observable<readonly CatalogoRecord[]> {
-        const url = `${this.apiBaseUrl}${CATALOGOS_PATH}/${endpoint}`;
+        return this.getCatalogoByPath(`${CATALOGOS_PATH}/${endpoint}`, query);
+    }
+
+    private getCatalogoByPath(
+        path: string,
+        query?: CatalogoQuery,
+    ): Observable<readonly CatalogoRecord[]> {
+        const url = `${this.apiBaseUrl}${path}`;
 
         return this.http
             .get<CatalogoResponse>(url, {

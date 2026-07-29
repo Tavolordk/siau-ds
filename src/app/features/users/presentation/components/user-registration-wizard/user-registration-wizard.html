@@ -16,7 +16,7 @@
                 }
             </div>
 
-            @if (curpValidationSummaryForPersonalStep(); as curpValidation) {
+            @if (curpValidationSummaryForDisplay(); as curpValidation) {
             <section class="registration-wizard__curp-validation registration-wizard__curp-validation--sidebar"
                 aria-live="polite">
                 <div class="registration-wizard__curp-validation-header">
@@ -40,12 +40,15 @@
                         </dd>
                     </div>
 
-                    <div class="registration-wizard__curp-validation-row">
+                    <div class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
                         <dt>ECCC</dt>
-                        <dd>
+                        <dd class="registration-wizard__curp-validation-eccc">
                             <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
                                 {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
                             </span>
+                            <small class="registration-wizard__curp-validation-expiration">
+                                Vence: {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </small>
                         </dd>
                     </div>
 
@@ -119,6 +122,46 @@
                 </button>
             </div>
             }
+            }
+
+            @if (curpValidationSummaryForDisplay(); as curpValidation) {
+            <section class="registration-wizard__curp-validation registration-wizard__curp-validation--mobile"
+                aria-live="polite">
+                <div class="registration-wizard__curp-validation-header">
+                    <span class="registration-wizard__curp-validation-icon">
+                        <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div>
+                        <span>Validación CURP</span>
+                        <strong>Personal y ECCC</strong>
+                    </div>
+                </div>
+
+                <dl class="registration-wizard__curp-validation-list">
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>Personal</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
+                                {{ getCurpValidationStatusLabel(curpValidation.personal) }}
+                            </span>
+                        </dd>
+                    </div>
+
+                    <div class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
+                        <dt>ECCC</dt>
+                        <dd class="registration-wizard__curp-validation-eccc">
+                            <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
+                                {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                            </span>
+                            <small class="registration-wizard__curp-validation-expiration">
+                                Vence: {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </small>
+                        </dd>
+                    </div>
+
+                </dl>
+            </section>
             }
 
             @switch (activeStepId()) {
@@ -223,42 +266,6 @@
                 </div>
                 }
 
-                @if (curpValidationSummaryForPersonalStep(); as curpValidation) {
-                <section class="registration-wizard__curp-validation registration-wizard__curp-validation--mobile"
-                    aria-live="polite">
-                    <div class="registration-wizard__curp-validation-header">
-                        <span class="registration-wizard__curp-validation-icon">
-                            <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
-                        </span>
-
-                        <div>
-                            <span>Validación CURP</span>
-                            <strong>Personal y ECCC</strong>
-                        </div>
-                    </div>
-
-                    <dl class="registration-wizard__curp-validation-list">
-                        <div class="registration-wizard__curp-validation-row">
-                            <dt>Personal</dt>
-                            <dd>
-                                <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
-                                    {{ getCurpValidationStatusLabel(curpValidation.personal) }}
-                                </span>
-                            </dd>
-                        </div>
-
-                        <div class="registration-wizard__curp-validation-row">
-                            <dt>ECCC</dt>
-                            <dd>
-                                <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
-                                    {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
-                                </span>
-                            </dd>
-                        </div>
-
-                    </dl>
-                </section>
-                }
             </section>
             }
 
@@ -595,7 +602,32 @@
                 @if (!canAssignProfiles()) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Completa la adscripción o una comisión válida antes de asignar sistemas y perfiles.</span>
+                    <span>
+                        {{ form().commissionEnabled
+                        ? 'Completa una comisión válida para consultar sus sistemas y perfiles.'
+                        : 'Completa la adscripción para consultar sus sistemas y perfiles.' }}
+                    </span>
+                </div>
+                }
+
+                @if (structureProfileLookupStatus() === 'loading') {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                    <siau-lucide-icon name="loader-circle" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ structureProfileMessage() }}</span>
+                </div>
+                }
+
+                @if (structureProfileLookupStatus() === 'error') {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error">
+                    <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ structureProfileMessage() }}</span>
+                </div>
+                }
+
+                @if (structureProfileLookupStatus() === 'success' && systemOptions().length === 0) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ structureProfileMessage() }}</span>
                 </div>
                 }
 
@@ -652,18 +684,19 @@
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
-                                [required]="true" [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles()" />
+                                [hint]="structureProfileHint()" [required]="true"
+                                [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="Seleccione rol" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
-                                [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles() || !selectedSystem()" />
+                                [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem()" />
                             }
 
                             <div class="registration-wizard__profiles-add-action">
                                 <button type="button"
                                     class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
-                                    [disabled]="isFormDisabled() || isSubmitting() || !canAssignProfiles() || !canAddSelectedProfile()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !canAddSelectedProfile()"
                                     (click)="addAssignedProfile()">
                                     <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
                                     Agregar

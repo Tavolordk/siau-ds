@@ -2039,6 +2039,25 @@
   text-align: right;
 }
 
+.registration-wizard__curp-validation-row--eccc {
+  align-items: flex-start;
+}
+
+.registration-wizard__curp-validation-eccc {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.registration-wizard__curp-validation-expiration {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .registration-wizard__curp-validation-pill {
   min-height: 19px;
   padding: 3px 6px;
@@ -2069,6 +2088,54 @@
   border-color: rgba(255, 255, 255, 0.18);
   color: rgb(255, 255, 255);
   background: rgba(255, 255, 255, 0.14);
+}
+
+/* En escritorio damos más aire a la validación y evitamos que la fecha se parta. */
+@media (min-width: 921px) {
+  .registration-wizard__curp-validation--sidebar {
+    min-height: 170px;
+    padding: 12px 10px;
+    gap: 9px;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-header {
+    min-height: 34px;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-list {
+    gap: 7px;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-row {
+    min-height: 38px;
+    padding: 7px 8px;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-row dd {
+    flex: 0 0 auto;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-pill {
+    min-height: 22px;
+    padding: 4px 7px;
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-row--eccc {
+    min-height: 55px;
+  }
+
+  .registration-wizard__curp-validation--sidebar
+    .registration-wizard__curp-validation-expiration {
+    font-size: 9px;
+  }
 }
 
 @media (max-width: 920px) {
@@ -2113,6 +2180,11 @@
     border-color: rgba(27, 31, 74, 0.12);
     color: rgb(62, 92, 118);
     background: rgba(62, 92, 118, 0.1);
+  }
+
+  .registration-wizard__curp-validation--mobile
+    .registration-wizard__curp-validation-expiration {
+    color: rgba(27, 31, 74, 0.58);
   }
 }
 

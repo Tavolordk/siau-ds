@@ -76,6 +76,10 @@ export class CatalogosFacade {
             .pipe(map(mapCatalogoToOptions));
     }
 
+    obtenerEstructuraPerfil(estructuraId: number): Observable<readonly CatalogoRecord[]> {
+        return this.repository.obtenerEstructuraPerfil({ estructuraId });
+    }
+
     obtenerTipoEstructuraOptions(): Observable<readonly CatalogoOption[]> {
         return this.repository.obtenerTipoEstructura().pipe(map(mapCatalogoToOptions));
     }

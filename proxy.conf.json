@@ -26,6 +26,15 @@
             "^/consultas-api": ""
         }
     },
+    "/eccc-personal-api": {
+        "target": "http://10.237.3.12:44380",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "pathRewrite": {
+            "^/eccc-personal-api": ""
+        }
+    },
     "/auth-api": {
         "target": "http://10.241.83.7:3200",
         "secure": false,
