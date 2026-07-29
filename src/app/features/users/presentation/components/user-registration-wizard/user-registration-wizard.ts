@@ -3430,6 +3430,7 @@ export class UserRegistrationWizard {
             ]);
             const rawProfileLabel = this.firstText([
                 this.firstValue(record, [
+                    'perfilDescripcion',
                     'descripcionPerfil',
                     'nombrePerfil',
                     'perfilNombre',
@@ -4224,13 +4225,13 @@ export class UserRegistrationWizard {
     }
 
     private resolveProfileStructureId(current: UserRegistrationForm): number | undefined {
-        if (!this.hasProfileAssignmentContext(current)) {
-            return undefined;
-        }
+        // El parámetro estructuraId proviene exclusivamente del select Institución.
+        // No debe utilizar Tipo de institución, dependencia, OAD ni unidad administrativa.
+        const selectedInstitution = current.commissionEnabled
+            ? current.commissionInstitution
+            : current.institution;
 
-        return current.commissionEnabled
-            ? this.toCatalogId(current.commissionInstitution)
-            : this.toCatalogId(current.institution);
+        return this.toCatalogId(selectedInstitution);
     }
 
     private shouldValidateIdentityFields(current: UserRegistrationForm): boolean {
