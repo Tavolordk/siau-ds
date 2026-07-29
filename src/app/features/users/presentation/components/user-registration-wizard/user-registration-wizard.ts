@@ -21,7 +21,7 @@ import {
     of,
     switchMap,
 } from 'rxjs';
-import { CatalogosFacade } from '../../../../../core/catalogos';
+import { CatalogoRecord, CatalogosFacade } from '../../../../../core/catalogos';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import { CorreoDeliveryResult, CorreoFacade } from '../../../../../core/correo';
 import { RenapoCurpData, RenapoFacade } from '../../../../../core/renapo';
@@ -57,6 +57,7 @@ type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
 type CurpValidationStatus = string;
+type StructureProfileLookupStatus = 'idle' | 'loading' | 'success' | 'error';
 
 type WizardStepId =
     | 'personal-data'
@@ -138,6 +139,11 @@ interface AssignedSystemProfile {
     readonly systemLabel: string;
     readonly role: string;
     readonly roleLabel: string;
+}
+
+interface StructureProfileCatalog {
+    readonly systems: readonly SiauSelectOption[];
+    readonly rolesBySystem: Readonly<Record<string, readonly SiauSelectOption[]>>;
 }
 
 interface ValidationMessage {
@@ -250,14 +256,15 @@ export class UserRegistrationWizard {
     private hydrationKey = '';
     private curpLookupSequence = 0;
     private ecccPersonalLookupSequence = 0;
+    private structureProfileLookupSequence = 0;
     private lastEcccPersonalLookupKey = '';
+    private loadedProfileStructureId: number | null = null;
     private lastRenapoCurp = '';
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
     private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
     private readonly catalogosReady = signal<boolean>(false);
     private readonly draftPersistenceEnabled = signal<boolean>(false);
-    private defaultSiauProfileLoading = false;
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly editEnabled = signal<boolean>(true);
@@ -277,6 +284,10 @@ export class UserRegistrationWizard {
     protected readonly selectedRole = signal<string>('');
     protected readonly assignedSystemProfiles = signal<AssignedSystemProfile[]>([]);
     protected readonly detailRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
+    protected readonly structureProfileLookupStatus = signal<StructureProfileLookupStatus>('idle');
+    protected readonly structureProfileMessage = signal<string>('');
+    private readonly structureRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
+    private readonly allSystemOptions = signal<readonly SiauSelectOption[]>([]);
 
     protected readonly showPassword = signal<boolean>(false);
     protected readonly showConfirmPassword = signal<boolean>(false);
@@ -326,6 +337,27 @@ export class UserRegistrationWizard {
         this.hasProfileAssignmentContext(this.form()),
     );
 
+    protected readonly canSelectProfiles = computed(() =>
+        this.canAssignProfiles() &&
+        this.structureProfileLookupStatus() === 'success' &&
+        this.systemOptions().length > 0,
+    );
+
+    protected readonly structureProfileHint = computed(() => {
+        switch (this.structureProfileLookupStatus()) {
+            case 'loading':
+                return 'Consultando los sistemas y perfiles permitidos para la estructura seleccionada...';
+            case 'error':
+                return this.structureProfileMessage() || 'No fue posible consultar los perfiles disponibles.';
+            case 'success':
+                return this.systemOptions().length > 0
+                    ? 'Los perfiles disponibles corresponden a la institución seleccionada.'
+                    : 'La institución seleccionada no tiene perfiles configurados.';
+            default:
+                return 'Completa la adscripción o la comisión para consultar los perfiles disponibles.';
+        }
+    });
+
     protected readonly emailRequired = computed(() => true);
     protected readonly phoneRequired = computed(() => true);
 
@@ -345,7 +377,9 @@ export class UserRegistrationWizard {
         const catalogRoleOptions = this.roleOptions();
         const sourceOptions = catalogRoleOptions.length > 0
             ? catalogRoleOptions
-            : this.findDetailRoleOptionsForSystem(system);
+            : this.structureProfileLookupStatus() === 'success'
+                ? []
+                : this.findDetailRoleOptionsForSystem(system);
 
         return sourceOptions.filter(
             (option) => this.isSiauSystem(system) || !this.isRoleAlreadyAssigned(system, option),
@@ -689,6 +723,22 @@ export class UserRegistrationWizard {
                     completedSteps,
                 });
             });
+        });
+
+        effect(() => {
+            const shouldLoad =
+                this.open() &&
+                this.catalogosReady() &&
+                this.activeStepId() === 'profiles';
+            const current = this.form();
+
+            if (!shouldLoad) {
+                return;
+            }
+
+            const structureId = this.resolveProfileStructureId(current);
+
+            untracked(() => this.loadStructureProfileOptions(structureId));
         });
     }
 
@@ -1086,6 +1136,14 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (this.form().commissionEnabled !== checked) {
+            this.clearProfilesAfterStructureContextChange(
+                checked
+                    ? 'Se activó la comisión. Selecciona la institución de comisión para consultar sus perfiles.'
+                    : 'Se eliminó la comisión. Debes volver a seleccionar los perfiles de la adscripción.',
+            );
+        }
+
         this.form.update((current) => ({
             ...current,
             commissionEnabled: checked,
@@ -1130,6 +1188,8 @@ export class UserRegistrationWizard {
         const institutionType = value ?? '';
         const requiresEntity = this.requiresEntityForInstitution(institutionType);
 
+        this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
+
         this.form.update((current) => ({
             ...current,
             institutionType,
@@ -1156,6 +1216,7 @@ export class UserRegistrationWizard {
         }
 
         if (!this.assignmentRequiresEntity()) {
+            this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
             this.form.update((current) => ({
                 ...current,
                 entity: '',
@@ -1165,6 +1226,8 @@ export class UserRegistrationWizard {
             this.loadAssignmentInstitutions();
             return;
         }
+
+        this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1193,6 +1256,8 @@ export class UserRegistrationWizard {
             this.form.update((current) => ({ ...current, municipality: '' }));
             return;
         }
+
+        this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1251,6 +1316,8 @@ export class UserRegistrationWizard {
         const commissionInstitutionType = value ?? '';
         const requiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
 
+        this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
+
         this.form.update((current) => ({
             ...current,
             commissionInstitutionType,
@@ -1279,6 +1346,7 @@ export class UserRegistrationWizard {
         }
 
         if (!this.commissionRequiresEntity()) {
+            this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
             this.form.update((current) => ({
                 ...current,
                 commissionEntity: '',
@@ -1288,6 +1356,8 @@ export class UserRegistrationWizard {
             this.loadCommissionInstitutions();
             return;
         }
+
+        this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1318,6 +1388,8 @@ export class UserRegistrationWizard {
             this.form.update((current) => ({ ...current, commissionMunicipality: '' }));
             return;
         }
+
+        this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1417,11 +1489,12 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (!this.canAssignProfiles()) {
+        if (!this.canSelectProfiles()) {
             this.formErrors.update((current) => ({
                 ...current,
                 profiles:
-                    'Registra una adscripción o una comisión válida antes de asignar perfiles.',
+                    this.structureProfileMessage() ||
+                    'Consulta los perfiles disponibles para la institución antes de asignarlos.',
             }));
             return;
         }
@@ -1448,11 +1521,12 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (!this.canAssignProfiles()) {
+        if (!this.canSelectProfiles()) {
             this.formErrors.update((current) => ({
                 ...current,
                 profiles:
-                    'Registra una adscripción o una comisión válida antes de asignar perfiles.',
+                    this.structureProfileMessage() ||
+                    'Consulta los perfiles disponibles para la institución antes de asignarlos.',
             }));
             return;
         }
@@ -1544,16 +1618,20 @@ export class UserRegistrationWizard {
         const previousValue = String(previousInstitution ?? '').trim();
         const nextValue = String(nextInstitution ?? '').trim();
 
-        if (!previousValue || previousValue === nextValue) {
+        if (previousValue === nextValue) {
             return;
         }
+
+        this.clearProfilesAfterStructureContextChange(
+            'La institución cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+        );
+    }
+
+    private clearProfilesAfterStructureContextChange(message: string): void {
+        this.resetStructureProfileCatalog();
 
         const hasAssignedProfiles =
             this.assignedSystemProfiles().length > 0 || this.form().profiles.length > 0;
-
-        if (!hasAssignedProfiles) {
-            return;
-        }
 
         this.assignedSystemProfiles.set([]);
         this.form.update((current) => ({
@@ -1568,10 +1646,14 @@ export class UserRegistrationWizard {
             current.filter((stepId) => stepId !== 'profiles'),
         );
 
+        if (!hasAssignedProfiles) {
+            this.clearFieldError('profiles');
+            return;
+        }
+
         this.formErrors.update((current) => ({
             ...current,
-            profiles:
-                'La institución cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            profiles: message,
         }));
     }
 
@@ -2285,12 +2367,7 @@ export class UserRegistrationWizard {
     }
 
     private resolveAssignedSystemId(profile: AssignedSystemProfile): number {
-        const option = this.systemOptions().find(
-            (item) =>
-                item.value === profile.system ||
-                this.normalizeText(item.label) === this.normalizeText(profile.systemLabel) ||
-                this.normalizeText(item.value) === this.normalizeText(profile.system),
-        );
+        const option = this.findKnownSystemOption(profile.system, profile.systemLabel);
 
         const metadata = this.optionMetadata(option);
         const idFromMetadata = this.firstNumberValue(metadata, ['id', 'idSistema', 'sistemaId']);
@@ -2591,12 +2668,8 @@ export class UserRegistrationWizard {
 
                 const rawRoleId = this.toText(
                     this.firstValue(record, ['perfilId', 'rolId', 'idPerfil']),
-                ); const systemOption =
-                    this.systemOptions().find((option) =>
-                        this.normalizeText(option.label) === this.normalizeText(rawSystemLabel) ||
-                        this.normalizeText(option.value) === this.normalizeText(rawSystemLabel) ||
-                        option.value === rawSystemId,
-                    ) ?? null;
+                );
+                const systemOption = this.findKnownSystemOption(rawSystemId, rawSystemLabel) ?? null;
 
                 const systemValue = systemOption?.value || rawSystemId || rawSystemLabel;
                 const systemLabel = rawSystemLabel || systemOption?.label || systemValue;
@@ -2632,11 +2705,9 @@ export class UserRegistrationWizard {
             this.addRoleOptionForSystemKey(result, profile.system, profile);
             this.addRoleOptionForSystemKey(result, profile.systemLabel, profile);
 
-            const systemOption = this.systemOptions().find(
-                (option) =>
-                    option.value === profile.system ||
-                    this.normalizeText(option.label) === this.normalizeText(profile.systemLabel) ||
-                    this.normalizeText(option.value) === this.normalizeText(profile.systemLabel),
+            const systemOption = this.findKnownSystemOption(
+                profile.system,
+                profile.systemLabel,
             );
 
             if (systemOption) {
@@ -2692,12 +2763,7 @@ export class UserRegistrationWizard {
             return roleOptionsBySystem[cleanSystem];
         }
 
-        const systemOption = this.systemOptions().find(
-            (option) =>
-                option.value === cleanSystem ||
-                this.normalizeText(option.value) === this.normalizeText(cleanSystem) ||
-                this.normalizeText(option.label) === this.normalizeText(cleanSystem),
-        );
+        const systemOption = this.findKnownSystemOption(cleanSystem);
 
         const candidateKeys = [
             cleanSystem,
@@ -2721,14 +2787,25 @@ export class UserRegistrationWizard {
         return matchedKey ? roleOptionsBySystem[matchedKey] ?? [] : [];
     }
 
+    private findKnownSystemOption(
+        systemValue: string,
+        systemLabel = '',
+    ): SiauSelectOption | undefined {
+        const cleanValue = this.toText(systemValue);
+        const cleanLabel = this.toText(systemLabel);
+
+        return [...this.systemOptions(), ...this.allSystemOptions()].find((option) =>
+            option.value === cleanValue ||
+            this.normalizeText(option.value) === this.normalizeText(cleanValue) ||
+            this.normalizeText(option.label) === this.normalizeText(cleanValue) ||
+            (cleanLabel.length > 0 &&
+                this.normalizeText(option.label) === this.normalizeText(cleanLabel)),
+        );
+    }
+
     private isSiauSystem(systemValue: string, systemLabel = ''): boolean {
         const cleanValue = this.toText(systemValue);
-        const option = this.systemOptions().find(
-            (item) =>
-                item.value === cleanValue ||
-                this.normalizeText(item.value) === this.normalizeText(cleanValue) ||
-                this.normalizeText(item.label) === this.normalizeText(cleanValue),
-        );
+        const option = this.findKnownSystemOption(cleanValue, systemLabel);
         const candidates = [cleanValue, systemLabel, option?.label ?? '', option?.value ?? ''];
 
         return candidates.some((candidate) => {
@@ -2747,12 +2824,7 @@ export class UserRegistrationWizard {
     }
 
     private isRoleAlreadyAssigned(system: string, roleOption: SiauSelectOption): boolean {
-        const systemOption = this.systemOptions().find(
-            (option) =>
-                option.value === system ||
-                this.normalizeText(option.value) === this.normalizeText(system) ||
-                this.normalizeText(option.label) === this.normalizeText(system),
-        );
+        const systemOption = this.findKnownSystemOption(system);
 
         return this.assignedSystemProfiles().some((profile) => {
             const sameSystem =
@@ -3034,6 +3106,7 @@ export class UserRegistrationWizard {
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set([]);
         this.detailRoleOptionsBySystem.set({});
+        this.resetStructureProfileCatalog();
         this.showPassword.set(false);
         this.showConfirmPassword.set(false);
         this.municipalityOptions.set([]);
@@ -3184,6 +3257,7 @@ export class UserRegistrationWizard {
                     this.genderOptions.set(catalogos.sexos);
                     this.civilStatusOptions.set(catalogos.estadosCivil);
                     this.userTypeOptions.set(catalogos.tiposUsuario);
+                    this.allSystemOptions.set(catalogos.sistemas);
                     this.systemOptions.set(catalogos.sistemas);
                     this.roleOptions.set([]);
                     this.institutionTypeOptions.update((current) =>
@@ -3193,7 +3267,6 @@ export class UserRegistrationWizard {
                         this.mergeSelectOptions(current, catalogos.estados),
                     );
                     this.catalogosReady.set(true);
-                    this.ensureDefaultSiauProfile();
                 },
                 error: (error: unknown) => {
                     this.catalogosReady.set(true);
@@ -3203,49 +3276,268 @@ export class UserRegistrationWizard {
     }
 
     private loadProfileOptionsForSystem(systemValue: string): void {
-        const sistema = this.resolveSistemaPerfilesQueryValue(systemValue);
-
-        if (!sistema) {
+        if (!systemValue || this.structureProfileLookupStatus() !== 'success') {
             this.roleOptions.set([]);
             return;
         }
 
+        this.roleOptions.set(this.findStructureRoleOptionsForSystem(systemValue));
+    }
+
+    private loadStructureProfileOptions(structureId: number | undefined): void {
+        if (!structureId) {
+            this.resetStructureProfileCatalog();
+            this.structureProfileMessage.set(
+                this.form().commissionEnabled
+                    ? 'Completa la institución de la comisión para consultar sus perfiles.'
+                    : 'Completa la institución de adscripción para consultar sus perfiles.',
+            );
+            return;
+        }
+
+        if (
+            this.loadedProfileStructureId === structureId &&
+            this.structureProfileLookupStatus() === 'success'
+        ) {
+            return;
+        }
+
+        const lookupSequence = ++this.structureProfileLookupSequence;
+
+        this.loadedProfileStructureId = structureId;
+        this.structureProfileLookupStatus.set('loading');
+        this.structureProfileMessage.set('Consultando perfiles permitidos para la estructura seleccionada...');
+        this.systemOptions.set([]);
+        this.structureRoleOptionsBySystem.set({});
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+        this.roleOptions.set([]);
+
         this.catalogosFacade
-            .obtenerSistemaPerfilesOptions(sistema)
+            .obtenerEstructuraPerfil(structureId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (options) => {
-                    if (this.selectedSystem() !== systemValue) {
+                next: (items) => {
+                    if (lookupSequence !== this.structureProfileLookupSequence) {
                         return;
                     }
 
-                    this.roleOptions.set(options);
+                    const catalog = this.buildStructureProfileCatalog(items);
+
+                    this.systemOptions.set(catalog.systems);
+                    this.structureRoleOptionsBySystem.set({ ...catalog.rolesBySystem });
+                    this.structureProfileLookupStatus.set('success');
+                    this.structureProfileMessage.set(
+                        catalog.systems.length > 0
+                            ? 'Perfiles disponibles cargados correctamente.'
+                            : 'La institución seleccionada no tiene sistemas y perfiles configurados.',
+                    );
+                    this.clearFieldError('profiles');
+                    this.ensureDefaultSiauProfile();
                 },
                 error: (error: unknown) => {
-                    if (this.selectedSystem() === systemValue) {
-                        this.roleOptions.set(this.findDetailRoleOptionsForSystem(systemValue));
+                    if (lookupSequence !== this.structureProfileLookupSequence) {
+                        return;
                     }
 
-                    console.error('Error cargando perfiles del sistema.', error);
+                    this.systemOptions.set([]);
+                    this.structureRoleOptionsBySystem.set({});
+                    this.structureProfileLookupStatus.set('error');
+                    this.structureProfileMessage.set(
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible consultar los perfiles de la estructura.',
+                    );
+                    console.error('Error cargando perfiles por estructura.', error);
                 },
             });
     }
 
-    private resolveSistemaPerfilesQueryValue(systemValue: string): string {
-        const cleanSystem = this.toText(systemValue);
+    private resetStructureProfileCatalog(): void {
+        this.structureProfileLookupSequence += 1;
+        this.loadedProfileStructureId = null;
+        this.structureProfileLookupStatus.set('idle');
+        this.structureProfileMessage.set('');
+        this.structureRoleOptionsBySystem.set({});
+        this.systemOptions.set([]);
+        this.selectedSystem.set('');
+        this.selectedRole.set('');
+        this.roleOptions.set([]);
+    }
 
-        if (!cleanSystem) {
-            return '';
+    private buildStructureProfileCatalog(
+        items: readonly CatalogoRecord[],
+    ): StructureProfileCatalog {
+        const systems: Array<SiauSelectOption & { metadata?: Record<string, unknown> }> = [];
+        const rolesBySystem: Record<string, SiauSelectOption[]> = {};
+
+        items.forEach((item) => {
+            const record = this.toRecord(item);
+            const nestedSystem = this.toRecord(
+                record['sistemaDetalle'] ?? record['sistemaCatalogo'] ?? record['sistema'],
+            );
+            const nestedProfile = this.toRecord(
+                record['perfilDetalle'] ?? record['perfilCatalogo'] ?? record['perfil'],
+            );
+
+            const rawSystemId = this.firstText([
+                this.firstValue(record, ['sistemaId', 'idSistema', 'SistemaId', 'IdSistema']),
+                this.firstValue(nestedSystem, ['id', 'sistemaId', 'idSistema']),
+            ]);
+            const rawSystemLabel = this.firstText([
+                this.firstValue(record, [
+                    'sistemaNombre',
+                    'nombreSistema',
+                    'sistemaClave',
+                    'claveSistema',
+                    'descripcionSistema',
+                    'sistema',
+                ]),
+                this.firstValue(nestedSystem, [
+                    'nombre',
+                    'descripcion',
+                    'clave',
+                    'sistema',
+                ]),
+            ]);
+
+            const globalSystem = this.allSystemOptions().find((option) => {
+                const metadataSystemId = this.firstNumberValue(
+                    this.optionMetadata(option),
+                    ['id', 'idSistema', 'sistemaId'],
+                );
+
+                return (
+                    option.value === rawSystemId ||
+                    this.normalizeText(option.value) === this.normalizeText(rawSystemId) ||
+                    this.normalizeText(option.label) === this.normalizeText(rawSystemLabel) ||
+                    (metadataSystemId !== null && String(metadataSystemId) === rawSystemId)
+                );
+            });
+            const systemValue = globalSystem?.value || rawSystemId || rawSystemLabel;
+            const systemLabel = rawSystemLabel || globalSystem?.label || systemValue;
+
+            const rawProfileId = this.firstText([
+                this.firstValue(record, [
+                    'perfilId',
+                    'idPerfil',
+                    'rolId',
+                    'idRol',
+                    'PerfilId',
+                    'IdPerfil',
+                ]),
+                this.firstValue(nestedProfile, ['id', 'perfilId', 'idPerfil', 'rolId']),
+            ]);
+            const rawProfileLabel = this.firstText([
+                this.firstValue(record, [
+                    'descripcionPerfil',
+                    'nombrePerfil',
+                    'perfilNombre',
+                    'perfilClave',
+                    'clavePerfil',
+                    'rolNombre',
+                    'rol',
+                    'perfil',
+                ]),
+                this.firstValue(nestedProfile, [
+                    'nombre',
+                    'descripcion',
+                    'clave',
+                    'perfil',
+                    'rol',
+                ]),
+            ]);
+            const profileValue = rawProfileId || rawProfileLabel;
+            const profileLabel = rawProfileLabel || profileValue;
+
+            if (!systemValue || !systemLabel || !profileValue || !profileLabel) {
+                return;
+            }
+
+            if (!systems.some((option) => option.value === systemValue)) {
+                systems.push({
+                    value: systemValue,
+                    label: systemLabel,
+                    metadata: {
+                        ...this.optionMetadata(globalSystem),
+                        ...record,
+                    },
+                });
+            }
+
+            const profileOption: SiauSelectOption = {
+                value: profileValue,
+                label: profileLabel,
+            };
+
+            [systemValue, systemLabel, globalSystem?.value ?? '', globalSystem?.label ?? '']
+                .filter(Boolean)
+                .forEach((systemKey) =>
+                    this.addStructureRoleOption(rolesBySystem, systemKey, profileOption),
+                );
+        });
+
+        return { systems, rolesBySystem };
+    }
+
+    private addStructureRoleOption(
+        accumulator: Record<string, SiauSelectOption[]>,
+        systemKey: string,
+        profileOption: SiauSelectOption,
+    ): void {
+        const cleanSystemKey = this.toText(systemKey);
+
+        if (!cleanSystemKey) {
+            return;
         }
 
-        const systemOption = this.systemOptions().find(
+        const current = accumulator[cleanSystemKey] ?? [];
+        const exists = current.some((option) =>
+            option.value === profileOption.value ||
+            this.normalizeText(option.label) === this.normalizeText(profileOption.label),
+        );
+
+        if (!exists) {
+            accumulator[cleanSystemKey] = [...current, profileOption];
+        }
+    }
+
+    private findStructureRoleOptionsForSystem(system: string): readonly SiauSelectOption[] {
+        const cleanSystem = this.toText(system);
+
+        if (!cleanSystem) {
+            return [];
+        }
+
+        const rolesBySystem = this.structureRoleOptionsBySystem();
+
+        if (rolesBySystem[cleanSystem]?.length) {
+            return rolesBySystem[cleanSystem];
+        }
+
+        const systemOption = [...this.systemOptions(), ...this.allSystemOptions()].find(
             (option) =>
                 option.value === cleanSystem ||
                 this.normalizeText(option.value) === this.normalizeText(cleanSystem) ||
                 this.normalizeText(option.label) === this.normalizeText(cleanSystem),
         );
+        const candidateKeys = [cleanSystem, systemOption?.value ?? '', systemOption?.label ?? '']
+            .filter(Boolean);
 
-        return this.toText(systemOption?.value) || this.toText(systemOption?.label) || cleanSystem;
+        for (const candidateKey of candidateKeys) {
+            const options = rolesBySystem[candidateKey];
+
+            if (options?.length) {
+                return options;
+            }
+        }
+
+        const normalizedSystem = this.normalizeText(cleanSystem);
+        const matchedKey = Object.keys(rolesBySystem).find(
+            (key) => this.normalizeText(key) === normalizedSystem,
+        );
+
+        return matchedKey ? rolesBySystem[matchedKey] ?? [] : [];
     }
 
     private loadMunicipalities(
@@ -3420,7 +3712,7 @@ export class UserRegistrationWizard {
         if (
             !this.open() ||
             this.mode() !== 'create' ||
-            this.defaultSiauProfileLoading ||
+            this.structureProfileLookupStatus() !== 'success' ||
             this.assignedSystemProfiles().some((profile) =>
                 this.isSiauSystem(profile.system, profile.systemLabel),
             )
@@ -3436,54 +3728,27 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.defaultSiauProfileLoading = true;
         const system = systemOption.value || systemOption.label;
+        const options = this.findStructureRoleOptionsForSystem(system);
+        const userRole = options.find((option) =>
+            this.normalizeText(option.label) === 'usuario' ||
+            this.normalizeText(option.value) === 'usuario',
+        );
 
-        this.catalogosFacade
-            .obtenerSistemaPerfilesOptions(this.resolveSistemaPerfilesQueryValue(system))
-            .pipe(
-                takeUntilDestroyed(this.destroyRef),
-                finalize(() => {
-                    this.defaultSiauProfileLoading = false;
-                }),
-            )
-            .subscribe({
-                next: (options) => {
-                    if (
-                        !this.open() ||
-                        this.mode() !== 'create' ||
-                        this.assignedSystemProfiles().some((profile) =>
-                            this.isSiauSystem(profile.system, profile.systemLabel),
-                        )
-                    ) {
-                        return;
-                    }
+        if (!userRole) {
+            return;
+        }
 
-                    const userRole = options.find((option) =>
-                        this.normalizeText(option.label) === 'usuario' ||
-                        this.normalizeText(option.value) === 'usuario',
-                    );
-
-                    if (!userRole) {
-                        console.warn('No se localizó el perfil base "Usuario" para SIAU.');
-                        return;
-                    }
-
-                    this.assignedSystemProfiles.update((current) => [
-                        ...current,
-                        {
-                            id: `${system}-${userRole.value}-default`,
-                            system,
-                            systemLabel: systemOption.label,
-                            role: userRole.value,
-                            roleLabel: userRole.label,
-                        },
-                    ]);
-                },
-                error: (error: unknown) => {
-                    console.error('No fue posible cargar el perfil base de SIAU.', error);
-                },
-            });
+        this.assignedSystemProfiles.update((current) => [
+            ...current,
+            {
+                id: `${system}-${userRole.value}-default`,
+                system,
+                systemLabel: systemOption.label,
+                role: userRole.value,
+                roleLabel: userRole.label,
+            },
+        ]);
     }
 
     private requiresEntityForInstitution(value: string | null | undefined): boolean {
@@ -3953,10 +4218,19 @@ export class UserRegistrationWizard {
     }
 
     private hasProfileAssignmentContext(current: UserRegistrationForm): boolean {
-        return (
-            this.hasValidAssignmentForCommission(current) ||
-            this.hasValidCommissionContext(current)
-        );
+        return current.commissionEnabled
+            ? this.hasValidCommissionContext(current)
+            : this.hasValidAssignmentForCommission(current);
+    }
+
+    private resolveProfileStructureId(current: UserRegistrationForm): number | undefined {
+        if (!this.hasProfileAssignmentContext(current)) {
+            return undefined;
+        }
+
+        return current.commissionEnabled
+            ? this.toCatalogId(current.commissionInstitution)
+            : this.toCatalogId(current.institution);
     }
 
     private shouldValidateIdentityFields(current: UserRegistrationForm): boolean {
