@@ -38,7 +38,6 @@ import {
     EcccPersonalApiRepository,
     EcccPersonalLookupRequest,
 } from '../../../data-access/eccc-personal-api.repository';
-import { UserRegistrationDraftStorage } from '../../../data-access/user-registration-draft.storage';
 import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
     ActualizarAdminRequest,
@@ -272,7 +271,6 @@ export class UserRegistrationWizard {
     private readonly renapoFacade = inject(RenapoFacade);
     private readonly ecccPersonalApi = inject(EcccPersonalApiRepository);
     private readonly authStorage = inject(AuthStorage);
-    private readonly draftStorage = inject(UserRegistrationDraftStorage);
     private readonly destroyRef = inject(DestroyRef);
 
     private hydrationKey = '';
@@ -288,7 +286,6 @@ export class UserRegistrationWizard {
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
     private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
     private readonly catalogosReady = signal<boolean>(false);
-    private readonly draftPersistenceEnabled = signal<boolean>(false);
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
     protected readonly editEnabled = signal<boolean>(true);
@@ -297,7 +294,6 @@ export class UserRegistrationWizard {
     protected readonly isSubmitting = signal<boolean>(false);
     protected readonly formErrors = signal<Record<string, string>>({});
     protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
-    protected readonly recoveredDraftAt = signal<string | null>(null);
     protected readonly renapoLookupStatus = signal<RenapoLookupStatus>('idle');
     protected readonly renapoMessage = signal<string>('');
     protected readonly curpLocked = signal<boolean>(false);
@@ -712,47 +708,13 @@ export class UserRegistrationWizard {
 
             untracked(() => {
                 if (mode === 'edit') {
-                    this.draftPersistenceEnabled.set(false);
                     this.hydrateEditForm(detail?.datos ?? {}, user);
                     return;
                 }
 
                 this.resetWizard();
-                this.restoreRegistrationDraft();
                 this.editEnabled.set(true);
-                this.draftPersistenceEnabled.set(true);
                 this.ensureDefaultSiauProfile();
-            });
-        });
-
-        effect(() => {
-            const shouldPersist =
-                this.open() &&
-                this.mode() === 'create' &&
-                this.draftPersistenceEnabled() &&
-                !this.isSubmitting();
-
-            if (!shouldPersist) {
-                return;
-            }
-
-            const form = this.form();
-            const profiles = this.assignedSystemProfiles();
-            const activeStepId = this.activeStepId();
-            const completedSteps = this.completedSteps();
-
-            untracked(() => {
-                if (!this.hasRegistrationDraftContent(form, profiles)) {
-                    this.draftStorage.clear();
-                    return;
-                }
-
-                this.draftStorage.save({
-                    form,
-                    profiles,
-                    activeStepId,
-                    completedSteps,
-                });
             });
         });
 
@@ -859,25 +821,12 @@ export class UserRegistrationWizard {
     }
 
     protected closeSaveSuccessModal(): void {
-        if (!this.isEditMode()) {
-            this.draftStorage.clear();
-        }
         this.saveSuccess.set(null);
         this.saved.emit();
         this.closed.emit();
         this.resetWizard();
     }
 
-    protected discardRecoveredDraft(): void {
-        if (this.isEditMode()) {
-            return;
-        }
-
-        this.draftStorage.clear();
-        this.resetWizard();
-        this.draftPersistenceEnabled.set(true);
-        this.ensureDefaultSiauProfile();
-    }
 
     protected submit(): void {
         if (this.readonlyMode() || this.isFormDisabled() || this.isSubmitting()) {
@@ -967,7 +916,6 @@ export class UserRegistrationWizard {
             .subscribe({
                 next: ({ response, emailDelivery }) => {
                     this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                    this.draftStorage.clear();
                     this.saveSuccess.set(
                         this.buildSaveSuccessModalState(response, isExpress, emailDelivery),
                     );
@@ -1410,7 +1358,7 @@ export class UserRegistrationWizard {
             commissionEntity: requiresEntity ? current.commissionEntity : '',
             commissionMunicipality: '',
             commissionInstitution: '',
-                    commissionDecentralizedBody: '',
+            commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
 
@@ -1460,7 +1408,7 @@ export class UserRegistrationWizard {
             commissionEntity: value ?? '',
             commissionMunicipality: '',
             commissionInstitution: '',
-                    commissionDecentralizedBody: '',
+            commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
         this.commissionMunicipalityOptions.set([]);
@@ -1492,7 +1440,7 @@ export class UserRegistrationWizard {
             ...current,
             commissionMunicipality: value ?? '',
             commissionInstitution: '',
-                    commissionDecentralizedBody: '',
+            commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
         this.commissionInstitutionOptions.set([]);
@@ -1518,7 +1466,7 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             commissionInstitution,
-                    commissionDecentralizedBody: '',
+            commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
         this.commissionDecentralizedBodyOptions.set([]);
@@ -3214,7 +3162,6 @@ export class UserRegistrationWizard {
     }
 
     private resetWizard(): void {
-        this.draftPersistenceEnabled.set(false);
         this.resetRenapoLookupState();
         this.initialIdentitySnapshot = null;
         this.initialEditFormSnapshot = null;
@@ -3226,7 +3173,6 @@ export class UserRegistrationWizard {
         this.isSubmitting.set(false);
         this.formErrors.set({});
         this.saveSuccess.set(null);
-        this.recoveredDraftAt.set(null);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -3245,81 +3191,9 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
     }
 
-    private restoreRegistrationDraft(): void {
-        const draft = this.draftStorage.load<UserRegistrationForm, AssignedSystemProfile>();
 
-        if (!draft) {
-            return;
-        }
 
-        const form = this.toRegistrationDraftForm(draft.form);
-        const profiles = this.toRegistrationDraftProfiles(draft.profiles);
-        const stepOrder = this.stepOrder();
-        const activeStepId = this.isWizardStep(draft.activeStepId) && stepOrder.includes(draft.activeStepId)
-            ? draft.activeStepId
-            : 'personal-data';
-        const completedSteps = draft.completedSteps.filter(
-            (stepId): stepId is WizardStepId =>
-                this.isWizardStep(stepId) && stepOrder.includes(stepId as WizardStepId),
-        );
 
-        this.form.set(form);
-        this.assignedSystemProfiles.set(profiles);
-        this.activeStepId.set(activeStepId);
-        this.completedSteps.set(completedSteps);
-        this.recoveredDraftAt.set(draft.savedAt);
-        this.loadHydratedAssignmentCatalogs(form);
-    }
-
-    private hasRegistrationDraftContent(
-        form: UserRegistrationForm,
-        profiles: readonly AssignedSystemProfile[],
-    ): boolean {
-        const hasNonDefaultProfile = profiles.some(
-            (profile) =>
-                !(
-                    this.isSiauSystem(profile.system, profile.systemLabel) &&
-                    this.isDefaultSiauRole(profile.role, profile.roleLabel)
-                ),
-        );
-
-        return hasNonDefaultProfile || Object.entries(form).some(([key, value]) => {
-            if (key === 'profiles' || key === 'password' || key === 'confirmPassword') {
-                return false;
-            }
-
-            return typeof value === 'boolean' ? value : this.hasText(value);
-        });
-    }
-
-    private toRegistrationDraftForm(value: UserRegistrationForm): UserRegistrationForm {
-        return {
-            ...INITIAL_FORM,
-            ...value,
-            profiles: [],
-            password: '',
-            confirmPassword: '',
-            commissionEnabled: Boolean(value?.commissionEnabled),
-            expressCreation: Boolean(value?.expressCreation),
-            accountStatus: this.toAccountStatus(this.toText(value?.accountStatus)),
-        };
-    }
-
-    private toRegistrationDraftProfiles(value: readonly AssignedSystemProfile[]): AssignedSystemProfile[] {
-        if (!Array.isArray(value)) {
-            return [];
-        }
-
-        return value
-            .map((profile, index) => ({
-                id: this.toText(profile?.id) || `draft-profile-${index}`,
-                system: this.toText(profile?.system),
-                systemLabel: this.toText(profile?.systemLabel),
-                role: this.toText(profile?.role),
-                roleLabel: this.toText(profile?.roleLabel),
-            }))
-            .filter((profile) => Boolean(profile.system && profile.role));
-    }
 
     private loadHydratedAssignmentCatalogs(form: UserRegistrationForm): void {
         if (this.requiresMunicipalityForInstitution(form.institutionType) && form.entity) {

@@ -40,7 +40,8 @@
                         </dd>
                     </div>
 
-                    <div class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
+                    <div
+                        class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
                         <dt>ECCC</dt>
                         <dd class="registration-wizard__curp-validation-eccc">
                             <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
@@ -106,22 +107,13 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC, estado civil y fecha de nacimiento
+                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC, estado civil y fecha de
+                            nacimiento
                             se pueden complementar posteriormente; si se capturan, se validarán.</small>
                     </span>
                 </label>
             </div>
 
-            @if (recoveredDraftAt()) {
-            <div class="registration-wizard__info-box registration-wizard__info-box--compact">
-                <siau-lucide-icon name="history" size="16" strokeWidth="2" aria-hidden="true" />
-                <span>Recuperamos el avance guardado automáticamente. Las contraseñas no se restauran por seguridad.</span>
-                <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
-                    [disabled]="isSubmitting()" (click)="discardRecoveredDraft()">
-                    Descartar borrador
-                </button>
-            </div>
-            }
             }
 
             @if (curpValidationSummaryForDisplay(); as curpValidation) {
@@ -148,7 +140,8 @@
                         </dd>
                     </div>
 
-                    <div class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
+                    <div
+                        class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
                         <dt>ECCC</dt>
                         <dd class="registration-wizard__curp-validation-eccc">
                             <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
@@ -194,13 +187,13 @@
 
                 <div class="registration-wizard__grid">
                     <siau-input label="CUIP" placeholder="Ej. GARC910515H094569875" [value]="form().cuip"
-                        [maxLength]="20" [alphanumericOnly]="true"
-                        hint="Formato: 4 letras, 6 números, H/M y 9 números"
+                        [maxLength]="20" [alphanumericOnly]="true" hint="Formato: 4 letras, 6 números, H/M y 9 números"
                         (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
-                            [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true" [value]="form().curp"
+                            [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true"
+                            [value]="form().curp"
                             [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
                             (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
 
@@ -221,34 +214,34 @@
                         }
                     </div>
 
-                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="rfcRequired()"
-                        [maxLength]="13" [alphanumericOnly]="true" [hint]="rfcHint()" [value]="form().rfc" (valueChange)="updateRfc($event)"
-                        [disabled]="isFormDisabled()" />
+                    <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="rfcRequired()" [maxLength]="13"
+                        [alphanumericOnly]="true" [hint]="rfcHint()" [value]="form().rfc"
+                        (valueChange)="updateRfc($event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
-                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().firstName" (valueChange)="updateForm('firstName', $event)"
-                        [disabled]="isRenapoPersonalDataDisabled()" />
+                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().firstName"
+                        (valueChange)="updateForm('firstName', $event)" [disabled]="isRenapoPersonalDataDisabled()" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
-                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().lastName" (valueChange)="updateForm('lastName', $event)"
-                        [disabled]="isRenapoPersonalDataDisabled()" />
+                        [maxLength]="100" [alphabeticOnly]="true" [value]="form().lastName"
+                        (valueChange)="updateForm('lastName', $event)" [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100" [alphabeticOnly]="true" [value]="form().secondLastName"
+                    <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100"
+                        [alphabeticOnly]="true" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)"
                         [disabled]="isRenapoPersonalDataDisabled()" />
 
-                    <siau-select label="Sexo" placeholder="Seleccione sexo" [required]="true" [options]="genderOptions()"
-                        [value]="form().gender" (valueChange)="updateForm('gender', $event)"
+                    <siau-select label="Sexo" placeholder="Seleccione sexo" [required]="true"
+                        [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
                     <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
-                        [options]="civilStatusOptions()" [required]="true"
-                        [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [options]="civilStatusOptions()" [required]="true" [value]="form().civilStatus"
+                        (valueChange)="updateForm('civilStatus', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation" [max]="maximumBirthDate()"
-                        [value]="form().birthDate" (valueChange)="updateForm('birthDate', $event)"
-                        [disabled]="isBirthDateInputDisabled()" />
+                    <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
+                        [max]="maximumBirthDate()" [value]="form().birthDate"
+                        (valueChange)="updateForm('birthDate', $event)" [disabled]="isBirthDateInputDisabled()" />
                 </div>
 
                 @if (renapoLookupStatus() !== 'idle') {
@@ -303,8 +296,8 @@
                         (valueChange)="updateAssignmentInstitutionType($event)" [disabled]="isFormDisabled()" />
 
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
-                        [required]="assignmentRequiresEntity()" [options]="stateOptions()"
-                        [value]="form().entity" [disabled]="isFormDisabled() || !assignmentRequiresEntity()"
+                        [required]="assignmentRequiresEntity()" [options]="stateOptions()" [value]="form().entity"
+                        [disabled]="isFormDisabled() || !assignmentRequiresEntity()"
                         (valueChange)="updateAssignmentEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
@@ -334,8 +327,9 @@
                     <siau-input label="Funciones" placeholder="Descripción de funciones" [value]="form().functions"
                         (valueChange)="updateForm('functions', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Fecha de Ingreso" type="date" [required]="true" [max]="maximumTodayDate()" [value]="form().admissionDate"
-                        (valueChange)="updateForm('admissionDate', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="Fecha de Ingreso" type="date" [required]="true" [max]="maximumTodayDate()"
+                        [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Número de Empleado" placeholder="Ej. EMP0042" [required]="true" [maxLength]="20"
                         [alphanumericOnly]="true" [value]="form().employeeNumber"
@@ -415,8 +409,7 @@
 
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="commissionRequiresEntity()" [options]="stateOptions()"
-                        [value]="form().commissionEntity"
-                        [disabled]="isFormDisabled() || !commissionRequiresEntity()"
+                        [value]="form().commissionEntity" [disabled]="isFormDisabled() || !commissionRequiresEntity()"
                         (valueChange)="updateCommissionEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
@@ -440,7 +433,8 @@
                         [disabled]="isFormDisabled() || !form().commissionDecentralizedBody"
                         (valueChange)="updateCommissionAdministrativeUnit($event)" />
 
-                    <siau-input label="Fecha de Inicio" type="date" [min]="form().admissionDate" [max]="maximumTodayDate()" [value]="form().commissionAdmissionDate"
+                    <siau-input label="Fecha de Inicio" type="date" [min]="form().admissionDate"
+                        [max]="maximumTodayDate()" [value]="form().commissionAdmissionDate"
                         (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
                 }
@@ -550,12 +544,12 @@
 
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
-                        [required]="emailRequired()" [maxLength]="254" [value]="form().email" (valueChange)="updateForm('email', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [required]="emailRequired()" [maxLength]="254" [value]="form().email"
+                        (valueChange)="updateForm('email', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
-                        [maxLength]="10" [numericOnly]="true" [value]="form().phone" (valueChange)="updateForm('phone', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [maxLength]="10" [numericOnly]="true" [value]="form().phone"
+                        (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
                         (valueChange)="updateForm('extension', $event)" [disabled]="isFormDisabled()" />
@@ -632,7 +626,8 @@
                 }
 
                 @if (structureProfileLookupStatus() === 'error') {
-                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error">
+                <div
+                    class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error">
                     <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>{{ structureProfileMessage() }}</span>
                 </div>
@@ -683,8 +678,8 @@
                             </div>
 
                             <button type="button" class="registration-wizard__profiles-remove"
-                                [disabled]="isFormDisabled() || isSubmitting() || !canRemoveAssignedProfile(item)" (click)="removeAssignedProfile(item.id)"
-                                aria-label="Eliminar sistema asignado">
+                                [disabled]="isFormDisabled() || isSubmitting() || !canRemoveAssignedProfile(item)"
+                                (click)="removeAssignedProfile(item.id)" aria-label="Eliminar sistema asignado">
                                 <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                             </button>
                         </div>
@@ -702,8 +697,9 @@
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
-                            <siau-select label="Perfil / Rol" placeholder="Seleccione rol" [options]="availableRoleOptions()"
-                                [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
+                            <siau-select label="Perfil / Rol" placeholder="Seleccione rol"
+                                [options]="availableRoleOptions()" [value]="selectedRole()"
+                                (valueChange)="updateSelectedRole($event)" [required]="true"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem() || isSelectedSiauProfileBlocked()" />
                             }
 
