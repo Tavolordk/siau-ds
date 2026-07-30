@@ -203,6 +203,29 @@
   background: rgb(241, 247, 251);
 }
 
+.registration-wizard__validation-area {
+  flex: none;
+  height: auto;
+  max-height: none;
+  padding: 12px 26px;
+  border-bottom: 1px solid rgba(190, 24, 93, 0.16);
+  background: rgb(241, 247, 251);
+  display: grid;
+  grid-auto-rows: max-content;
+  align-items: start;
+  gap: 8px;
+  overflow: visible;
+}
+
+.registration-wizard__validation-area .registration-wizard__info-box {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  overflow: visible;
+}
+
 .registration-wizard__section-header {
   position: sticky;
   top: 0;
@@ -526,6 +549,13 @@
 }
 
 @media (max-width: 768px) {
+  .registration-wizard__validation-area {
+    height: auto;
+    max-height: none;
+    padding: 10px 16px;
+    overflow: visible;
+  }
+
   .registration-wizard__grid,
   .registration-wizard__documents-grid,
   .registration-wizard__account-grid,
@@ -607,8 +637,48 @@
 }
 
 .registration-wizard__info-box--error > div {
+  min-width: 0;
+  flex: 1;
   display: grid;
   gap: 2px;
+}
+
+.registration-wizard__info-box > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.registration-wizard__info-box-close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin: -3px -5px 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.registration-wizard__info-box-close:hover {
+  background: rgba(159, 18, 57, 0.08);
+  opacity: 1;
+}
+
+.registration-wizard__info-box-close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.registration-wizard__info-box-close siau-lucide-icon {
+  margin: 0;
+  opacity: 1;
 }
 
 .registration-wizard__info-box + .registration-wizard__grid {
@@ -1142,6 +1212,10 @@
 }
 
 @media (max-width: 768px) {
+  .registration-wizard__renapo-status--top {
+    margin: 10px 12px 0;
+  }
+
   .registration-wizard__edit-bar {
     margin: 10px 12px 0;
     align-items: stretch;
@@ -1418,6 +1492,12 @@
   gap: 10px;
 }
 
+
+.registration-wizard__renapo-status--top {
+  flex: none;
+  margin: 12px 22px 0;
+}
+
 .registration-wizard__renapo-status-icon {
   width: 28px;
   height: 28px;
@@ -1429,10 +1509,38 @@
   justify-content: center;
 }
 
-.registration-wizard__renapo-status > div {
+.registration-wizard__renapo-status-content {
   min-width: 0;
+  flex: 1;
   display: grid;
   gap: 2px;
+}
+
+.registration-wizard__renapo-status-close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin: -3px -5px 0 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.registration-wizard__renapo-status-close:hover {
+  background: rgba(27, 31, 74, 0.08);
+  opacity: 1;
+}
+
+.registration-wizard__renapo-status-close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .registration-wizard__renapo-status strong {
