@@ -101,8 +101,6 @@ interface UserRegistrationForm {
 
     email: string;
     phone: string;
-    extension: string;
-
     profiles: string[];
 
     username: string;
@@ -236,8 +234,6 @@ const INITIAL_FORM: UserRegistrationForm = {
 
     email: '',
     phone: '',
-    extension: '',
-
     profiles: [],
 
     username: '',
@@ -533,7 +529,9 @@ export class UserRegistrationWizard {
 
     protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
 
-    protected readonly rfcRequired = computed(() => Boolean(this.rfcPrefix()));
+    protected readonly rfcRequired = computed(() =>
+        !this.isEditMode() && !this.form().expressCreation,
+    );
 
     protected readonly rfcHint = computed(() => {
         const prefix = this.rfcPrefix();
@@ -2168,7 +2166,7 @@ export class UserRegistrationWizard {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
                 curp: this.requireText(current.curp, 'Captura la CURP.').toUpperCase(),
-                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
+                rfc: this.requireText(current.rfc, 'Captura el RFC.').toUpperCase(),
                 nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
                 primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
                 segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
@@ -2364,7 +2362,12 @@ export class UserRegistrationWizard {
             cargo: null,
             funciones: null,
             numeroEmpleado: null,
-            fechaInicio: this.toNullableText(current.commissionAdmissionDate),
+            fechaInicio: this.isEditMode()
+                ? this.toNullableText(current.commissionAdmissionDate)
+                : this.requireText(
+                    current.commissionAdmissionDate,
+                    'Captura la fecha de inicio de la comisión.',
+                ),
         };
     }
 
@@ -2682,7 +2685,6 @@ export class UserRegistrationWizard {
             phone: this.toText(this.firstValue(contact, ['celular', 'telefono', 'phone']))
                 .replace(/\D/g, '')
                 .slice(0, 10),
-            extension: this.toText(this.firstValue(contact, ['extension'])),
 
             profiles: [],
 
@@ -3988,13 +3990,6 @@ export class UserRegistrationWizard {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
-            if (
-                this.shouldValidateEditFields(current, ['civilStatus']) &&
-                !this.hasText(current.civilStatus)
-            ) {
-                nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
-            }
-
         }
 
         if (stepId === 'assignment') {
@@ -4116,12 +4111,19 @@ export class UserRegistrationWizard {
                     nextErrors['commissionInstitution'] = 'La institución de comisión es obligatoria.';
                 }
 
+                const shouldValidateCommissionDate = this.shouldValidateEditFields(
+                    current,
+                    ['commissionEnabled', 'commissionAdmissionDate', 'admissionDate'],
+                );
+
                 if (
-                    this.shouldValidateEditFields(
-                        current,
-                        ['commissionAdmissionDate', 'admissionDate'],
-                    ) &&
-                    this.hasText(current.commissionAdmissionDate) &&
+                    shouldValidateCommissionDate &&
+                    !this.hasText(current.commissionAdmissionDate)
+                ) {
+                    nextErrors['commissionAdmissionDate'] =
+                        'La fecha de inicio de comisión es obligatoria.';
+                } else if (
+                    shouldValidateCommissionDate &&
                     !this.isCommissionStartDateValid(
                         current.commissionAdmissionDate,
                         current.admissionDate,
@@ -4229,7 +4231,9 @@ export class UserRegistrationWizard {
             validCurp = true;
         }
 
-        if (hasRfc && !this.isValidRfc(current.rfc)) {
+        if (!hasRfc && !identityDocumentsAreOptional && !this.isEditMode()) {
+            errors['rfc'] = 'El RFC es obligatorio.';
+        } else if (hasRfc && !this.isValidRfc(current.rfc)) {
             errors['rfc'] = 'El RFC no tiene un formato válido.';
         } else {
             validRfc = hasRfc;
@@ -4347,10 +4351,10 @@ export class UserRegistrationWizard {
         if (
             this.shouldValidateEditFields(current, ['employeeNumber']) &&
             this.hasText(current.employeeNumber) &&
-            !/^[A-Z0-9]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+            !this.isValidEmployeeNumber(current.employeeNumber)
         ) {
             errors['employeeNumber'] =
-                'El número de empleado debe contener de 3 a 20 caracteres alfanuméricos, sin espacios ni caracteres especiales.';
+                'El número de empleado debe contener de 3 a 20 caracteres: letras, números, espacios o guiones.';
         }
     }
 
@@ -4489,7 +4493,7 @@ export class UserRegistrationWizard {
 
         return (
             this.isDateOnOrBeforeToday(current.admissionDate) &&
-            /^[A-Z0-9]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+            this.isValidEmployeeNumber(current.employeeNumber)
         );
     }
 
@@ -4517,9 +4521,21 @@ export class UserRegistrationWizard {
             return false;
         }
 
-        return (
-            !this.hasText(current.commissionAdmissionDate) ||
-            this.isCommissionStartDateValid(current.commissionAdmissionDate, current.admissionDate)
+        const hasCommissionStartDate = this.hasText(current.commissionAdmissionDate);
+        const unchangedLegacyEdit =
+            this.isEditMode() &&
+            !this.shouldValidateEditFields(
+                current,
+                ['commissionEnabled', 'commissionAdmissionDate', 'admissionDate'],
+            );
+
+        if (!hasCommissionStartDate) {
+            return unchangedLegacyEdit;
+        }
+
+        return this.isCommissionStartDateValid(
+            current.commissionAdmissionDate,
+            current.admissionDate,
         );
     }
 
@@ -4757,7 +4773,7 @@ export class UserRegistrationWizard {
         }
 
         if (key === 'employeeNumber') {
-            return this.normalizeAlphanumericInput(textValue, 20) as UserRegistrationForm[K];
+            return this.normalizeEmployeeNumberInput(textValue) as UserRegistrationForm[K];
         }
 
         if (this.isNameField(key)) {
@@ -4815,6 +4831,22 @@ export class UserRegistrationWizard {
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, '')
             .slice(0, maxLength);
+    }
+
+    private normalizeEmployeeNumberInput(value: unknown): string {
+        return String(value ?? '')
+            .normalize('NFKC')
+            .toUpperCase()
+            .replace(/[^A-Z0-9\s-]/g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/^\s+/, '')
+            .slice(0, 20);
+    }
+
+    private isValidEmployeeNumber(value: unknown): boolean {
+        return /^(?=.*[A-Z0-9])[A-Z0-9 -]{3,20}$/.test(
+            this.toText(value).toUpperCase(),
+        );
     }
 
     private normalizeNumericInput(value: unknown, maxLength: number): string {

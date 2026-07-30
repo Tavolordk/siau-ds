@@ -70,6 +70,34 @@
         </aside>
 
         <form class="registration-wizard__content">
+            @if (submitError() || currentStepErrors().length > 0) {
+            <section class="registration-wizard__validation-area" aria-live="assertive">
+                @if (submitError(); as error) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--error" role="alert">
+                    <siau-lucide-icon name="triangle-alert" size="18" strokeWidth="2" aria-hidden="true" />
+
+                    <div>
+                        <strong>{{ isEditMode() ? 'No se pudieron guardar los cambios.' : 'No fue posible registrar al
+                            usuario.' }}</strong>
+                        <div>{{ error }}</div>
+                    </div>
+                </div>
+                }
+
+                @if (currentStepErrors().length > 0) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--error" role="alert">
+                    <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+
+                    <div>
+                        <strong>Revisa la información capturada.</strong>
+                        @for (error of currentStepErrors(); track error.key) {
+                        <div>{{ error.message }}</div>
+                        }
+                    </div>
+                </div>
+                }
+            </section>
+            }
             @if (isEditMode()) {
             <div class="registration-wizard__edit-bar"
                 [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
@@ -107,9 +135,9 @@
                     </span>
                     <span class="registration-wizard__express-copy">
                         <strong>Creación express</strong>
-                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC, estado civil y fecha de
-                            nacimiento
-                            se pueden complementar posteriormente; si se capturan, se validarán.</small>
+                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC y fecha de nacimiento
+                            se pueden complementar posteriormente; si se capturan, se validarán. El estado civil es
+                            opcional.</small>
                     </span>
                 </label>
             </div>
@@ -235,8 +263,8 @@
                         [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
-                        [options]="civilStatusOptions()" [required]="true" [value]="form().civilStatus"
+                    <siau-select label="Estado civil" placeholder="Selecciona el estado civil (opcional)"
+                        [options]="civilStatusOptions()" [value]="form().civilStatus"
                         (valueChange)="updateForm('civilStatus', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
@@ -331,8 +359,9 @@
                         [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)"
                         [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Número de Empleado" placeholder="Ej. EMP0042" [required]="true" [maxLength]="20"
-                        [alphanumericOnly]="true" [value]="form().employeeNumber"
+                    <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
+                        hint="De 3 a 20 caracteres: letras, números, espacios y guiones"
+                        [value]="form().employeeNumber"
                         (valueChange)="updateForm('employeeNumber', $event)" [disabled]="isFormDisabled()" />
                 </div>
             </section>
@@ -433,7 +462,7 @@
                         [disabled]="isFormDisabled() || !form().commissionDecentralizedBody"
                         (valueChange)="updateCommissionAdministrativeUnit($event)" />
 
-                    <siau-input label="Fecha de Inicio" type="date" [min]="form().admissionDate"
+                    <siau-input label="Fecha de Inicio" type="date" [required]="true" [min]="form().admissionDate"
                         [max]="maximumTodayDate()" [value]="form().commissionAdmissionDate"
                         (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
                 </div>
@@ -551,8 +580,6 @@
                         [maxLength]="10" [numericOnly]="true" [value]="form().phone"
                         (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Extensión" placeholder="Opcional" [value]="form().extension"
-                        (valueChange)="updateForm('extension', $event)" [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -893,31 +920,6 @@
             </section>
             }
             }
-            }
-
-            @if (submitError(); as error) {
-            <div class="registration-wizard__info-box registration-wizard__info-box--error" role="alert"
-                aria-live="assertive">
-                <siau-lucide-icon name="triangle-alert" size="18" strokeWidth="2" aria-hidden="true" />
-
-                <div>
-                    <strong>{{ isEditMode() ? 'No se pudieron guardar los cambios.' : 'No fue posible registrar al
-                        usuario.' }}</strong>
-                    <div>{{ error }}</div>
-                </div>
-            </div>
-            }
-
-            @if (currentStepErrors().length > 0) {
-            <div class="registration-wizard__info-box">
-                <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
-
-                <div>
-                    @for (error of currentStepErrors(); track error.key) {
-                    <div>{{ error.message }}</div>
-                    }
-                </div>
-            </div>
             }
 
             <footer class="registration-wizard__footer">
