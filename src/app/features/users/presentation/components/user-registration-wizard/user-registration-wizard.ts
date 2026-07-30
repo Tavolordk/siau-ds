@@ -292,6 +292,7 @@ export class UserRegistrationWizard {
     protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
     protected readonly renapoLookupStatus = signal<RenapoLookupStatus>('idle');
     protected readonly renapoMessage = signal<string>('');
+    protected readonly renapoMessageVisible = signal<boolean>(false);
     protected readonly curpLocked = signal<boolean>(false);
     protected readonly curpUnlockChecked = signal<boolean>(false);
     protected readonly curpValidationSummary = signal<CurpValidationSummary | null>(null);
@@ -610,6 +611,39 @@ export class UserRegistrationWizard {
                 return 'triangle-alert';
         }
     });
+
+    protected dismissRenapoMessage(): void {
+        this.renapoMessageVisible.set(false);
+    }
+
+    protected dismissSubmitError(): void {
+        this.clearFieldError('submit');
+    }
+
+    protected dismissCurrentStepErrors(): void {
+        const currentStepErrorKeys = new Set(
+            this.currentStepErrors().map((error) => error.key),
+        );
+
+        if (currentStepErrorKeys.size === 0) {
+            return;
+        }
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+            currentStepErrorKeys.forEach((key) => delete next[key]);
+            return next;
+        });
+    }
+
+    protected dismissStructureProfileError(): void {
+        if (this.structureProfileLookupStatus() !== 'error') {
+            return;
+        }
+
+        this.structureProfileLookupStatus.set('idle');
+        this.structureProfileMessage.set('');
+    }
 
     protected readonly curpValidationSummaryForDisplay = computed(() =>
         this.curpValidationSummary(),
@@ -1819,6 +1853,7 @@ export class UserRegistrationWizard {
         this.curpLocked.set(false);
         this.renapoLookupStatus.set('loading');
         this.renapoMessage.set('Espera un momento mientras validamos la identidad.');
+        this.renapoMessageVisible.set(true);
 
         this.renapoFacade
             .consultarCurp(normalizedCurp)
@@ -1838,6 +1873,7 @@ export class UserRegistrationWizard {
                     if (response.exito && response.datos && this.hasCompleteRenapoPersonalData(response.datos)) {
                         this.applyRenapoPersonalData(response.datos, normalizedCurp);
                         this.renapoLookupStatus.set('success');
+                        this.renapoMessageVisible.set(true);
                         this.renapoMessage.set(
                             response.mensaje ||
                             'Los datos personales fueron llenados con la información de RENAPO.',
@@ -1846,6 +1882,7 @@ export class UserRegistrationWizard {
                     }
 
                     this.renapoLookupStatus.set('not-found');
+                    this.renapoMessageVisible.set(true);
                     this.renapoMessage.set(
                         'RENAPO no encontró información para esta CURP. Captura manualmente nombre(s), apellidos, sexo y fecha de nacimiento.',
                     );
@@ -1861,6 +1898,7 @@ export class UserRegistrationWizard {
                     this.lastRenapoCurp = normalizedCurp;
                     this.curpLocked.set(true);
                     this.renapoLookupStatus.set('error');
+                    this.renapoMessageVisible.set(true);
                     this.renapoMessage.set(
                         'No fue posible consultar RENAPO. Puedes reintentar o capturar manualmente nombre(s), apellidos, sexo y fecha de nacimiento.',
                     );
@@ -2047,6 +2085,7 @@ export class UserRegistrationWizard {
         this.lastRenapoCurp = '';
         this.renapoLookupStatus.set('idle');
         this.renapoMessage.set('');
+        this.renapoMessageVisible.set(false);
         this.curpLocked.set(false);
         this.curpUnlockChecked.set(false);
         this.clearCurpValidationSummary();
@@ -4264,7 +4303,11 @@ export class UserRegistrationWizard {
                 'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de edad.';
         }
 
-        if (curpBirthDate && hasBirthDate && current.birthDate !== curpBirthDate) {
+        if (
+            curpBirthDate &&
+            hasBirthDate &&
+            !this.areSameCalendarDates(current.birthDate, curpBirthDate)
+        ) {
             errors['birthDate'] =
                 'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
         }
@@ -4354,7 +4397,7 @@ export class UserRegistrationWizard {
             !this.isValidEmployeeNumber(current.employeeNumber)
         ) {
             errors['employeeNumber'] =
-                'El número de empleado debe contener de 3 a 20 caracteres: letras, números, espacios o guiones.';
+                'El número de empleado debe contener de 3 a 20 caracteres: letras, números, espacios o guion.';
         }
     }
 
@@ -4788,6 +4831,14 @@ export class UserRegistrationWizard {
             return this.normalizeNumericInput(textValue, 10) as UserRegistrationForm[K];
         }
 
+        if (
+            key === 'birthDate' ||
+            key === 'admissionDate' ||
+            key === 'commissionAdmissionDate'
+        ) {
+            return (this.toDateInputValue(textValue) || textValue) as UserRegistrationForm[K];
+        }
+
         if (key === 'email') {
             return this.normalizeEmail(textValue) as UserRegistrationForm[K];
         }
@@ -4948,10 +4999,24 @@ export class UserRegistrationWizard {
         const shortYear = Number(curp.slice(4, 6));
         const month = curp.slice(6, 8);
         const day = curp.slice(8, 10);
-        const century = /^\d$/.test(curp.charAt(16)) ? 1900 : 2000;
-        const birthDate = `${century + shortYear}-${month}-${day}`;
+        const fullYear = this.resolveCurpBirthYear(shortYear);
+        const birthDate = `${fullYear}-${month}-${day}`;
 
         return this.isValidDateInput(birthDate) ? birthDate : null;
+    }
+
+    /**
+     * Resuelve el siglo usando una ventana móvil respecto del año actual.
+     * Esto evita interpretar CURP de prueba como 1908 sólo porque el carácter
+     * diferenciador de homonimia sea numérico. Por ejemplo, durante 2026:
+     * 08 -> 2008, 26 -> 2026 y 91 -> 1991.
+     */
+    private resolveCurpBirthYear(shortYear: number): number {
+        const currentYear = new Date().getFullYear();
+        const currentCentury = Math.floor(currentYear / 100) * 100;
+        const candidateYear = currentCentury + shortYear;
+
+        return candidateYear > currentYear ? candidateYear - 100 : candidateYear;
     }
 
     private isValidRfc(value: string): boolean {
@@ -5057,6 +5122,21 @@ export class UserRegistrationWizard {
 
     private isValidDateInput(value: string): boolean {
         return this.parseDateInput(value) !== null;
+    }
+
+    private areSameCalendarDates(leftValue: string, rightValue: string): boolean {
+        const leftDate = this.parseDateInput(this.toDateInputValue(leftValue) || leftValue);
+        const rightDate = this.parseDateInput(this.toDateInputValue(rightValue) || rightValue);
+
+        if (!leftDate || !rightDate) {
+            return false;
+        }
+
+        return (
+            leftDate.getFullYear() === rightDate.getFullYear() &&
+            leftDate.getMonth() === rightDate.getMonth() &&
+            leftDate.getDate() === rightDate.getDate()
+        );
     }
 
     private parseDateInput(value: string): Date | null {

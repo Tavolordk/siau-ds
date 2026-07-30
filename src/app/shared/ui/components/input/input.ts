@@ -30,6 +30,7 @@ export class SiauInput {
   readonly alphanumericOnly = input<boolean>(false);
   readonly alphabeticOnly = input<boolean>(false);
   readonly numericOnly = input<boolean>(false);
+  readonly employeeNumberOnly = input<boolean>(false);
   readonly hint = input<string | null>(null);
 
   readonly valueChange = output<string>();
@@ -40,39 +41,71 @@ export class SiauInput {
 
     if (this.alphanumericOnly()) {
       const maxLength = this.maxLength();
-      const normalizedValue = inputElement.value
-        .normalize('NFKC')
-        .replace(/[^A-Za-z0-9]/g, '');
+      const normalize = (value: string): string => {
+        const normalizedValue = value
+          .normalize('NFKC')
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '');
 
-      inputElement.value =
-        maxLength === null ? normalizedValue : normalizedValue.slice(0, maxLength);
-      this.valueChange.emit(inputElement.value);
+        return maxLength === null
+          ? normalizedValue
+          : normalizedValue.slice(0, maxLength);
+      };
+
+      this.emitNormalizedValueKeepingSelection(inputElement, normalize);
       return;
     }
 
     if (this.alphabeticOnly()) {
       const maxLength = this.maxLength();
-      const normalizedValue = inputElement.value
-        .normalize('NFC')
-        .replace(/[^\p{L}\s]/gu, '')
-        .replace(/\s+/g, ' ')
-        .replace(/^\s+/, '');
+      const normalize = (value: string): string => {
+        const normalizedValue = value
+          .normalize('NFC')
+          .replace(/[^\p{L}\s]/gu, '')
+          .replace(/\s+/g, ' ')
+          .replace(/^\s+/, '');
 
-      inputElement.value =
-        maxLength === null ? normalizedValue : normalizedValue.slice(0, maxLength);
-      this.valueChange.emit(inputElement.value);
+        return maxLength === null
+          ? normalizedValue
+          : normalizedValue.slice(0, maxLength);
+      };
+
+      this.emitNormalizedValueKeepingSelection(inputElement, normalize);
       return;
     }
 
     if (this.numericOnly()) {
       const maxLength = this.maxLength();
-      const normalizedValue = inputElement.value
-        .normalize('NFKC')
-        .replace(/\D/g, '');
+      const normalize = (value: string): string => {
+        const normalizedValue = value
+          .normalize('NFKC')
+          .replace(/\D/g, '');
 
-      inputElement.value =
-        maxLength === null ? normalizedValue : normalizedValue.slice(0, maxLength);
-      this.valueChange.emit(inputElement.value);
+        return maxLength === null
+          ? normalizedValue
+          : normalizedValue.slice(0, maxLength);
+      };
+
+      this.emitNormalizedValueKeepingSelection(inputElement, normalize);
+      return;
+    }
+
+    if (this.employeeNumberOnly()) {
+      const maxLength = this.maxLength();
+      const normalize = (value: string): string => {
+        const normalizedValue = value
+          .normalize('NFKC')
+          .toUpperCase()
+          .replace(/[^A-Z0-9 -]/g, '')
+          .replace(/\s+/g, ' ')
+          .replace(/^\s+/, '');
+
+        return maxLength === null
+          ? normalizedValue
+          : normalizedValue.slice(0, maxLength);
+      };
+
+      this.emitNormalizedValueKeepingSelection(inputElement, normalize);
       return;
     }
 
@@ -97,4 +130,67 @@ export class SiauInput {
     inputElement.value = normalizedValue;
     this.valueChange.emit(normalizedValue);
   }
+
+  private emitNormalizedValueKeepingSelection(
+    inputElement: HTMLInputElement,
+    normalize: (value: string) => string,
+  ): void {
+    const rawValue = inputElement.value;
+    const rawSelectionStart = inputElement.selectionStart ?? rawValue.length;
+    const rawSelectionEnd = inputElement.selectionEnd ?? rawSelectionStart;
+    const normalizedValue = normalize(rawValue);
+    const normalizedSelectionStart = Math.min(
+      normalize(rawValue.slice(0, rawSelectionStart)).length,
+      normalizedValue.length,
+    );
+    const normalizedSelectionEnd = Math.min(
+      normalize(rawValue.slice(0, rawSelectionEnd)).length,
+      normalizedValue.length,
+    );
+
+    inputElement.value = normalizedValue;
+    this.restoreSelection(
+      inputElement,
+      normalizedSelectionStart,
+      normalizedSelectionEnd,
+    );
+    this.valueChange.emit(normalizedValue);
+
+    // El binding [value] del componente padre puede volver a escribir el valor
+    // durante la detección de cambios. Se restaura al terminar el evento y otra
+    // vez después del siguiente render para evitar que Angular mande el cursor
+    // al final al editar un carácter en medio del valor.
+    queueMicrotask(() => {
+      this.restoreSelection(
+        inputElement,
+        normalizedSelectionStart,
+        normalizedSelectionEnd,
+      );
+    });
+
+    requestAnimationFrame(() => {
+      this.restoreSelection(
+        inputElement,
+        normalizedSelectionStart,
+        normalizedSelectionEnd,
+      );
+    });
+  }
+
+  private restoreSelection(
+    inputElement: HTMLInputElement,
+    selectionStart: number,
+    selectionEnd: number,
+  ): void {
+    if (typeof inputElement.setSelectionRange !== 'function') {
+      return;
+    }
+
+    try {
+      inputElement.setSelectionRange(selectionStart, selectionEnd);
+    } catch {
+      // Algunos tipos nativos, como date o number, no permiten seleccionar texto.
+    }
+  }
+
 }

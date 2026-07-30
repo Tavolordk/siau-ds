@@ -81,6 +81,12 @@
                             usuario.' }}</strong>
                         <div>{{ error }}</div>
                     </div>
+
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissSubmitError()" aria-label="Cerrar mensaje de error"
+                        title="Cerrar mensaje">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
                 </div>
                 }
 
@@ -94,10 +100,41 @@
                         <div>{{ error.message }}</div>
                         }
                     </div>
+
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissCurrentStepErrors()" aria-label="Cerrar mensajes de validación"
+                        title="Cerrar mensajes">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
                 </div>
                 }
             </section>
             }
+
+            @if (activeStepId() === 'personal-data' && renapoLookupStatus() !== 'idle' && renapoMessageVisible()) {
+            <div class="registration-wizard__renapo-status registration-wizard__renapo-status--top"
+                [class.registration-wizard__renapo-status--loading]="renapoLookupStatus() === 'loading'"
+                [class.registration-wizard__renapo-status--success]="renapoLookupStatus() === 'success'"
+                [class.registration-wizard__renapo-status--warning]="renapoLookupStatus() === 'not-found'"
+                [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'"
+                aria-live="polite">
+                <span class="registration-wizard__renapo-status-icon">
+                    <siau-lucide-icon [name]="renapoStatusIcon()" size="17" strokeWidth="2" aria-hidden="true" />
+                </span>
+
+                <div class="registration-wizard__renapo-status-content">
+                    <strong>{{ renapoStatusTitle() }}</strong>
+                    <span>{{ renapoMessage() }}</span>
+                </div>
+
+                <button type="button" class="registration-wizard__renapo-status-close"
+                    (click)="dismissRenapoMessage()" aria-label="Cerrar mensaje de RENAPO"
+                    title="Cerrar mensaje">
+                    <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                </button>
+            </div>
+            }
+
             @if (isEditMode()) {
             <div class="registration-wizard__edit-bar"
                 [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
@@ -222,7 +259,6 @@
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
                             [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true"
                             [value]="form().curp"
-                            [hint]="renapoLookupStatus() === 'loading' ? 'Consultando CURP en RENAPO...' : null"
                             (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
 
                         @if (showCurpUnlock()) {
@@ -271,23 +307,6 @@
                         [max]="maximumBirthDate()" [value]="form().birthDate"
                         (valueChange)="updateForm('birthDate', $event)" [disabled]="isBirthDateInputDisabled()" />
                 </div>
-
-                @if (renapoLookupStatus() !== 'idle') {
-                <div class="registration-wizard__renapo-status"
-                    [class.registration-wizard__renapo-status--loading]="renapoLookupStatus() === 'loading'"
-                    [class.registration-wizard__renapo-status--success]="renapoLookupStatus() === 'success'"
-                    [class.registration-wizard__renapo-status--warning]="renapoLookupStatus() === 'not-found'"
-                    [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'">
-                    <span class="registration-wizard__renapo-status-icon">
-                        <siau-lucide-icon [name]="renapoStatusIcon()" size="17" strokeWidth="2" aria-hidden="true" />
-                    </span>
-
-                    <div>
-                        <strong>{{ renapoStatusTitle() }}</strong>
-                        <span>{{ renapoMessage() }}</span>
-                    </div>
-                </div>
-                }
 
             </section>
             }
@@ -360,7 +379,8 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
-                        hint="De 3 a 20 caracteres: letras, números, espacios y guiones"
+                        [employeeNumberOnly]="true"
+                        hint="De 3 a 20 caracteres: letras, números, espacios y guion"
                         [value]="form().employeeNumber"
                         (valueChange)="updateForm('employeeNumber', $event)" [disabled]="isFormDisabled()" />
                 </div>
@@ -654,9 +674,15 @@
 
                 @if (structureProfileLookupStatus() === 'error') {
                 <div
-                    class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error">
+                    class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error"
+                    role="alert">
                     <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>{{ structureProfileMessage() }}</span>
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissStructureProfileError()" aria-label="Cerrar error de perfiles"
+                        title="Cerrar mensaje">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
                 </div>
                 }
 
