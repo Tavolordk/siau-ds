@@ -4475,10 +4475,10 @@ export class UserRegistrationWizard {
         if (
             this.shouldValidateEditFields(current, ['employeeNumber']) &&
             this.hasText(current.employeeNumber) &&
-            !/^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+            !/^[A-Z0-9]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
         ) {
             errors['employeeNumber'] =
-                'El número de empleado debe contener de 3 a 20 letras, números o espacios.';
+                'El número de empleado debe contener de 3 a 20 caracteres alfanuméricos, sin espacios ni caracteres especiales.';
         }
     }
 
@@ -4623,7 +4623,7 @@ export class UserRegistrationWizard {
 
         return (
             this.isDateOnOrBeforeToday(current.admissionDate) &&
-            /^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+            /^[A-Z0-9]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
         );
     }
 
@@ -4855,6 +4855,10 @@ export class UserRegistrationWizard {
 
         if (key === 'curp') {
             return this.normalizeAlphanumericInput(textValue, 18) as UserRegistrationForm[K];
+        }
+
+        if (key === 'employeeNumber') {
+            return this.normalizeAlphanumericInput(textValue, 20) as UserRegistrationForm[K];
         }
 
         if (this.isNameField(key)) {

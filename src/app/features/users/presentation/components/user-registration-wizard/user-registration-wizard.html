@@ -337,9 +337,9 @@
                     <siau-input label="Fecha de Ingreso" type="date" [required]="true" [max]="maximumTodayDate()" [value]="form().admissionDate"
                         (valueChange)="updateForm('admissionDate', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
-                        [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)"
-                        [disabled]="isFormDisabled()" />
+                    <siau-input label="Número de Empleado" placeholder="Ej. EMP0042" [required]="true" [maxLength]="20"
+                        [alphanumericOnly]="true" [value]="form().employeeNumber"
+                        (valueChange)="updateForm('employeeNumber', $event)" [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
