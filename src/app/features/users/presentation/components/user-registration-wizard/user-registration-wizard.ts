@@ -96,7 +96,6 @@ interface UserRegistrationForm {
     commissionInstitution: string;
     commissionEntity: string;
     commissionMunicipality: string;
-    commissionDependency: string;
     commissionDecentralizedBody: string;
     commissionAdministrativeUnit: string;
     commissionAdmissionDate: string;
@@ -232,7 +231,6 @@ const INITIAL_FORM: UserRegistrationForm = {
     commissionInstitution: '',
     commissionEntity: '',
     commissionMunicipality: '',
-    commissionDependency: '',
     commissionDecentralizedBody: '',
     commissionAdministrativeUnit: '',
     commissionAdmissionDate: '',
@@ -333,7 +331,6 @@ export class UserRegistrationWizard {
 
     protected readonly commissionMunicipalityOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionInstitutionOptions = signal<readonly SiauSelectOption[]>([]);
-    protected readonly commissionDependencyOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionDecentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionAdministrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
 
@@ -1187,7 +1184,6 @@ export class UserRegistrationWizard {
             commissionInstitution: checked ? current.commissionInstitution : '',
             commissionEntity: checked ? current.commissionEntity : '',
             commissionMunicipality: checked ? current.commissionMunicipality : '',
-            commissionDependency: checked ? current.commissionDependency : '',
             commissionDecentralizedBody: checked ? current.commissionDecentralizedBody : '',
             commissionAdministrativeUnit: checked ? current.commissionAdministrativeUnit : '',
             commissionAdmissionDate: checked ? current.commissionAdmissionDate : '',
@@ -1196,7 +1192,6 @@ export class UserRegistrationWizard {
         if (!checked) {
             this.commissionMunicipalityOptions.set([]);
             this.commissionInstitutionOptions.set([]);
-            this.commissionDependencyOptions.set([]);
             this.commissionDecentralizedBodyOptions.set([]);
             this.commissionAdministrativeUnitOptions.set([]);
         }
@@ -1209,7 +1204,6 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
-                'commissionDependency',
                 'commissionDecentralizedBody',
                 'commissionAdministrativeUnit',
                 'commissionAdmissionDate',
@@ -1245,6 +1239,14 @@ export class UserRegistrationWizard {
 
         if (!this.requiresMunicipalityForInstitution(institutionType)) {
             this.municipalityOptions.set([]);
+        } else {
+            this.municipalityOptions.set([]);
+
+            const preservedEntity = this.form().entity;
+
+            if (preservedEntity) {
+                this.loadMunicipalities(preservedEntity, this.municipalityOptions, 'assignment');
+            }
         }
 
         this.institutionOptions.set([]);
@@ -1355,6 +1357,13 @@ export class UserRegistrationWizard {
 
         this.bumpAssignmentCatalogGeneration();
 
+        // El catálogo de perfiles se consulta con el último nivel seleccionado,
+        // por lo que cambiar el OAD invalida los perfiles ya elegidos.
+        this.clearProfilesAfterAssignmentInstitutionChange(
+            this.form().decentralizedBody,
+            value ?? '',
+        );
+
         this.form.update((current) => ({
             ...current,
             decentralizedBody: value ?? '',
@@ -1371,6 +1380,10 @@ export class UserRegistrationWizard {
         }
 
         this.bumpAssignmentCatalogGeneration();
+        this.clearProfilesAfterAssignmentInstitutionChange(
+            this.form().administrativeUnit,
+            value ?? '',
+        );
         this.form.update((current) => ({
             ...current,
             administrativeUnit: value ?? '',
@@ -1397,17 +1410,23 @@ export class UserRegistrationWizard {
             commissionEntity: requiresEntity ? current.commissionEntity : '',
             commissionMunicipality: '',
             commissionInstitution: '',
-            commissionDependency: '',
-            commissionDecentralizedBody: '',
+                    commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
 
         if (!this.requiresMunicipalityForInstitution(commissionInstitutionType)) {
             this.commissionMunicipalityOptions.set([]);
+        } else {
+            this.commissionMunicipalityOptions.set([]);
+
+            const preservedEntity = this.form().commissionEntity;
+
+            if (preservedEntity) {
+                this.loadMunicipalities(preservedEntity, this.commissionMunicipalityOptions, 'commission');
+            }
         }
 
         this.commissionInstitutionOptions.set([]);
-        this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionInstitutions();
@@ -1441,13 +1460,11 @@ export class UserRegistrationWizard {
             commissionEntity: value ?? '',
             commissionMunicipality: '',
             commissionInstitution: '',
-            commissionDependency: '',
-            commissionDecentralizedBody: '',
+                    commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
         this.commissionMunicipalityOptions.set([]);
         this.commissionInstitutionOptions.set([]);
-        this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         if (this.commissionRequiresMunicipality()) {
@@ -1475,12 +1492,10 @@ export class UserRegistrationWizard {
             ...current,
             commissionMunicipality: value ?? '',
             commissionInstitution: '',
-            commissionDependency: '',
-            commissionDecentralizedBody: '',
+                    commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
         this.commissionInstitutionOptions.set([]);
-        this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionInstitutions();
@@ -1503,31 +1518,15 @@ export class UserRegistrationWizard {
         this.form.update((current) => ({
             ...current,
             commissionInstitution,
-            commissionDependency: '',
-            commissionDecentralizedBody: '',
+                    commissionDecentralizedBody: '',
             commissionAdministrativeUnit: '',
         }));
-        this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
-        this.loadCommissionChildren(value, this.commissionDependencyOptions);
         this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions, 2);
         this.refreshCommissionStructureConflict();
     }
 
-    protected updateCommissionDependency(value: string | null): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
-            return;
-        }
-
-        this.bumpCommissionCatalogGeneration();
-        this.form.update((current) => ({
-            ...current,
-            commissionDependency: value ?? '',
-        }));
-        this.clearFieldError('commissionDependency');
-        this.refreshCommissionStructureConflict();
-    }
 
     protected updateCommissionDecentralizedBody(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
@@ -1535,6 +1534,11 @@ export class UserRegistrationWizard {
         }
 
         this.bumpCommissionCatalogGeneration();
+
+        this.clearProfilesAfterCommissionInstitutionChange(
+            this.form().commissionDecentralizedBody,
+            value ?? '',
+        );
 
         this.form.update((current) => ({
             ...current,
@@ -1555,6 +1559,10 @@ export class UserRegistrationWizard {
         }
 
         this.bumpCommissionCatalogGeneration();
+        this.clearProfilesAfterCommissionInstitutionChange(
+            this.form().commissionAdministrativeUnit,
+            value ?? '',
+        );
         this.form.update((current) => ({
             ...current,
             commissionAdministrativeUnit: value ?? '',
@@ -1718,7 +1726,7 @@ export class UserRegistrationWizard {
         this.clearAssignedProfilesAfterInstitutionChange(
             previousInstitution,
             nextInstitution,
-            'La institución de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            'La estructura de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
         );
     }
 
@@ -1733,7 +1741,7 @@ export class UserRegistrationWizard {
         this.clearAssignedProfilesAfterInstitutionChange(
             previousInstitution,
             nextInstitution,
-            'La institución de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            'La estructura de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
         );
     }
 
@@ -2474,10 +2482,9 @@ export class UserRegistrationWizard {
             [
                 current.commissionAdministrativeUnit,
                 current.commissionDecentralizedBody,
-                current.commissionDependency,
                 current.commissionInstitution,
             ],
-            'Selecciona la institución, dependencia, órgano o unidad de comisión.',
+            'Selecciona la institución, órgano o unidad de comisión.',
         );
     }
 
@@ -2708,12 +2715,6 @@ export class UserRegistrationWizard {
                 ['institucionId', 'idInstitucion', 'estructuraId'],
                 ['institucion', 'institucionNombre', 'estructura'],
                 this.commissionInstitutionOptions,
-            ),
-            commissionDependency: this.resolveRecordSelectValue(
-                commission,
-                ['dependenciaId', 'idDependencia'],
-                ['dependencia', 'dependenciaNombre'],
-                this.commissionDependencyOptions,
             ),
             commissionDecentralizedBody: this.resolveRecordSelectValue(
                 commission,
@@ -3240,7 +3241,6 @@ export class UserRegistrationWizard {
         this.administrativeUnitOptions.set([]);
         this.commissionMunicipalityOptions.set([]);
         this.commissionInstitutionOptions.set([]);
-        this.commissionDependencyOptions.set([]);
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
     }
@@ -3351,7 +3351,6 @@ export class UserRegistrationWizard {
         }
 
         if (form.commissionInstitution) {
-            this.loadCommissionChildren(form.commissionInstitution, this.commissionDependencyOptions);
             this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions, 2);
         }
 
@@ -3942,7 +3941,6 @@ export class UserRegistrationWizard {
         if (target === this.administrativeUnitOptions) return current.administrativeUnit;
         if (target === this.commissionMunicipalityOptions) return current.commissionMunicipality;
         if (target === this.commissionInstitutionOptions) return current.commissionInstitution;
-        if (target === this.commissionDependencyOptions) return current.commissionDependency;
         if (target === this.commissionDecentralizedBodyOptions) return current.commissionDecentralizedBody;
         if (target === this.commissionAdministrativeUnitOptions) return current.commissionAdministrativeUnit;
 
@@ -4486,7 +4484,6 @@ export class UserRegistrationWizard {
         const conflict = this.getAssignmentCommissionStructureConflict(this.form());
         const conflictFields: readonly (keyof UserRegistrationForm)[] = [
             'commissionInstitution',
-            'commissionDependency',
             'commissionDecentralizedBody',
             'commissionAdministrativeUnit',
         ];
@@ -4542,11 +4539,6 @@ export class UserRegistrationWizard {
                 field: 'commissionDecentralizedBody',
                 level: 'decentralized-body',
                 value: current.commissionDecentralizedBody,
-            },
-            {
-                field: 'commissionDependency',
-                level: 'dependency',
-                value: current.commissionDependency,
             },
             {
                 field: 'commissionInstitution',
@@ -4664,13 +4656,47 @@ export class UserRegistrationWizard {
     }
 
     private resolveProfileStructureId(current: UserRegistrationForm): number | undefined {
-        // El parámetro estructuraId proviene exclusivamente del select Institución.
-        // No debe utilizar Tipo de institución, dependencia, OAD ni unidad administrativa.
-        const selectedInstitution = current.commissionEnabled
-            ? current.commissionInstitution
-            : current.institution;
+        // El parámetro estructuraId es el id del ÚLTIMO nivel filtrado por el usuario:
+        // unidad administrativa > órgano desconcentrado > institución.
+        // Si solo llegó hasta institución, se manda la institución; si llegó hasta
+        // unidad administrativa, se manda la unidad administrativa.
+        const selection = current.commissionEnabled
+            ? this.resolveDeepestStructureSelection([
+                {
+                    field: 'commissionAdministrativeUnit',
+                    level: 'administrative-unit',
+                    value: current.commissionAdministrativeUnit,
+                },
+                {
+                    field: 'commissionDecentralizedBody',
+                    level: 'decentralized-body',
+                    value: current.commissionDecentralizedBody,
+                },
+                {
+                    field: 'commissionInstitution',
+                    level: 'institution',
+                    value: current.commissionInstitution,
+                },
+            ])
+            : this.resolveDeepestStructureSelection([
+                {
+                    field: 'administrativeUnit',
+                    level: 'administrative-unit',
+                    value: current.administrativeUnit,
+                },
+                {
+                    field: 'decentralizedBody',
+                    level: 'decentralized-body',
+                    value: current.decentralizedBody,
+                },
+                {
+                    field: 'institution',
+                    level: 'institution',
+                    value: current.institution,
+                },
+            ]);
 
-        return this.toCatalogId(selectedInstitution);
+        return selection?.catalogId ?? undefined;
     }
 
     private shouldValidateIdentityFields(current: UserRegistrationForm): boolean {
@@ -4803,7 +4829,6 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
-                'commissionDependency',
                 'commissionDecentralizedBody',
                 'commissionAdministrativeUnit',
                 'commissionAdmissionDate',

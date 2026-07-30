@@ -430,11 +430,6 @@
                         [disabled]="isFormDisabled() || !form().commissionInstitutionType || (commissionRequiresEntity() && !form().commissionEntity)"
                         (valueChange)="updateCommissionInstitution($event)" />
 
-                    <siau-select label="Dependencia" placeholder="Selecciona la dependencia"
-                        [options]="commissionDependencyOptions()" [value]="form().commissionDependency"
-                        [disabled]="isFormDisabled() || !form().commissionInstitution"
-                        (valueChange)="updateCommissionDependency($event)" />
-
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
                         [options]="commissionDecentralizedBodyOptions()" [value]="form().commissionDecentralizedBody"
                         [disabled]="isFormDisabled() || !form().commissionInstitution"
