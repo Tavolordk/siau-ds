@@ -23,7 +23,20 @@ type CatalogoQuery =
     | EstructuraPerfilQuery
     | SistemaPerfilesQuery;
 
-const QUERY_PARAM_NAMES: Record<string, string> = {
+const LEGACY_QUERY_PARAM_NAMES: Readonly<Record<string, string>> = {
+    nivel: 'Nivel',
+    estadoId: 'EstadoId',
+    municipioId: 'MunicipioId',
+    soloActivos: 'SoloActivos',
+    tipoEstructuraId: 'TipoEstructuraId',
+    tipoInstitucionId: 'TipoInstitucionId',
+    padreId: 'PadreId',
+    busqueda: 'Busqueda',
+    sistema: 'Sistema',
+    estructuraId: 'EstructuraId',
+};
+
+const CURRENT_QUERY_PARAM_NAMES: Readonly<Record<string, string>> = {
     nivel: 'nivel',
     estadoId: 'estadoId',
     soloActivos: 'soloActivos',
@@ -61,13 +74,21 @@ export class CatalogosApiRepository implements CatalogosRepository {
     obtenerEstructuraOrganizacional(
         query: EstructuraOrganizacionalQuery = { soloActivos: 1 },
     ): Observable<readonly CatalogoRecord[]> {
-        return this.getCatalogo('estructura_organizacional', query);
+        return this.getCatalogo(
+            'estructura_organizacional',
+            query,
+            CURRENT_QUERY_PARAM_NAMES,
+        );
     }
 
     obtenerEstructuraOrg(
         query: EstructuraOrgQuery = { soloActivos: 1 },
     ): Observable<readonly CatalogoRecord[]> {
-        return this.getCatalogo('estructura_org', query);
+        return this.getCatalogo(
+            'estructura_org',
+            query,
+            CURRENT_QUERY_PARAM_NAMES,
+        );
     }
 
     obtenerSexo(): Observable<readonly CatalogoRecord[]> {
@@ -91,7 +112,7 @@ export class CatalogosApiRepository implements CatalogosRepository {
 
         return this.http
             .get<EstructuraPerfilResponse>(url, {
-                params: this.toHttpParams(query),
+                params: this.toHttpParams(query, CURRENT_QUERY_PARAM_NAMES),
             })
             .pipe(
                 // Este endpoint no usa la envoltura genérica `datos`; cada perfil
@@ -116,19 +137,28 @@ export class CatalogosApiRepository implements CatalogosRepository {
         return this.getCatalogo('tipo_usuario');
     }
 
-    private getCatalogo(endpoint: string, query?: CatalogoQuery): Observable<readonly CatalogoRecord[]> {
-        return this.getCatalogoByPath(`${CATALOGOS_PATH}/${endpoint}`, query);
+    private getCatalogo(
+        endpoint: string,
+        query?: CatalogoQuery,
+        queryParamNames: Readonly<Record<string, string>> = LEGACY_QUERY_PARAM_NAMES,
+    ): Observable<readonly CatalogoRecord[]> {
+        return this.getCatalogoByPath(
+            `${CATALOGOS_PATH}/${endpoint}`,
+            query,
+            queryParamNames,
+        );
     }
 
     private getCatalogoByPath(
         path: string,
         query?: CatalogoQuery,
+        queryParamNames: Readonly<Record<string, string>> = LEGACY_QUERY_PARAM_NAMES,
     ): Observable<readonly CatalogoRecord[]> {
         const url = `${this.apiBaseUrl}${path}`;
 
         return this.http
             .get<CatalogoResponse>(url, {
-                params: this.toHttpParams(query),
+                params: this.toHttpParams(query, queryParamNames),
             })
             .pipe(
                 map((response) => response.datos ?? []),
@@ -138,7 +168,10 @@ export class CatalogosApiRepository implements CatalogosRepository {
             );
     }
 
-    private toHttpParams(query?: CatalogoQuery): HttpParams {
+    private toHttpParams(
+        query?: CatalogoQuery,
+        queryParamNames: Readonly<Record<string, string>> = LEGACY_QUERY_PARAM_NAMES,
+    ): HttpParams {
         let params = new HttpParams();
 
         if (!query) {
@@ -147,7 +180,7 @@ export class CatalogosApiRepository implements CatalogosRepository {
 
         Object.entries(query).forEach(([key, value]) => {
             if (value !== undefined && value !== null && value !== '') {
-                params = params.set(QUERY_PARAM_NAMES[key] ?? key, String(value));
+                params = params.set(queryParamNames[key] ?? key, String(value));
             }
         });
 

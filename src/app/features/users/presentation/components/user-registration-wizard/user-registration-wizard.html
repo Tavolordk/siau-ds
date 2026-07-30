@@ -193,8 +193,10 @@
                 </div>
 
                 <div class="registration-wizard__grid">
-                    <siau-input label="CUIP" placeholder="Ej. FCSSPC260001" [value]="form().cuip"
-                        [maxLength]="20" [alphanumericOnly]="true" (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="CUIP" placeholder="Ej. GARC910515H094569875" [value]="form().cuip"
+                        [maxLength]="20" [alphanumericOnly]="true"
+                        hint="Formato: 4 letras, 6 números, H/M y 9 números"
+                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
@@ -240,7 +242,7 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-select label="Estado civil" placeholder="Selecciona el estado civil"
-                        [options]="civilStatusOptions()"
+                        [options]="civilStatusOptions()" [required]="true"
                         [value]="form().civilStatus" (valueChange)="updateForm('civilStatus', $event)"
                         [disabled]="isFormDisabled()" />
 
@@ -324,7 +326,7 @@
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
                         [options]="administrativeUnitOptions()" [value]="form().administrativeUnit"
                         [disabled]="isFormDisabled() || !form().decentralizedBody"
-                        (valueChange)="updateForm('administrativeUnit', $event)" />
+                        (valueChange)="updateAssignmentAdministrativeUnit($event)" />
 
                     <siau-input label="Cargo" placeholder="Ej. Analista" [value]="form().position"
                         (valueChange)="updateForm('position', $event)" [disabled]="isFormDisabled()" />
@@ -441,7 +443,7 @@
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
                         [options]="commissionAdministrativeUnitOptions()" [value]="form().commissionAdministrativeUnit"
                         [disabled]="isFormDisabled() || !form().commissionDecentralizedBody"
-                        (valueChange)="updateForm('commissionAdministrativeUnit', $event)" />
+                        (valueChange)="updateCommissionAdministrativeUnit($event)" />
 
                     <siau-input label="Fecha de Inicio" type="date" [min]="form().admissionDate" [max]="maximumTodayDate()" [value]="form().commissionAdmissionDate"
                         (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled()" />
@@ -597,6 +599,23 @@
                     <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>Para registro express también debes agregar al menos un sistema y perfil.</span>
                 </div>
+
+                @if (!isEditMode()) {
+                <div class="registration-wizard__field registration-wizard__field--full">
+                    <label class="registration-wizard__field-label" for="express-justification-profiles">
+                        Comentarios <span>*</span>
+                    </label>
+
+                    <textarea id="express-justification-profiles" class="registration-wizard__textarea" rows="4"
+                        placeholder="Justifica por qué se realizará la creación express"
+                        [value]="form().expressJustification" [disabled]="isFormDisabled() || isSubmitting()"
+                        (input)="updateForm('expressJustification', $any($event.target).value)"></textarea>
+
+                    <p class="registration-wizard__field-help">
+                        Este comentario se enviará en el campo <strong>comentario</strong> del contrato de registro.
+                    </p>
+                </div>
+                }
                 }
 
                 @if (!canAssignProfiles()) {
@@ -643,8 +662,8 @@
                     @if (hasAssignedSiauProfile()) {
                     <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                         <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                        <span>SIAU ya tiene un perfil asignado. Si seleccionas otro perfil de SIAU, se sustituirá y se
-                            conservará un único perfil para ese sistema.</span>
+                        <span>SIAU ya tiene un perfil asignado. Para seleccionar otro perfil de SIAU, elimina primero
+                            el perfil que aparece en la lista.</span>
                     </div>
                     }
 
@@ -690,7 +709,7 @@
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="Seleccione rol" [options]="availableRoleOptions()"
                                 [value]="selectedRole()" (valueChange)="updateSelectedRole($event)" [required]="true"
-                                [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem()" />
+                                [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem() || isSelectedSiauProfileBlocked()" />
                             }
 
                             <div class="registration-wizard__profiles-add-action">
@@ -709,6 +728,7 @@
             }
 
             @case ('account') {
+            @if (isEditMode()) {
             <section class="registration-wizard__section">
                 <div class="registration-wizard__section-header">
                     <span class="registration-wizard__section-icon">
@@ -880,6 +900,7 @@
                     </div>
                 </div>
             </section>
+            }
             }
             }
 
