@@ -141,6 +141,19 @@ interface AssignedSystemProfile {
     readonly roleLabel: string;
 }
 
+type StructureSelectionLevel =
+    | 'institution'
+    | 'dependency'
+    | 'decentralized-body'
+    | 'administrative-unit';
+
+interface StructureSelection {
+    readonly field: keyof UserRegistrationForm;
+    readonly level: StructureSelectionLevel;
+    readonly value: string;
+    readonly catalogId: number | null;
+}
+
 interface StructureProfileCatalog {
     readonly systems: readonly SiauSelectOption[];
     readonly rolesBySystem: Readonly<Record<string, readonly SiauSelectOption[]>>;
@@ -169,14 +182,25 @@ interface SaveSuccessModalState {
 
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
+const NO_APLICA_VALUE = '__NO_APLICA__';
+const NO_APLICA_OPTION: SiauSelectOption = {
+    value: NO_APLICA_VALUE,
+    label: 'NO APLICA',
+};
+const DUPLICATE_COMMISSION_STRUCTURE_MESSAGE =
+    'La comisión no puede coincidir con la adscripción en su último nivel seleccionado. Elige otra institución, órgano o unidad administrativa.';
 
-const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
+const CREATE_WIZARD_STEPS: readonly WizardStepId[] = [
     'personal-data',
     'assignment',
     'commission',
     'documents',
     'contact',
     'profiles',
+];
+
+const ALL_WIZARD_STEPS: readonly WizardStepId[] = [
+    ...CREATE_WIZARD_STEPS,
     'account',
 ];
 
@@ -257,6 +281,8 @@ export class UserRegistrationWizard {
     private curpLookupSequence = 0;
     private ecccPersonalLookupSequence = 0;
     private structureProfileLookupSequence = 0;
+    private assignmentCatalogGeneration = 0;
+    private commissionCatalogGeneration = 0;
     private lastEcccPersonalLookupKey = '';
     private loadedProfileStructureId: number | null = null;
     private lastRenapoCurp = '';
@@ -367,10 +393,16 @@ export class UserRegistrationWizard {
         ),
     );
 
+    protected readonly isSelectedSiauProfileBlocked = computed(() => {
+        const system = this.selectedSystem();
+
+        return Boolean(system) && this.isSiauSystem(system) && this.hasAssignedSiauProfile();
+    });
+
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
 
-        if (!system) {
+        if (!system || this.isSelectedSiauProfileBlocked()) {
             return [];
         }
 
@@ -382,7 +414,7 @@ export class UserRegistrationWizard {
                 : this.findDetailRoleOptionsForSystem(system);
 
         return sourceOptions.filter(
-            (option) => this.isSiauSystem(system) || !this.isRoleAlreadyAssigned(system, option),
+            (option) => !this.isRoleAlreadyAssigned(system, option),
         );
     });
 
@@ -390,7 +422,7 @@ export class UserRegistrationWizard {
         const system = this.selectedSystem();
         const role = this.selectedRole();
 
-        if (!system || !role) {
+        if (!system || !role || this.isSelectedSiauProfileBlocked()) {
             return false;
         }
 
@@ -430,7 +462,9 @@ export class UserRegistrationWizard {
         },
     ];
 
-    protected readonly stepOrder = computed<readonly WizardStepId[]>(() => ALL_WIZARD_STEPS);
+    protected readonly stepOrder = computed<readonly WizardStepId[]>(() =>
+        this.mode() === 'edit' ? ALL_WIZARD_STEPS : CREATE_WIZARD_STEPS,
+    );
 
     protected readonly steps = computed<readonly SiauStep[]>(() => {
         const completed = this.completedSteps();
@@ -1115,7 +1149,7 @@ export class UserRegistrationWizard {
             expressCreation: checked,
         }));
 
-        if (!checked && this.activeStepId() === 'account') {
+        if (!this.stepOrder().includes(this.activeStepId())) {
             this.activeStepId.set('profiles');
         }
 
@@ -1126,6 +1160,8 @@ export class UserRegistrationWizard {
         if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
+
+        this.bumpCommissionCatalogGeneration();
 
         if (checked && !this.canConfigureCommission()) {
             this.formErrors.update((current) => ({
@@ -1173,11 +1209,16 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
+                'commissionDependency',
+                'commissionDecentralizedBody',
+                'commissionAdministrativeUnit',
                 'commissionAdmissionDate',
             ].forEach((key) => delete next[key]);
 
             return next;
         });
+
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateAssignmentInstitutionType(value: string | null): void {
@@ -1185,10 +1226,12 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpAssignmentCatalogGeneration();
+
         const institutionType = value ?? '';
         const requiresEntity = this.requiresEntityForInstitution(institutionType);
 
-        this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
+        this.clearProfilesAfterAssignmentInstitutionChange(this.form().institution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1208,6 +1251,7 @@ export class UserRegistrationWizard {
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
         this.loadAssignmentInstitutions();
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateAssignmentEntity(value: string | null): void {
@@ -1215,8 +1259,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpAssignmentCatalogGeneration();
+
         if (!this.assignmentRequiresEntity()) {
-            this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
+            this.clearProfilesAfterAssignmentInstitutionChange(this.form().institution, '');
             this.form.update((current) => ({
                 ...current,
                 entity: '',
@@ -1224,10 +1270,11 @@ export class UserRegistrationWizard {
             }));
             this.municipalityOptions.set([]);
             this.loadAssignmentInstitutions();
+            this.refreshCommissionStructureConflict();
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
+        this.clearProfilesAfterAssignmentInstitutionChange(this.form().institution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1242,9 +1289,10 @@ export class UserRegistrationWizard {
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
         if (this.assignmentRequiresMunicipality()) {
-            this.loadMunicipalities(value, this.municipalityOptions);
+            this.loadMunicipalities(value, this.municipalityOptions, 'assignment');
         }
         this.loadAssignmentInstitutions();
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateAssignmentMunicipality(value: string | null): void {
@@ -1252,12 +1300,14 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpAssignmentCatalogGeneration();
+
         if (!this.assignmentRequiresMunicipality()) {
             this.form.update((current) => ({ ...current, municipality: '' }));
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(this.form().institution, '');
+        this.clearProfilesAfterAssignmentInstitutionChange(this.form().institution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1270,6 +1320,7 @@ export class UserRegistrationWizard {
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
         this.loadAssignmentInstitutions();
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateAssignmentInstitution(value: string | null): void {
@@ -1277,8 +1328,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpAssignmentCatalogGeneration();
+
         const institution = value ?? '';
-        this.clearAssignedProfilesAfterInstitutionChange(
+        this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().institution,
             institution,
         );
@@ -1292,12 +1345,15 @@ export class UserRegistrationWizard {
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
         this.loadAssignmentChildren(value, this.decentralizedBodyOptions, 2);
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateAssignmentDecentralizedBody(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
+
+        this.bumpAssignmentCatalogGeneration();
 
         this.form.update((current) => ({
             ...current,
@@ -1306,6 +1362,21 @@ export class UserRegistrationWizard {
         }));
         this.administrativeUnitOptions.set([]);
         this.loadAssignmentChildren(value, this.administrativeUnitOptions);
+        this.refreshCommissionStructureConflict();
+    }
+
+    protected updateAssignmentAdministrativeUnit(value: string | null): void {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        this.bumpAssignmentCatalogGeneration();
+        this.form.update((current) => ({
+            ...current,
+            administrativeUnit: value ?? '',
+        }));
+        this.clearFieldError('administrativeUnit');
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateCommissionInstitutionType(value: string | null): void {
@@ -1313,10 +1384,12 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpCommissionCatalogGeneration();
+
         const commissionInstitutionType = value ?? '';
         const requiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
 
-        this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
+        this.clearProfilesAfterCommissionInstitutionChange(this.form().commissionInstitution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1338,6 +1411,7 @@ export class UserRegistrationWizard {
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionInstitutions();
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateCommissionEntity(value: string | null): void {
@@ -1345,8 +1419,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpCommissionCatalogGeneration();
+
         if (!this.commissionRequiresEntity()) {
-            this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
+            this.clearProfilesAfterCommissionInstitutionChange(this.form().commissionInstitution, '');
             this.form.update((current) => ({
                 ...current,
                 commissionEntity: '',
@@ -1354,10 +1430,11 @@ export class UserRegistrationWizard {
             }));
             this.commissionMunicipalityOptions.set([]);
             this.loadCommissionInstitutions();
+            this.refreshCommissionStructureConflict();
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
+        this.clearProfilesAfterCommissionInstitutionChange(this.form().commissionInstitution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1374,9 +1451,10 @@ export class UserRegistrationWizard {
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         if (this.commissionRequiresMunicipality()) {
-            this.loadMunicipalities(value, this.commissionMunicipalityOptions);
+            this.loadMunicipalities(value, this.commissionMunicipalityOptions, 'commission');
         }
         this.loadCommissionInstitutions();
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateCommissionMunicipality(value: string | null): void {
@@ -1384,12 +1462,14 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpCommissionCatalogGeneration();
+
         if (!this.commissionRequiresMunicipality()) {
             this.form.update((current) => ({ ...current, commissionMunicipality: '' }));
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(this.form().commissionInstitution, '');
+        this.clearProfilesAfterCommissionInstitutionChange(this.form().commissionInstitution, '');
 
         this.form.update((current) => ({
             ...current,
@@ -1404,6 +1484,7 @@ export class UserRegistrationWizard {
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionInstitutions();
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateCommissionInstitution(value: string | null): void {
@@ -1411,8 +1492,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpCommissionCatalogGeneration();
+
         const commissionInstitution = value ?? '';
-        this.clearAssignedProfilesAfterInstitutionChange(
+        this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionInstitution,
             commissionInstitution,
         );
@@ -1429,6 +1512,7 @@ export class UserRegistrationWizard {
         this.commissionAdministrativeUnitOptions.set([]);
         this.loadCommissionChildren(value, this.commissionDependencyOptions);
         this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions, 2);
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateCommissionDependency(value: string | null): void {
@@ -1436,16 +1520,21 @@ export class UserRegistrationWizard {
             return;
         }
 
+        this.bumpCommissionCatalogGeneration();
         this.form.update((current) => ({
             ...current,
             commissionDependency: value ?? '',
         }));
+        this.clearFieldError('commissionDependency');
+        this.refreshCommissionStructureConflict();
     }
 
     protected updateCommissionDecentralizedBody(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
             return;
         }
+
+        this.bumpCommissionCatalogGeneration();
 
         this.form.update((current) => ({
             ...current,
@@ -1457,6 +1546,21 @@ export class UserRegistrationWizard {
             value,
             this.commissionAdministrativeUnitOptions,
         );
+        this.refreshCommissionStructureConflict();
+    }
+
+    protected updateCommissionAdministrativeUnit(value: string | null): void {
+        if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        this.bumpCommissionCatalogGeneration();
+        this.form.update((current) => ({
+            ...current,
+            commissionAdministrativeUnit: value ?? '',
+        }));
+        this.clearFieldError('commissionAdministrativeUnit');
+        this.refreshCommissionStructureConflict();
     }
 
     protected toggleProfile(profile: string): void {
@@ -1550,7 +1654,18 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (!this.isSiauSystem(system) && this.isRoleAlreadyAssigned(system, roleOption)) {
+        const isSiau = this.isSiauSystem(system, systemOption.label);
+
+        if (isSiau && this.hasAssignedSiauProfile()) {
+            this.formErrors.update((current) => ({
+                ...current,
+                profiles:
+                    'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.',
+            }));
+            return;
+        }
+
+        if (this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
 
@@ -1562,21 +1677,7 @@ export class UserRegistrationWizard {
             roleLabel: roleOption.label,
         };
 
-        this.assignedSystemProfiles.update((current) => {
-            if (!this.isSiauSystem(system, systemOption.label)) {
-                return [...current, newItem];
-            }
-
-            // HU07: SIAU siempre conserva un único perfil. Al seleccionar otro,
-            // se sustituye el perfil "Usuario" (o el SIAU existente) sin pedir
-            // que el administrador lo elimine manualmente.
-            return [
-                ...current.filter((profile) =>
-                    !this.isSiauSystem(profile.system, profile.systemLabel),
-                ),
-                newItem,
-            ];
-        });
+        this.assignedSystemProfiles.update((current) => [...current, newItem]);
         this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
@@ -1595,25 +1696,51 @@ export class UserRegistrationWizard {
         }
 
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
+        this.clearFieldError('profiles');
     }
 
-    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean {
-        if (!this.isSiauSystem(profile.system, profile.systemLabel)) {
-            return true;
+    protected canRemoveAssignedProfile(_profile: AssignedSystemProfile): boolean {
+        // Un perfil SIAU debe poder eliminarse para que el administrador pueda
+        // seleccionar otro. La exclusividad se valida al agregar, no al eliminar.
+        return true;
+    }
+
+    private clearProfilesAfterAssignmentInstitutionChange(
+        previousInstitution: string | null | undefined,
+        nextInstitution: string | null | undefined,
+    ): void {
+        // Cuando existe comisión, los perfiles provienen de la institución de comisión.
+        // Cambiar adscripción no debe borrar ni alterar ese contexto independiente.
+        if (this.form().commissionEnabled) {
+            return;
         }
 
-        const assignedToSiau = this.assignedSystemProfiles().filter((item) =>
-            this.isSiauSystem(item.system, item.systemLabel),
+        this.clearAssignedProfilesAfterInstitutionChange(
+            previousInstitution,
+            nextInstitution,
+            'La institución de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
         );
+    }
 
-        // El perfil base de SIAU no puede quedar eliminado si es el único que
-        // mantiene el usuario para dicho sistema.
-        return assignedToSiau.length > 1;
+    private clearProfilesAfterCommissionInstitutionChange(
+        previousInstitution: string | null | undefined,
+        nextInstitution: string | null | undefined,
+    ): void {
+        if (!this.form().commissionEnabled) {
+            return;
+        }
+
+        this.clearAssignedProfilesAfterInstitutionChange(
+            previousInstitution,
+            nextInstitution,
+            'La institución de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+        );
     }
 
     private clearAssignedProfilesAfterInstitutionChange(
         previousInstitution: string | null | undefined,
         nextInstitution: string | null | undefined,
+        message: string,
     ): void {
         const previousValue = String(previousInstitution ?? '').trim();
         const nextValue = String(nextInstitution ?? '').trim();
@@ -1622,9 +1749,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.clearProfilesAfterStructureContextChange(
-            'La institución cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
-        );
+        this.clearProfilesAfterStructureContextChange(message);
     }
 
     private clearProfilesAfterStructureContextChange(message: string): void {
@@ -3198,7 +3323,7 @@ export class UserRegistrationWizard {
 
     private loadHydratedAssignmentCatalogs(form: UserRegistrationForm): void {
         if (this.requiresMunicipalityForInstitution(form.institutionType) && form.entity) {
-            this.loadMunicipalities(form.entity, this.municipalityOptions);
+            this.loadMunicipalities(form.entity, this.municipalityOptions, 'assignment');
         }
 
         if (form.institutionType) {
@@ -3218,7 +3343,7 @@ export class UserRegistrationWizard {
         }
 
         if (this.requiresMunicipalityForInstitution(form.commissionInstitutionType) && form.commissionEntity) {
-            this.loadMunicipalities(form.commissionEntity, this.commissionMunicipalityOptions);
+            this.loadMunicipalities(form.commissionEntity, this.commissionMunicipalityOptions, 'commission');
         }
 
         if (form.commissionInstitutionType) {
@@ -3544,11 +3669,13 @@ export class UserRegistrationWizard {
     private loadMunicipalities(
         stateValue: string | null,
         target: WritableSignal<readonly SiauSelectOption[]>,
+        context: 'assignment' | 'commission',
     ): void {
         const estadoId = this.toCatalogId(stateValue);
+        const requestGeneration = this.catalogGeneration(context);
 
         if (!estadoId) {
-            target.set([]);
+            target.set(this.hasText(stateValue) ? [NO_APLICA_OPTION] : []);
             return;
         }
 
@@ -3556,8 +3683,19 @@ export class UserRegistrationWizard {
             .obtenerMunicipiosOptions(estadoId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (options) => target.set(this.mergeSelectOptions(options, target())),
+                next: (options) => {
+                    if (!this.isCatalogRequestCurrent(context, requestGeneration)) {
+                        return;
+                    }
+
+                    this.setDynamicCatalogOptions(target, options);
+                },
                 error: (error: unknown) => {
+                    if (!this.isCatalogRequestCurrent(context, requestGeneration)) {
+                        return;
+                    }
+
+                    target.set([NO_APLICA_OPTION]);
                     console.error('Error cargando municipios.', error);
                 },
             });
@@ -3586,7 +3724,7 @@ export class UserRegistrationWizard {
             tipoInstitucionId,
             estadoId,
             padreId,
-        });
+        }, 'assignment');
     }
 
     private loadAssignmentChildren(
@@ -3598,7 +3736,7 @@ export class UserRegistrationWizard {
         const current = this.form();
 
         if (!padreId) {
-            target.set([]);
+            target.set(this.hasText(parentValue) ? [NO_APLICA_OPTION] : []);
             return;
         }
 
@@ -3606,7 +3744,7 @@ export class UserRegistrationWizard {
             this.loadFederalOrgOptions(target, {
                 tipoEstructuraId,
                 padreId,
-            });
+            }, 'assignment');
             return;
         }
 
@@ -3616,7 +3754,7 @@ export class UserRegistrationWizard {
                 ? this.toCatalogId(current.entity)
                 : undefined,
             padreId,
-        });
+        }, 'assignment');
     }
 
     private loadCommissionInstitutions(): void {
@@ -3642,7 +3780,7 @@ export class UserRegistrationWizard {
             tipoInstitucionId,
             estadoId,
             padreId,
-        });
+        }, 'commission');
     }
 
     private loadCommissionChildren(
@@ -3654,7 +3792,7 @@ export class UserRegistrationWizard {
         const current = this.form();
 
         if (!padreId) {
-            target.set([]);
+            target.set(this.hasText(parentValue) ? [NO_APLICA_OPTION] : []);
             return;
         }
 
@@ -3662,7 +3800,7 @@ export class UserRegistrationWizard {
             this.loadFederalOrgOptions(target, {
                 tipoEstructuraId,
                 padreId,
-            });
+            }, 'commission');
             return;
         }
 
@@ -3672,7 +3810,7 @@ export class UserRegistrationWizard {
                 ? this.toCatalogId(current.commissionEntity)
                 : undefined,
             padreId,
-        });
+        }, 'commission');
     }
 
     private loadFederalOrgOptions(
@@ -3681,7 +3819,10 @@ export class UserRegistrationWizard {
             tipoEstructuraId?: number;
             padreId: number;
         },
+        context: 'assignment' | 'commission',
     ): void {
+        const requestGeneration = this.catalogGeneration(context);
+
         this.catalogosFacade
             .obtenerEstructuraOrganizacionalOptions({
                 tipoEstructuraId: query.tipoEstructuraId,
@@ -3690,8 +3831,19 @@ export class UserRegistrationWizard {
             })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (options) => target.set(this.mergeSelectOptions(options, target())),
+                next: (options) => {
+                    if (!this.isCatalogRequestCurrent(context, requestGeneration)) {
+                        return;
+                    }
+
+                    this.setDynamicCatalogOptions(target, options);
+                },
                 error: (error: unknown) => {
+                    if (!this.isCatalogRequestCurrent(context, requestGeneration)) {
+                        return;
+                    }
+
+                    target.set([NO_APLICA_OPTION]);
                     console.error('Error cargando estructura organizacional federal.', error);
                 },
             });
@@ -3704,7 +3856,10 @@ export class UserRegistrationWizard {
             estadoId?: number;
             padreId?: number;
         },
+        context: 'assignment' | 'commission',
     ): void {
+        const requestGeneration = this.catalogGeneration(context);
+
         this.catalogosFacade
             .obtenerEstructuraOrgOptions({
                 tipoInstitucionId: query.tipoInstitucionId,
@@ -3714,11 +3869,106 @@ export class UserRegistrationWizard {
             })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (options) => target.set(this.mergeSelectOptions(options, target())),
+                next: (options) => {
+                    if (!this.isCatalogRequestCurrent(context, requestGeneration)) {
+                        return;
+                    }
+
+                    this.setDynamicCatalogOptions(target, options);
+                },
                 error: (error: unknown) => {
+                    if (!this.isCatalogRequestCurrent(context, requestGeneration)) {
+                        return;
+                    }
+
+                    target.set([NO_APLICA_OPTION]);
                     console.error('Error cargando estructura orgánica estatal o municipal.', error);
                 },
             });
+    }
+
+    private bumpAssignmentCatalogGeneration(): void {
+        this.assignmentCatalogGeneration += 1;
+    }
+
+    private bumpCommissionCatalogGeneration(): void {
+        this.commissionCatalogGeneration += 1;
+    }
+
+    private catalogGeneration(context: 'assignment' | 'commission'): number {
+        return context === 'assignment'
+            ? this.assignmentCatalogGeneration
+            : this.commissionCatalogGeneration;
+    }
+
+    private isCatalogRequestCurrent(
+        context: 'assignment' | 'commission',
+        requestGeneration: number,
+    ): boolean {
+        return requestGeneration === this.catalogGeneration(context);
+    }
+
+    private setDynamicCatalogOptions(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+        options: readonly SiauSelectOption[],
+    ): void {
+        const cleanOptions = this.deduplicateSelectOptions(options);
+
+        if (cleanOptions.length === 0) {
+            target.set([NO_APLICA_OPTION]);
+            return;
+        }
+
+        const selectedValue = this.selectedValueForDynamicTarget(target);
+        const preservedSelectedOption = target().find(
+            (option) => option.value === selectedValue && !this.isNoAplicaValue(option.value),
+        );
+
+        target.set(
+            preservedSelectedOption
+                ? this.deduplicateSelectOptions([preservedSelectedOption, ...cleanOptions])
+                : cleanOptions,
+        );
+    }
+
+    private selectedValueForDynamicTarget(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): string {
+        const current = this.form();
+
+        if (target === this.municipalityOptions) return current.municipality;
+        if (target === this.institutionOptions) return current.institution;
+        if (target === this.decentralizedBodyOptions) return current.decentralizedBody;
+        if (target === this.administrativeUnitOptions) return current.administrativeUnit;
+        if (target === this.commissionMunicipalityOptions) return current.commissionMunicipality;
+        if (target === this.commissionInstitutionOptions) return current.commissionInstitution;
+        if (target === this.commissionDependencyOptions) return current.commissionDependency;
+        if (target === this.commissionDecentralizedBodyOptions) return current.commissionDecentralizedBody;
+        if (target === this.commissionAdministrativeUnitOptions) return current.commissionAdministrativeUnit;
+
+        return '';
+    }
+
+    private deduplicateSelectOptions(
+        options: readonly SiauSelectOption[],
+    ): readonly SiauSelectOption[] {
+        const unique = new Map<string, SiauSelectOption>();
+
+        options.forEach((option) => {
+            const value = this.toText(option.value);
+
+            if (!value) {
+                return;
+            }
+
+            const key = this.normalizeText(value);
+
+            if (!unique.has(key)) {
+                unique.set(key, option);
+            }
+        });
+
+        return [...unique.values()];
     }
 
     private mergeSelectOptions(
@@ -3866,6 +4116,13 @@ export class UserRegistrationWizard {
                 nextErrors['gender'] = 'El sexo es obligatorio.';
             }
 
+            if (
+                this.shouldValidateEditFields(current, ['civilStatus']) &&
+                !this.hasText(current.civilStatus)
+            ) {
+                nextErrors['civilStatus'] = 'El estado civil es obligatorio.';
+            }
+
         }
 
         if (stepId === 'assignment') {
@@ -4001,6 +4258,13 @@ export class UserRegistrationWizard {
                     nextErrors['commissionAdmissionDate'] =
                         'La fecha de inicio de comisión debe ser válida, no posterior a hoy y no anterior a la fecha de ingreso.';
                 }
+
+                const structureConflict = this.getAssignmentCommissionStructureConflict(current);
+
+                if (structureConflict) {
+                    nextErrors[String(structureConflict.field)] =
+                        DUPLICATE_COMMISSION_STRUCTURE_MESSAGE;
+                }
             }
         }
 
@@ -4027,6 +4291,11 @@ export class UserRegistrationWizard {
         }
 
         if (stepId === 'profiles') {
+            if (!this.isEditMode() && isExpress && !this.hasText(current.expressJustification)) {
+                nextErrors['expressJustification'] =
+                    'Justifica por qué se realizará la creación express.';
+            }
+
             if (this.shouldValidateAssignedProfiles() && this.assignedSystemProfiles().length === 0) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
             }
@@ -4041,11 +4310,7 @@ export class UserRegistrationWizard {
             }
         }
 
-        if (stepId === 'account' && !this.isEditMode()) {
-            if (isExpress && !this.hasText(current.expressJustification)) {
-                nextErrors['expressJustification'] = 'Justifica por qué se realizará la creación express.';
-            }
-
+        if (stepId === 'account' && this.isEditMode()) {
             if (
                 this.hasText(current.password) &&
                 this.hasText(current.confirmPassword) &&
@@ -4136,9 +4401,10 @@ export class UserRegistrationWizard {
         if (
             this.shouldValidateEditFields(current, ['cuip']) &&
             this.hasText(current.cuip) &&
-            !/^[A-Z0-9]{20}$/.test(this.toText(current.cuip).toUpperCase())
+            !this.isValidCuip(current.cuip)
         ) {
-            errors['cuip'] = 'La CUIP debe tener exactamente 20 caracteres alfanuméricos.';
+            errors['cuip'] =
+                'La CUIP debe tener 20 caracteres con formato AAAA999999H999999999: 4 letras, 6 números, H/M y 9 números.';
         }
 
         this.addNameValidationError(
@@ -4162,6 +4428,10 @@ export class UserRegistrationWizard {
             this.shouldValidateEditFields(current, ['secondLastName']),
             errors,
         );
+    }
+
+    private isValidCuip(value: unknown): boolean {
+        return /^[A-Z]{4}\d{6}[HM]\d{9}$/.test(this.toText(value).toUpperCase());
     }
 
     private addNameValidationError(
@@ -4205,17 +4475,135 @@ export class UserRegistrationWizard {
         if (
             this.shouldValidateEditFields(current, ['employeeNumber']) &&
             this.hasText(current.employeeNumber) &&
-            !/^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+            !/^[A-Z0-9]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
         ) {
             errors['employeeNumber'] =
-                'El número de empleado debe contener de 3 a 20 letras, números o espacios.';
+                'El número de empleado debe contener de 3 a 20 caracteres alfanuméricos, sin espacios ni caracteres especiales.';
         }
+    }
+
+    private refreshCommissionStructureConflict(): void {
+        const conflict = this.getAssignmentCommissionStructureConflict(this.form());
+        const conflictFields: readonly (keyof UserRegistrationForm)[] = [
+            'commissionInstitution',
+            'commissionDependency',
+            'commissionDecentralizedBody',
+            'commissionAdministrativeUnit',
+        ];
+
+        this.formErrors.update((currentErrors) => {
+            const next = { ...currentErrors };
+
+            conflictFields.forEach((field) => {
+                if (next[String(field)] === DUPLICATE_COMMISSION_STRUCTURE_MESSAGE) {
+                    delete next[String(field)];
+                }
+            });
+
+            if (conflict) {
+                next[String(conflict.field)] = DUPLICATE_COMMISSION_STRUCTURE_MESSAGE;
+            }
+
+            return next;
+        });
+    }
+
+    private getAssignmentCommissionStructureConflict(
+        current: UserRegistrationForm,
+    ): StructureSelection | null {
+        if (!current.commissionEnabled) {
+            return null;
+        }
+
+        const assignment = this.resolveDeepestStructureSelection([
+            {
+                field: 'administrativeUnit',
+                level: 'administrative-unit',
+                value: current.administrativeUnit,
+            },
+            {
+                field: 'decentralizedBody',
+                level: 'decentralized-body',
+                value: current.decentralizedBody,
+            },
+            {
+                field: 'institution',
+                level: 'institution',
+                value: current.institution,
+            },
+        ]);
+        const commission = this.resolveDeepestStructureSelection([
+            {
+                field: 'commissionAdministrativeUnit',
+                level: 'administrative-unit',
+                value: current.commissionAdministrativeUnit,
+            },
+            {
+                field: 'commissionDecentralizedBody',
+                level: 'decentralized-body',
+                value: current.commissionDecentralizedBody,
+            },
+            {
+                field: 'commissionDependency',
+                level: 'dependency',
+                value: current.commissionDependency,
+            },
+            {
+                field: 'commissionInstitution',
+                level: 'institution',
+                value: current.commissionInstitution,
+            },
+        ]);
+
+        if (!assignment || !commission || assignment.level !== commission.level) {
+            return null;
+        }
+
+        const sameCatalogId =
+            assignment.catalogId !== null &&
+            commission.catalogId !== null &&
+            assignment.catalogId === commission.catalogId;
+        const sameRawValue =
+            this.normalizeText(assignment.value) === this.normalizeText(commission.value);
+
+        return sameCatalogId || sameRawValue ? commission : null;
+    }
+
+    private resolveDeepestStructureSelection(
+        candidates: readonly {
+            readonly field: keyof UserRegistrationForm;
+            readonly level: StructureSelectionLevel;
+            readonly value: string;
+        }[],
+    ): StructureSelection | null {
+        for (const candidate of candidates) {
+            const value = this.toText(candidate.value);
+
+            if (!value || this.isNoAplicaValue(value)) {
+                continue;
+            }
+
+            return {
+                ...candidate,
+                value,
+                catalogId: this.toCatalogId(value) ?? null,
+            };
+        }
+
+        return null;
+    }
+
+    private isNoAplicaValue(value: unknown): boolean {
+        const normalized = this.normalizeText(this.toText(value));
+
+        return normalized === this.normalizeText(NO_APLICA_VALUE) || normalized === 'no aplica';
     }
 
     private hasValidAssignmentForCommission(current: UserRegistrationForm): boolean {
         if (
             !this.hasText(current.institutionType) ||
             !this.hasText(current.institution) ||
+            this.isNoAplicaValue(current.institution) ||
             !this.hasText(current.admissionDate) ||
             !this.hasText(current.employeeNumber)
         ) {
@@ -4235,7 +4623,7 @@ export class UserRegistrationWizard {
 
         return (
             this.isDateOnOrBeforeToday(current.admissionDate) &&
-            /^[A-Z0-9\s]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
+            /^[A-Z0-9]{3,20}$/.test(this.toText(current.employeeNumber).toUpperCase())
         );
     }
 
@@ -4243,7 +4631,8 @@ export class UserRegistrationWizard {
         if (
             !current.commissionEnabled ||
             !this.hasText(current.commissionInstitutionType) ||
-            !this.hasText(current.commissionInstitution)
+            !this.hasText(current.commissionInstitution) ||
+            this.isNoAplicaValue(current.commissionInstitution)
         ) {
             return false;
         }
@@ -4414,6 +4803,9 @@ export class UserRegistrationWizard {
                 'commissionEntity',
                 'commissionMunicipality',
                 'commissionInstitution',
+                'commissionDependency',
+                'commissionDecentralizedBody',
+                'commissionAdministrativeUnit',
                 'commissionAdmissionDate',
             ],
             documents: [],
@@ -4423,11 +4815,11 @@ export class UserRegistrationWizard {
             ],
             profiles: [
                 'profiles',
+                'expressJustification',
             ],
             account: [
                 'password',
                 'confirmPassword',
-                'expressJustification',
             ],
         };
 
@@ -4463,6 +4855,10 @@ export class UserRegistrationWizard {
 
         if (key === 'curp') {
             return this.normalizeAlphanumericInput(textValue, 18) as UserRegistrationForm[K];
+        }
+
+        if (key === 'employeeNumber') {
+            return this.normalizeAlphanumericInput(textValue, 20) as UserRegistrationForm[K];
         }
 
         if (this.isNameField(key)) {
