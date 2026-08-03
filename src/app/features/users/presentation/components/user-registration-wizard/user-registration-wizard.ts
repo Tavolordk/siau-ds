@@ -179,7 +179,7 @@ interface SaveSuccessModalState {
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
 const DEFAULT_NORMAL_SYSTEM_ID = 1;
-const DEFAULT_NORMAL_PROFILE_ID = 275;
+const DEFAULT_NORMAL_PROFILE_ID = 267;
 const NO_APLICA_VALUE = '__NO_APLICA__';
 const NO_APLICA_OPTION: SiauSelectOption = {
     value: NO_APLICA_VALUE,
