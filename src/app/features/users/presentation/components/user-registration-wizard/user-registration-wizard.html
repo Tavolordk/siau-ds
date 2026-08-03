@@ -82,9 +82,8 @@
                         <div>{{ error }}</div>
                     </div>
 
-                    <button type="button" class="registration-wizard__info-box-close"
-                        (click)="dismissSubmitError()" aria-label="Cerrar mensaje de error"
-                        title="Cerrar mensaje">
+                    <button type="button" class="registration-wizard__info-box-close" (click)="dismissSubmitError()"
+                        aria-label="Cerrar mensaje de error" title="Cerrar mensaje">
                         <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                     </button>
                 </div>
@@ -116,8 +115,7 @@
                 [class.registration-wizard__renapo-status--loading]="renapoLookupStatus() === 'loading'"
                 [class.registration-wizard__renapo-status--success]="renapoLookupStatus() === 'success'"
                 [class.registration-wizard__renapo-status--warning]="renapoLookupStatus() === 'not-found'"
-                [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'"
-                aria-live="polite">
+                [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'" aria-live="polite">
                 <span class="registration-wizard__renapo-status-icon">
                     <siau-lucide-icon [name]="renapoStatusIcon()" size="17" strokeWidth="2" aria-hidden="true" />
                 </span>
@@ -127,9 +125,8 @@
                     <span>{{ renapoMessage() }}</span>
                 </div>
 
-                <button type="button" class="registration-wizard__renapo-status-close"
-                    (click)="dismissRenapoMessage()" aria-label="Cerrar mensaje de RENAPO"
-                    title="Cerrar mensaje">
+                <button type="button" class="registration-wizard__renapo-status-close" (click)="dismissRenapoMessage()"
+                    aria-label="Cerrar mensaje de RENAPO" title="Cerrar mensaje">
                     <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                 </button>
             </div>
@@ -258,8 +255,8 @@
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
                             [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true"
-                            [value]="form().curp"
-                            (valueChange)="updateCurp($event)" [disabled]="isCurpInputDisabled()" />
+                            [value]="form().curp" (valueChange)="updateCurp($event)"
+                            [disabled]="isCurpInputDisabled()" />
 
                         @if (showCurpUnlock()) {
                         <label class="registration-wizard__curp-unlock">
@@ -379,10 +376,9 @@
                         [disabled]="isFormDisabled()" />
 
                     <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
-                        [employeeNumberOnly]="true"
-                        hint="De 3 a 20 caracteres: letras, números, espacios y guion"
-                        [value]="form().employeeNumber"
-                        (valueChange)="updateForm('employeeNumber', $event)" [disabled]="isFormDisabled()" />
+                        [employeeNumberOnly]="true" hint="De 3 a 20 caracteres: letras, números, espacios y guion"
+                        [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)"
+                        [disabled]="isFormDisabled()" />
                 </div>
             </section>
             }
@@ -675,8 +671,7 @@
                 }
 
                 @if (structureProfileLookupStatus() === 'error') {
-                <div
-                    class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error"
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error"
                     role="alert">
                     <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>{{ structureProfileMessage() }}</span>
@@ -749,13 +744,14 @@
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
-                                [hint]="structureProfileHint()" [required]="true"
+                                [hint]="structureProfileHint()" [required]="isEditMode() || form().expressCreation"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="Seleccione rol"
                                 [options]="availableRoleOptions()" [value]="selectedRole()"
-                                (valueChange)="updateSelectedRole($event)" [required]="true"
+                                (valueChange)="updateSelectedRole($event)"
+                                [required]="isEditMode() || form().expressCreation"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem() || isSelectedSiauProfileBlocked()" />
                             }
 
