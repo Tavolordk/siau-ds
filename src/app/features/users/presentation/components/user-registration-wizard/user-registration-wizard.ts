@@ -178,6 +178,8 @@ interface SaveSuccessModalState {
 
 const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
 const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
+const DEFAULT_NORMAL_SYSTEM_ID = 1;
+const DEFAULT_NORMAL_PROFILE_ID = 275;
 const NO_APLICA_VALUE = '__NO_APLICA__';
 const NO_APLICA_OPTION: SiauSelectOption = {
     value: NO_APLICA_VALUE,
@@ -2197,10 +2199,6 @@ export class UserRegistrationWizard {
         const isExpress = current.expressCreation;
         const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
 
-        if (!assignedProfile) {
-            throw new Error('Selecciona al menos un sistema y perfil.');
-        }
-
         return {
             datosPersonales: {
                 cuip: this.toNullableText(current.cuip),
@@ -2410,18 +2408,22 @@ export class UserRegistrationWizard {
         };
     }
 
-    private buildAccountRequest(assignedProfile: AssignedSystemProfile): RegistroCuenta {
+    private buildAccountRequest(assignedProfile: AssignedSystemProfile | null): RegistroCuenta {
         const password = this.toText(this.form().password) || DEFAULT_ACCOUNT_PASSWORD;
 
         return {
             password,
             passwordHash: DEFAULT_ACCOUNT_PASSWORD_HASH,
             tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
-            sistemaId: this.resolveAssignedSystemId(assignedProfile),
-            perfilId: this.requireCatalogId(
-                assignedProfile.role,
-                'Selecciona un perfil válido.',
-            ),
+            sistemaId: assignedProfile
+                ? this.resolveAssignedSystemId(assignedProfile)
+                : DEFAULT_NORMAL_SYSTEM_ID,
+            perfilId: assignedProfile
+                ? this.requireCatalogId(
+                    assignedProfile.role,
+                    'Selecciona un perfil válido.',
+                )
+                : DEFAULT_NORMAL_PROFILE_ID,
         };
     }
 
@@ -4209,7 +4211,13 @@ export class UserRegistrationWizard {
                     'Justifica por qué se realizará la creación express.';
             }
 
-            if (this.shouldValidateAssignedProfiles() && this.assignedSystemProfiles().length === 0) {
+            const profilesAreRequired = this.isEditMode() || isExpress;
+
+            if (
+                profilesAreRequired &&
+                this.shouldValidateAssignedProfiles() &&
+                this.assignedSystemProfiles().length === 0
+            ) {
                 nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
             }
 

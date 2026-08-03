@@ -617,7 +617,9 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__required-pill">
+                            {{ !isEditMode() && !form().expressCreation ? 'Opcional' : 'Campos obligatorios' }}
+                        </span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
@@ -695,7 +697,8 @@
 
                 <div class="registration-wizard__profiles-panel">
                     <div class="registration-wizard__profiles-field-title">
-                        Sistemas y perfiles asignados <span>*</span>
+                        Sistemas y perfiles asignados
+                        @if (isEditMode() || form().expressCreation) { <span>*</span> }
                     </div>
 
                     <p class="registration-wizard__profiles-field-help">
