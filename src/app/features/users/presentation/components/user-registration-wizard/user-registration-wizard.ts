@@ -185,6 +185,31 @@ const NO_APLICA_OPTION: SiauSelectOption = {
     value: NO_APLICA_VALUE,
     label: 'NO APLICA',
 };
+/**
+ * Ids de cat_tipo_estructura usados por sp_cat_estructura_organizacional_obtener.
+ * Los OAD y las Unidades Administrativas son hermanos: ambos cuelgan directo de
+ * la institución (padreId = institución). Una UA también puede colgar de un OAD
+ * (UA_OAD, las "nietas"), y para eso se vuelve a consultar con padreId = OAD.
+ */
+const TIPO_ESTRUCTURA_ORGANO_DESCONCENTRADO = 2;
+const TIPO_ESTRUCTURA_UNIDAD_ADMINISTRATIVA = 4;
+
+/**
+ * El <option> placeholder del select nativo está deshabilitado, así que se
+ * agrega una opción explícita para poder deshacer la selección y liberar el
+ * nivel hermano que quedó bloqueado.
+ */
+const CLEAR_SELECTION_VALUE = '__SIN_SELECCION__';
+const CLEAR_SELECTION_OPTION: SiauSelectOption = {
+    value: CLEAR_SELECTION_VALUE,
+    label: 'SIN SELECCIÓN',
+};
+
+const LOCKED_BY_ADMINISTRATIVE_UNIT_HINT =
+    'Bloqueado: ya elegiste una unidad administrativa de la institución.';
+const SCOPED_BY_DECENTRALIZED_BODY_HINT =
+    'Solo se muestran las unidades del órgano seleccionado.';
+
 const DUPLICATE_COMMISSION_STRUCTURE_MESSAGE =
     'La comisión no puede coincidir con la adscripción en su último nivel seleccionado. Elige otra institución, órgano o unidad administrativa.';
 
@@ -328,6 +353,92 @@ export class UserRegistrationWizard {
     protected readonly commissionInstitutionOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionDecentralizedBodyOptions = signal<readonly SiauSelectOption[]>([]);
     protected readonly commissionAdministrativeUnitOptions = signal<readonly SiauSelectOption[]>([]);
+
+    // --- OAD y Unidad Administrativa como niveles hermanos (adscripción) ---
+
+    /** El OAD se bloquea cuando la UA elegida cuelga directo de la institución. */
+    protected readonly assignmentDecentralizedBodyLocked = computed(() => {
+        const current = this.form();
+
+        return (
+            this.hasStructureSelection(current.administrativeUnit) &&
+            !this.hasStructureSelection(current.decentralizedBody)
+        );
+    });
+
+    /** La UA se habilita con la institución (federal) o con el OAD elegido. */
+    protected readonly assignmentAdministrativeUnitEnabled = computed(() => {
+        const current = this.form();
+
+        if (this.hasStructureSelection(current.decentralizedBody)) {
+            return true;
+        }
+
+        return (
+            this.isFederalInstitutionType(current.institutionType) &&
+            this.hasStructureSelection(current.institution)
+        );
+    });
+
+    protected readonly assignmentDecentralizedBodyChoices = computed(() =>
+        this.withClearOption(this.decentralizedBodyOptions()),
+    );
+
+    protected readonly assignmentAdministrativeUnitChoices = computed(() =>
+        this.withClearOption(this.administrativeUnitOptions()),
+    );
+
+    protected readonly assignmentDecentralizedBodyHint = computed(() =>
+        this.assignmentDecentralizedBodyLocked() ? LOCKED_BY_ADMINISTRATIVE_UNIT_HINT : null,
+    );
+
+    protected readonly assignmentAdministrativeUnitHint = computed(() =>
+        this.hasStructureSelection(this.form().decentralizedBody)
+            ? SCOPED_BY_DECENTRALIZED_BODY_HINT
+            : null,
+    );
+
+    // --- OAD y Unidad Administrativa como niveles hermanos (comisión) ---
+
+    protected readonly commissionDecentralizedBodyLocked = computed(() => {
+        const current = this.form();
+
+        return (
+            this.hasStructureSelection(current.commissionAdministrativeUnit) &&
+            !this.hasStructureSelection(current.commissionDecentralizedBody)
+        );
+    });
+
+    protected readonly commissionAdministrativeUnitEnabled = computed(() => {
+        const current = this.form();
+
+        if (this.hasStructureSelection(current.commissionDecentralizedBody)) {
+            return true;
+        }
+
+        return (
+            this.isFederalInstitutionType(current.commissionInstitutionType) &&
+            this.hasStructureSelection(current.commissionInstitution)
+        );
+    });
+
+    protected readonly commissionDecentralizedBodyChoices = computed(() =>
+        this.withClearOption(this.commissionDecentralizedBodyOptions()),
+    );
+
+    protected readonly commissionAdministrativeUnitChoices = computed(() =>
+        this.withClearOption(this.commissionAdministrativeUnitOptions()),
+    );
+
+    protected readonly commissionDecentralizedBodyHint = computed(() =>
+        this.commissionDecentralizedBodyLocked() ? LOCKED_BY_ADMINISTRATIVE_UNIT_HINT : null,
+    );
+
+    protected readonly commissionAdministrativeUnitHint = computed(() =>
+        this.hasStructureSelection(this.form().commissionDecentralizedBody)
+            ? SCOPED_BY_DECENTRALIZED_BODY_HINT
+            : null,
+    );
 
     protected readonly assignmentRequiresEntity = computed(() =>
         this.requiresEntityForInstitution(this.form().institutionType),
@@ -1328,7 +1439,9 @@ export class UserRegistrationWizard {
         }));
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
-        this.loadAssignmentChildren(value, this.decentralizedBodyOptions, 2);
+        // OAD y UA son hermanos: los dos catálogos se piden con padreId = institución.
+        this.loadAssignmentDecentralizedBodies();
+        this.loadAssignmentAdministrativeUnits();
         this.refreshCommissionStructureConflict();
     }
 
@@ -1337,22 +1450,31 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (this.assignmentDecentralizedBodyLocked()) {
+            return;
+        }
+
         this.bumpAssignmentCatalogGeneration();
+
+        const decentralizedBody = this.normalizeSelectValue(value);
 
         // El catálogo de perfiles se consulta con el último nivel seleccionado,
         // por lo que cambiar el OAD invalida los perfiles ya elegidos.
         this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().decentralizedBody,
-            value ?? '',
+            decentralizedBody,
         );
 
         this.form.update((current) => ({
             ...current,
-            decentralizedBody: value ?? '',
+            decentralizedBody,
             administrativeUnit: '',
         }));
+        this.clearFieldError('decentralizedBody');
         this.administrativeUnitOptions.set([]);
-        this.loadAssignmentChildren(value, this.administrativeUnitOptions);
+        // Con OAD elegido las UA se acotan a sus hijas; sin OAD vuelven al
+        // nivel de institución.
+        this.loadAssignmentAdministrativeUnits();
         this.refreshCommissionStructureConflict();
     }
 
@@ -1362,13 +1484,16 @@ export class UserRegistrationWizard {
         }
 
         this.bumpAssignmentCatalogGeneration();
+
+        const administrativeUnit = this.normalizeSelectValue(value);
+
         this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().administrativeUnit,
-            value ?? '',
+            administrativeUnit,
         );
         this.form.update((current) => ({
             ...current,
-            administrativeUnit: value ?? '',
+            administrativeUnit,
         }));
         this.clearFieldError('administrativeUnit');
         this.refreshCommissionStructureConflict();
@@ -1505,7 +1630,8 @@ export class UserRegistrationWizard {
         }));
         this.commissionDecentralizedBodyOptions.set([]);
         this.commissionAdministrativeUnitOptions.set([]);
-        this.loadCommissionChildren(value, this.commissionDecentralizedBodyOptions, 2);
+        this.loadCommissionDecentralizedBodies();
+        this.loadCommissionAdministrativeUnits();
         this.refreshCommissionStructureConflict();
     }
 
@@ -1515,23 +1641,27 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (this.commissionDecentralizedBodyLocked()) {
+            return;
+        }
+
         this.bumpCommissionCatalogGeneration();
+
+        const commissionDecentralizedBody = this.normalizeSelectValue(value);
 
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionDecentralizedBody,
-            value ?? '',
+            commissionDecentralizedBody,
         );
 
         this.form.update((current) => ({
             ...current,
-            commissionDecentralizedBody: value ?? '',
+            commissionDecentralizedBody,
             commissionAdministrativeUnit: '',
         }));
+        this.clearFieldError('commissionDecentralizedBody');
         this.commissionAdministrativeUnitOptions.set([]);
-        this.loadCommissionChildren(
-            value,
-            this.commissionAdministrativeUnitOptions,
-        );
+        this.loadCommissionAdministrativeUnits();
         this.refreshCommissionStructureConflict();
     }
 
@@ -1541,13 +1671,16 @@ export class UserRegistrationWizard {
         }
 
         this.bumpCommissionCatalogGeneration();
+
+        const commissionAdministrativeUnit = this.normalizeSelectValue(value);
+
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionAdministrativeUnit,
-            value ?? '',
+            commissionAdministrativeUnit,
         );
         this.form.update((current) => ({
             ...current,
-            commissionAdministrativeUnit: value ?? '',
+            commissionAdministrativeUnit,
         }));
         this.clearFieldError('commissionAdministrativeUnit');
         this.refreshCommissionStructureConflict();
@@ -3248,11 +3381,8 @@ export class UserRegistrationWizard {
         }
 
         if (form.institution) {
-            this.loadAssignmentChildren(form.institution, this.decentralizedBodyOptions, 2);
-        }
-
-        if (form.decentralizedBody) {
-            this.loadAssignmentChildren(form.decentralizedBody, this.administrativeUnitOptions);
+            this.loadAssignmentDecentralizedBodies();
+            this.loadAssignmentAdministrativeUnits();
         }
 
         if (!form.commissionEnabled) {
@@ -3268,14 +3398,8 @@ export class UserRegistrationWizard {
         }
 
         if (form.commissionInstitution) {
-            this.loadCommissionChildren(form.commissionInstitution, this.commissionDecentralizedBodyOptions, 2);
-        }
-
-        if (form.commissionDecentralizedBody) {
-            this.loadCommissionChildren(
-                form.commissionDecentralizedBody,
-                this.commissionAdministrativeUnitOptions,
-            );
+            this.loadCommissionDecentralizedBodies();
+            this.loadCommissionAdministrativeUnits();
         }
     }
 
@@ -3671,6 +3795,87 @@ export class UserRegistrationWizard {
                 : undefined,
             padreId,
         }, 'assignment');
+    }
+
+    /** OAD: siempre hijos directos de la institución (tipoEstructuraId = 2). */
+    private loadAssignmentDecentralizedBodies(): void {
+        this.loadAssignmentChildren(
+            this.form().institution,
+            this.decentralizedBodyOptions,
+            TIPO_ESTRUCTURA_ORGANO_DESCONCENTRADO,
+        );
+    }
+
+    /**
+     * UA (tipoEstructuraId = 4). El padre depende de si ya se eligió un OAD:
+     * - sin OAD  -> padreId = institución (mismo nivel que los OAD)
+     * - con OAD  -> padreId = OAD (las UA_OAD que cuelgan de ese órgano)
+     *
+     * En estatal/municipal el catálogo `estructura_org` no distingue tipo de
+     * estructura, así que ahí se conserva la cascada institución -> OAD -> UA.
+     */
+    private loadAssignmentAdministrativeUnits(): void {
+        const current = this.form();
+        const parentValue = this.resolveAdministrativeUnitParent(
+            current.institutionType,
+            current.institution,
+            current.decentralizedBody,
+        );
+
+        if (!parentValue) {
+            this.administrativeUnitOptions.set([]);
+            return;
+        }
+
+        this.loadAssignmentChildren(
+            parentValue,
+            this.administrativeUnitOptions,
+            TIPO_ESTRUCTURA_UNIDAD_ADMINISTRATIVA,
+        );
+    }
+
+    private loadCommissionDecentralizedBodies(): void {
+        this.loadCommissionChildren(
+            this.form().commissionInstitution,
+            this.commissionDecentralizedBodyOptions,
+            TIPO_ESTRUCTURA_ORGANO_DESCONCENTRADO,
+        );
+    }
+
+    private loadCommissionAdministrativeUnits(): void {
+        const current = this.form();
+        const parentValue = this.resolveAdministrativeUnitParent(
+            current.commissionInstitutionType,
+            current.commissionInstitution,
+            current.commissionDecentralizedBody,
+        );
+
+        if (!parentValue) {
+            this.commissionAdministrativeUnitOptions.set([]);
+            return;
+        }
+
+        this.loadCommissionChildren(
+            parentValue,
+            this.commissionAdministrativeUnitOptions,
+            TIPO_ESTRUCTURA_UNIDAD_ADMINISTRATIVA,
+        );
+    }
+
+    private resolveAdministrativeUnitParent(
+        institutionType: string,
+        institution: string,
+        decentralizedBody: string,
+    ): string {
+        if (this.hasStructureSelection(decentralizedBody)) {
+            return decentralizedBody;
+        }
+
+        if (!this.isFederalInstitutionType(institutionType)) {
+            return '';
+        }
+
+        return this.hasStructureSelection(institution) ? institution : '';
     }
 
     private loadCommissionInstitutions(): void {
@@ -4512,6 +4717,28 @@ export class UserRegistrationWizard {
         }
 
         return null;
+    }
+
+    /** Una selección real: con texto y distinta de "NO APLICA". */
+    private hasStructureSelection(value: string | null | undefined): boolean {
+        return this.hasText(value) && !this.isNoAplicaValue(value);
+    }
+
+    /** Traduce la opción "Sin selección" a cadena vacía. */
+    private normalizeSelectValue(value: string | null): string {
+        const text = this.toText(value);
+
+        return text === CLEAR_SELECTION_VALUE ? '' : text;
+    }
+
+    private withClearOption(
+        options: readonly SiauSelectOption[],
+    ): readonly SiauSelectOption[] {
+        if (options.length === 0) {
+            return options;
+        }
+
+        return [CLEAR_SELECTION_OPTION, ...options];
     }
 
     private isNoAplicaValue(value: unknown): boolean {
