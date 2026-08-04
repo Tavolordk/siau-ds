@@ -356,13 +356,15 @@
                         (valueChange)="updateAssignmentInstitution($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
-                        [options]="decentralizedBodyOptions()" [value]="form().decentralizedBody"
-                        [disabled]="isFormDisabled() || (!form().institution)"
+                        [options]="assignmentDecentralizedBodyChoices()" [value]="form().decentralizedBody"
+                        [hint]="assignmentDecentralizedBodyHint()"
+                        [disabled]="isFormDisabled() || !form().institution || assignmentDecentralizedBodyLocked()"
                         (valueChange)="updateAssignmentDecentralizedBody($event)" />
 
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
-                        [options]="administrativeUnitOptions()" [value]="form().administrativeUnit"
-                        [disabled]="isFormDisabled() || !form().decentralizedBody"
+                        [options]="assignmentAdministrativeUnitChoices()" [value]="form().administrativeUnit"
+                        [hint]="assignmentAdministrativeUnitHint()"
+                        [disabled]="isFormDisabled() || !assignmentAdministrativeUnitEnabled()"
                         (valueChange)="updateAssignmentAdministrativeUnit($event)" />
 
                     <siau-input label="Cargo" placeholder="Ej. Analista" [value]="form().position"
@@ -469,13 +471,15 @@
                         (valueChange)="updateCommissionInstitution($event)" />
 
                     <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
-                        [options]="commissionDecentralizedBodyOptions()" [value]="form().commissionDecentralizedBody"
-                        [disabled]="isFormDisabled() || !form().commissionInstitution"
+                        [options]="commissionDecentralizedBodyChoices()" [value]="form().commissionDecentralizedBody"
+                        [hint]="commissionDecentralizedBodyHint()"
+                        [disabled]="isFormDisabled() || !form().commissionInstitution || commissionDecentralizedBodyLocked()"
                         (valueChange)="updateCommissionDecentralizedBody($event)" />
 
                     <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
-                        [options]="commissionAdministrativeUnitOptions()" [value]="form().commissionAdministrativeUnit"
-                        [disabled]="isFormDisabled() || !form().commissionDecentralizedBody"
+                        [options]="commissionAdministrativeUnitChoices()" [value]="form().commissionAdministrativeUnit"
+                        [hint]="commissionAdministrativeUnitHint()"
+                        [disabled]="isFormDisabled() || !commissionAdministrativeUnitEnabled()"
                         (valueChange)="updateCommissionAdministrativeUnit($event)" />
 
                     <siau-input label="Fecha de Inicio" type="date" [required]="true" [min]="form().admissionDate"
