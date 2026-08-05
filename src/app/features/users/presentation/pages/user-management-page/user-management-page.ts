@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, finalize, Subject, timeout } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, forkJoin, of, Subject, timeout } from 'rxjs';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
+import { CatalogoOption, CatalogosFacade } from '../../../../../core/catalogos';
 import { SiauModal } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
@@ -19,6 +20,41 @@ import { UserRegistrationWizard } from '../../components/user-registration-wizar
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'dark' | 'light';
 type UserWizardMode = 'create' | 'edit';
 type AccountOperationKind = 'baja' | 'suspension' | 'reactivacion' | 'desbloqueo';
+type UserFilterKey = 'tipoUsuarioId' | 'estadoCuentaId' | 'sistemaId';
+type UserFilterGroupKey = 'account-access';
+type UserFilterTabKey = 'all' | UserFilterGroupKey;
+type UserTableTabKey = 'general' | 'access' | 'validations';
+
+interface UserFilterValues {
+    readonly tipoUsuarioId: string;
+    readonly estadoCuentaId: string;
+    readonly sistemaId: string;
+}
+
+interface UserFilterDefinition {
+    readonly key: UserFilterKey;
+    readonly label: string;
+    readonly emptyLabel: string;
+    readonly group: UserFilterGroupKey;
+    readonly options: readonly CatalogoOption[];
+}
+
+interface UserFilterTab {
+    readonly id: UserFilterTabKey;
+    readonly label: string;
+}
+
+interface UserTableTab {
+    readonly id: UserTableTabKey;
+    readonly label: string;
+    readonly shortLabel: string;
+}
+
+interface UserFilterChip {
+    readonly key: UserFilterKey;
+    readonly label: string;
+    readonly value: string;
+}
 
 interface AccountOperationSuccessState {
     readonly operation: AccountOperationKind;
@@ -41,6 +77,12 @@ const DEFAULT_PAGINATION: UserPagination = {
     porPagina: 8,
 };
 
+const EMPTY_USER_FILTERS: UserFilterValues = {
+    tipoUsuarioId: '',
+    estadoCuentaId: '',
+    sistemaId: '',
+};
+
 @Component({
     selector: 'app-user-management-page',
     standalone: true,
@@ -52,11 +94,24 @@ const DEFAULT_PAGINATION: UserPagination = {
 export class UserManagementPage {
     private readonly usersFacade = inject(UsersFacade);
     private readonly authStorage = inject(AuthStorage);
+    private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly searchTermChanges = new Subject<string>();
 
     private detailRequestSequence = 0;
 
     protected readonly searchTerm = signal<string>('');
+    protected readonly isFilterPanelOpen = signal<boolean>(false);
+    protected readonly filterCatalogSearch = signal<string>('');
+    protected readonly selectedFilterTab = signal<UserFilterTabKey>('all');
+    protected readonly selectedTableTab = signal<UserTableTabKey>('general');
+    protected readonly draftFilterKeys = signal<readonly UserFilterKey[]>([]);
+    protected readonly draftFilters = signal<UserFilterValues>({ ...EMPTY_USER_FILTERS });
+    protected readonly appliedFilters = signal<UserFilterValues>({ ...EMPTY_USER_FILTERS });
+    protected readonly userTypeOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly accountStatusOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly systemOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly isFilterCatalogLoading = signal<boolean>(true);
+    protected readonly filterCatalogMessage = signal<string | null>(null);
     protected readonly users = signal<readonly UserRecord[]>([]);
     protected readonly pagination = signal<UserPagination>(DEFAULT_PAGINATION);
     protected readonly isLoading = signal<boolean>(false);
@@ -84,6 +139,108 @@ export class UserManagementPage {
     protected readonly operationSuccess = signal<AccountOperationSuccessState | null>(null);
 
     protected readonly filteredUsers = computed(() => this.users());
+    protected readonly filterTabs: readonly UserFilterTab[] = [
+        { id: 'all', label: 'Todos' },
+        { id: 'account-access', label: 'Cuenta y acceso' },
+    ];
+    protected readonly tableTabs: readonly UserTableTab[] = [
+        { id: 'general', label: 'Datos generales', shortLabel: 'General' },
+        { id: 'access', label: 'Acceso y roles', shortLabel: 'Acceso' },
+        { id: 'validations', label: 'Validaciones', shortLabel: 'Validaciones' },
+    ];
+    protected readonly filterDefinitions = computed<readonly UserFilterDefinition[]>(() => [
+        {
+            key: 'tipoUsuarioId',
+            label: 'Tipo de usuario',
+            emptyLabel: 'Selecciona un tipo de usuario',
+            group: 'account-access',
+            options: this.userTypeOptions(),
+        },
+        {
+            key: 'estadoCuentaId',
+            label: 'Estado de cuenta',
+            emptyLabel: 'Selecciona un estado de cuenta',
+            group: 'account-access',
+            options: this.accountStatusOptions(),
+        },
+        {
+            key: 'sistemaId',
+            label: 'Sistema',
+            emptyLabel: 'Selecciona un sistema',
+            group: 'account-access',
+            options: this.systemOptions(),
+        },
+    ]);
+    protected readonly visibleFilterDefinitions = computed<readonly UserFilterDefinition[]>(() => {
+        const search = this.normalizeForCompare(this.filterCatalogSearch());
+        const selectedTab = this.selectedFilterTab();
+
+        return this.filterDefinitions().filter((filter) => {
+            const matchesTab = selectedTab === 'all' || filter.group === selectedTab;
+            const matchesSearch = !search || this.normalizeForCompare(filter.label).includes(search);
+            return matchesTab && matchesSearch;
+        });
+    });
+    protected readonly selectableFilterDefinitions = computed<readonly UserFilterDefinition[]>(() =>
+        this.filterDefinitions().filter((filter) => !this.isFilterDefinitionDisabled(filter)),
+    );
+    protected readonly effectiveDraftFilters = computed<UserFilterValues>(() => {
+        const selectedKeys = new Set(this.draftFilterKeys());
+        const draft = this.draftFilters();
+
+        return {
+            tipoUsuarioId: selectedKeys.has('tipoUsuarioId') ? draft.tipoUsuarioId : '',
+            estadoCuentaId: selectedKeys.has('estadoCuentaId') ? draft.estadoCuentaId : '',
+            sistemaId: selectedKeys.has('sistemaId') ? draft.sistemaId : '',
+        };
+    });
+    protected readonly activeFilterCount = computed(() =>
+        Object.values(this.appliedFilters()).filter((value) => Boolean(value)).length,
+    );
+    protected readonly selectedDraftFilterCount = computed(() => this.draftFilterKeys().length);
+    protected readonly allDraftFiltersSelected = computed(() => {
+        const selectableFilters = this.selectableFilterDefinitions();
+        return Boolean(selectableFilters.length)
+            && selectableFilters.every((filter) => this.isDraftFilterSelected(filter.key));
+    });
+    protected readonly someDraftFiltersSelected = computed(() =>
+        this.selectedDraftFilterCount() > 0 && !this.allDraftFiltersSelected(),
+    );
+    protected readonly hasIncompleteDraftFilters = computed(() => {
+        const filters = this.draftFilters();
+        return this.draftFilterKeys().some((key) => !filters[key]);
+    });
+    protected readonly hasPendingFilterChanges = computed(() =>
+        JSON.stringify(this.effectiveDraftFilters()) !== JSON.stringify(this.appliedFilters()),
+    );
+    protected readonly activeFilterChips = computed<readonly UserFilterChip[]>(() => {
+        const filters = this.appliedFilters();
+        const chips: UserFilterChip[] = [];
+
+        this.pushFilterChip(
+            chips,
+            'tipoUsuarioId',
+            'Tipo de usuario',
+            filters.tipoUsuarioId,
+            this.userTypeOptions(),
+        );
+        this.pushFilterChip(
+            chips,
+            'estadoCuentaId',
+            'Estado de cuenta',
+            filters.estadoCuentaId,
+            this.accountStatusOptions(),
+        );
+        this.pushFilterChip(
+            chips,
+            'sistemaId',
+            'Sistema',
+            filters.sistemaId,
+            this.systemOptions(),
+        );
+
+        return chips;
+    });
     protected readonly shownUsersCount = computed(() => {
         const pagination = this.pagination();
         const totalRecords = Math.max(0, pagination.totalRegistros);
@@ -100,7 +257,15 @@ export class UserManagementPage {
             .pipe(debounceTime(350), distinctUntilChanged(), takeUntilDestroyed())
             .subscribe((term) => this.loadUsers(1, term));
 
+        this.loadFilterCatalogs();
         this.loadUsers();
+    }
+
+    @HostListener('document:keydown.escape')
+    protected handleEscapeKey(): void {
+        if (this.isFilterPanelOpen()) {
+            this.closeFilterPanel();
+        }
     }
 
     protected updateSearchTerm(value: string): void {
@@ -110,6 +275,130 @@ export class UserManagementPage {
     }
 
     protected searchNow(): void {
+        this.loadUsers(1);
+    }
+
+    protected clearSearch(): void {
+        if (!this.searchTerm()) {
+            return;
+        }
+
+        this.searchTerm.set('');
+        this.searchTermChanges.next('');
+    }
+
+    protected toggleFilterPanel(): void {
+        if (this.isFilterPanelOpen()) {
+            this.closeFilterPanel();
+            return;
+        }
+
+        const appliedFilters = this.appliedFilters();
+        this.draftFilters.set({ ...appliedFilters });
+        this.draftFilterKeys.set(this.getActiveFilterKeys(appliedFilters));
+        this.filterCatalogSearch.set('');
+        this.selectedFilterTab.set('all');
+        this.isFilterPanelOpen.set(true);
+    }
+
+    protected closeFilterPanel(): void {
+        const appliedFilters = this.appliedFilters();
+        this.draftFilters.set({ ...appliedFilters });
+        this.draftFilterKeys.set(this.getActiveFilterKeys(appliedFilters));
+        this.filterCatalogSearch.set('');
+        this.selectedFilterTab.set('all');
+        this.isFilterPanelOpen.set(false);
+    }
+
+    protected updateFilterCatalogSearch(value: string): void {
+        this.filterCatalogSearch.set(String(value ?? ''));
+    }
+
+    protected selectFilterTab(tab: UserFilterTabKey): void {
+        this.selectedFilterTab.set(tab);
+    }
+
+    protected selectTableTab(tab: UserTableTabKey): void {
+        this.selectedTableTab.set(tab);
+    }
+
+    protected setDraftFilterSelected(key: UserFilterKey, selected: boolean): void {
+        if (selected) {
+            if (this.isDraftFilterSelected(key)) {
+                return;
+            }
+
+            const definition = this.filterDefinitions().find((filter) => filter.key === key);
+            if (!definition || this.isFilterDefinitionDisabled(definition)) {
+                return;
+            }
+
+            this.draftFilterKeys.update((keys) => [...keys, key]);
+            return;
+        }
+
+        this.draftFilterKeys.update((keys) => keys.filter((selectedKey) => selectedKey !== key));
+    }
+
+    protected setAllDraftFiltersSelected(selected: boolean): void {
+        this.draftFilterKeys.set(
+            selected
+                ? this.selectableFilterDefinitions().map((filter) => filter.key)
+                : [],
+        );
+    }
+
+    protected isDraftFilterSelected(key: UserFilterKey): boolean {
+        return this.draftFilterKeys().includes(key);
+    }
+
+    protected isFilterDefinitionDisabled(filter: UserFilterDefinition): boolean {
+        return this.isFilterCatalogLoading() || !filter.options.length;
+    }
+
+    protected updateDraftFilter(key: UserFilterKey, value: string): void {
+        this.draftFilters.update((filters) => ({
+            ...filters,
+            [key]: String(value ?? ''),
+        }));
+    }
+
+    protected clearDraftFilters(): void {
+        this.draftFilterKeys.set([]);
+        this.draftFilters.set({ ...EMPTY_USER_FILTERS });
+    }
+
+    protected applyFilters(): void {
+        if (this.hasIncompleteDraftFilters()) {
+            return;
+        }
+
+        this.appliedFilters.set({ ...this.effectiveDraftFilters() });
+        this.filterCatalogSearch.set('');
+        this.selectedFilterTab.set('all');
+        this.isFilterPanelOpen.set(false);
+        this.loadUsers(1);
+    }
+
+    protected clearAllFilters(): void {
+        this.draftFilterKeys.set([]);
+        this.draftFilters.set({ ...EMPTY_USER_FILTERS });
+        this.appliedFilters.set({ ...EMPTY_USER_FILTERS });
+        this.filterCatalogSearch.set('');
+        this.selectedFilterTab.set('all');
+        this.isFilterPanelOpen.set(false);
+        this.loadUsers(1);
+    }
+
+    protected removeAppliedFilter(key: UserFilterKey): void {
+        const nextFilters: UserFilterValues = {
+            ...this.appliedFilters(),
+            [key]: '',
+        };
+
+        this.appliedFilters.set(nextFilters);
+        this.draftFilters.set({ ...nextFilters });
+        this.draftFilterKeys.set(this.getActiveFilterKeys(nextFilters));
         this.loadUsers(1);
     }
 
@@ -713,9 +1002,17 @@ export class UserManagementPage {
         return normalizedValue;
     }
 
+    private getActiveFilterKeys(filters: UserFilterValues): readonly UserFilterKey[] {
+        return (Object.keys(filters) as UserFilterKey[]).filter((key) => Boolean(filters[key]));
+    }
+
     private loadUsers(page = 1, search = this.searchTerm().trim()): void {
+        const filters = this.appliedFilters();
         const query: UsersQuery = {
             busqueda: search || undefined,
+            tipoUsuarioId: this.toOptionalPositiveNumber(filters.tipoUsuarioId),
+            estadoCuentaId: this.toOptionalPositiveNumber(filters.estadoCuentaId),
+            sistemaId: this.toOptionalPositiveNumber(filters.sistemaId),
             pagina: page,
             porPagina: this.pagination().porPagina,
         };
@@ -741,6 +1038,78 @@ export class UserManagementPage {
                     this.errorMessage.set(this.toFriendlyError(error));
                 },
             });
+    }
+
+    private loadFilterCatalogs(): void {
+        this.isFilterCatalogLoading.set(true);
+        this.filterCatalogMessage.set(null);
+
+        forkJoin({
+            userTypes: this.catalogosFacade
+                .obtenerTipoUsuarioOptions()
+                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
+            accountStatuses: this.catalogosFacade
+                .obtenerCuentaUsuarioOptions()
+                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
+            systems: this.catalogosFacade
+                .obtenerSistemasOptions()
+                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
+        })
+            .pipe(finalize(() => this.isFilterCatalogLoading.set(false)))
+            .subscribe(({ userTypes, accountStatuses, systems }) => {
+                this.userTypeOptions.set(userTypes);
+                this.accountStatusOptions.set(accountStatuses);
+                this.systemOptions.set(
+                    systems
+                        .map((option) => this.normalizeSystemOption(option))
+                        .filter((option): option is CatalogoOption => option !== null),
+                );
+
+                if (!userTypes.length || !accountStatuses.length || !systems.length) {
+                    this.filterCatalogMessage.set(
+                        'Algunos catálogos de filtros no están disponibles. Puedes seguir usando la búsqueda y los filtros cargados.',
+                    );
+                }
+            });
+    }
+
+    private normalizeSystemOption(option: CatalogoOption): CatalogoOption | null {
+        const metadata = option.metadata ?? {};
+        const id = this.toOptionalPositiveNumber(
+            metadata['idSistema'] ?? metadata['sistemaId'] ?? option.value,
+        );
+
+        if (!id) {
+            return null;
+        }
+
+        return {
+            ...option,
+            value: String(id),
+        };
+    }
+
+    private pushFilterChip(
+        chips: UserFilterChip[],
+        key: UserFilterKey,
+        label: string,
+        value: string,
+        options: readonly CatalogoOption[],
+    ): void {
+        if (!value) {
+            return;
+        }
+
+        const optionLabel = options.find((option) => option.value === value)?.label ?? value;
+        chips.push({ key, label, value: optionLabel });
+    }
+
+    private toOptionalPositiveNumber(value: unknown): number | undefined {
+        const normalizedValue = Number(value);
+
+        return Number.isFinite(normalizedValue) && normalizedValue > 0
+            ? normalizedValue
+            : undefined;
     }
 
     private isUserInactiveStatus(status: string): boolean {
