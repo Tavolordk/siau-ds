@@ -4305,3 +4305,128 @@
     height: 2.45rem;
   }
 }
+
+/* ==============================================================
+   Búsqueda de usuarios v3.0 — controles compactos y validaciones
+   ============================================================== */
+
+.users-filter-panel--compact {
+  width: min(72rem, calc(100vw - 3rem));
+  height: min(44rem, calc(100dvh - 3rem));
+}
+
+.users-filter-compact__row {
+  min-height: 3.75rem;
+  align-items: start;
+}
+
+.users-filter-compact__row--error {
+  border-color: rgba(151, 32, 57, 0.52);
+  background: rgba(255, 248, 250, 0.96);
+}
+
+.users-filter-compact__check {
+  min-height: 2.35rem;
+  align-items: center;
+}
+
+.users-filter-compact__check span {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.users-filter-compact__control {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.users-filter-compact__control > input {
+  width: 100%;
+  min-width: 0;
+  height: 2.35rem;
+  padding: 0 0.68rem;
+  border: 1px solid rgba(160, 178, 187, 0.52);
+  border-radius: 0.62rem;
+  outline: none;
+  color: #1b1f4a;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+.users-filter-compact__control > input::placeholder {
+  color: rgba(27, 31, 74, 0.4);
+  font-weight: 500;
+}
+
+.users-filter-compact__control > input:focus {
+  border-color: #1b1f4a;
+  box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.08);
+}
+
+.users-filter-compact__row--error .users-filter-compact__control > input {
+  border-color: rgba(151, 32, 57, 0.64);
+  box-shadow: 0 0 0 2px rgba(151, 32, 57, 0.07);
+}
+
+.users-filter-compact__control > input:disabled {
+  color: rgba(27, 31, 74, 0.38);
+  background: rgba(232, 237, 243, 0.72);
+  cursor: not-allowed;
+}
+
+.users-filter-compact__control > input[type='date'] {
+  color-scheme: light;
+}
+
+.users-filter-compact__error {
+  display: block;
+  color: #7a1836;
+  font-size: 0.63rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.user-action-modal__confirmation-note {
+  padding: 0.78rem 0.9rem;
+  border: 1px solid rgba(62, 92, 118, 0.22);
+  border-radius: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #314d68;
+  background: rgba(62, 92, 118, 0.08);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@media (max-width: 900px) {
+  .users-filter-panel--compact {
+    width: min(48rem, calc(100vw - 2rem));
+    height: min(44rem, calc(100dvh - 2rem));
+  }
+}
+
+@media (max-width: 560px) {
+  .users-filter-panel--compact {
+    width: 100%;
+    height: 100dvh;
+  }
+
+  .users-filter-compact__control > input {
+    height: 2.45rem;
+  }
+}

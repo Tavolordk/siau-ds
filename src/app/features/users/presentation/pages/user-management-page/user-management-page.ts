@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, debounceTime, distinctUntilChanged, finalize, forkJoin, of, Subject, timeout } from 'rxjs';
@@ -20,23 +20,58 @@ import { UserRegistrationWizard } from '../../components/user-registration-wizar
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'dark' | 'light';
 type UserWizardMode = 'create' | 'edit';
 type AccountOperationKind = 'baja' | 'suspension' | 'reactivacion' | 'desbloqueo';
-type UserFilterKey = 'tipoUsuarioId' | 'estadoCuentaId' | 'sistemaId';
-type UserFilterGroupKey = 'account-access';
+type UserFilterKey =
+    | 'primerApellido'
+    | 'segundoApellido'
+    | 'nombres'
+    | 'curp'
+    | 'rfc'
+    | 'correo'
+    | 'numeroTelefonico'
+    | 'tipoInstitucionId'
+    | 'entidadId'
+    | 'municipioId'
+    | 'institucionId'
+    | 'organoAdministrativoDesconcentradoId'
+    | 'unidadAdministrativaId'
+    | 'nombreUsuario'
+    | 'estadoCuentaId'
+    | 'fechaInicio'
+    | 'fechaFin';
+type UserFilterGroupKey = 'general' | 'adscription' | 'account';
 type UserFilterTabKey = 'all' | UserFilterGroupKey;
-type UserTableTabKey = 'general' | 'access' | 'validations';
+type UserTableTabKey = 'general' | 'adscription' | 'access' | 'validations';
+type UserFilterKind = 'text' | 'catalog' | 'date';
 
 interface UserFilterValues {
-    readonly tipoUsuarioId: string;
+    readonly primerApellido: string;
+    readonly segundoApellido: string;
+    readonly nombres: string;
+    readonly curp: string;
+    readonly rfc: string;
+    readonly correo: string;
+    readonly numeroTelefonico: string;
+    readonly tipoInstitucionId: string;
+    readonly entidadId: string;
+    readonly municipioId: string;
+    readonly institucionId: string;
+    readonly organoAdministrativoDesconcentradoId: string;
+    readonly unidadAdministrativaId: string;
+    readonly nombreUsuario: string;
     readonly estadoCuentaId: string;
-    readonly sistemaId: string;
+    readonly fechaInicio: string;
+    readonly fechaFin: string;
 }
 
 interface UserFilterDefinition {
     readonly key: UserFilterKey;
     readonly label: string;
-    readonly emptyLabel: string;
+    readonly placeholder: string;
     readonly group: UserFilterGroupKey;
+    readonly kind: UserFilterKind;
     readonly options: readonly CatalogoOption[];
+    readonly maxLength?: number;
+    readonly inputMode?: 'text' | 'email' | 'numeric';
 }
 
 interface UserFilterTab {
@@ -74,14 +109,37 @@ const DEFAULT_PAGINATION: UserPagination = {
     totalRegistros: 0,
     totalPaginas: 1,
     paginaActual: 1,
-    porPagina: 8,
+    porPagina: 15,
 };
 
 const EMPTY_USER_FILTERS: UserFilterValues = {
-    tipoUsuarioId: '',
+    primerApellido: '',
+    segundoApellido: '',
+    nombres: '',
+    curp: '',
+    rfc: '',
+    correo: '',
+    numeroTelefonico: '',
+    tipoInstitucionId: '',
+    entidadId: '',
+    municipioId: '',
+    institucionId: '',
+    organoAdministrativoDesconcentradoId: '',
+    unidadAdministrativaId: '',
+    nombreUsuario: '',
     estadoCuentaId: '',
-    sistemaId: '',
+    fechaInicio: '',
+    fechaFin: '',
 };
+
+const NAME_FILTER_KEYS: readonly UserFilterKey[] = [
+    'primerApellido',
+    'segundoApellido',
+    'nombres',
+];
+const DATE_FILTER_KEYS: readonly UserFilterKey[] = ['fechaInicio', 'fechaFin'];
+const TIPO_ESTRUCTURA_ORGANO_DESCONCENTRADO = 2;
+const TIPO_ESTRUCTURA_UNIDAD_ADMINISTRATIVA = 4;
 
 @Component({
     selector: 'app-user-management-page',
@@ -95,6 +153,7 @@ export class UserManagementPage {
     private readonly usersFacade = inject(UsersFacade);
     private readonly authStorage = inject(AuthStorage);
     private readonly catalogosFacade = inject(CatalogosFacade);
+    private readonly destroyRef = inject(DestroyRef);
     private readonly searchTermChanges = new Subject<string>();
 
     private detailRequestSequence = 0;
@@ -107,11 +166,17 @@ export class UserManagementPage {
     protected readonly draftFilterKeys = signal<readonly UserFilterKey[]>([]);
     protected readonly draftFilters = signal<UserFilterValues>({ ...EMPTY_USER_FILTERS });
     protected readonly appliedFilters = signal<UserFilterValues>({ ...EMPTY_USER_FILTERS });
-    protected readonly userTypeOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly draftCatalogLabels = signal<Partial<Record<UserFilterKey, string>>>({});
+    protected readonly institutionTypeOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly stateOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly municipalityOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly institutionOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly decentralizedBodyOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly administrativeUnitOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly accountStatusOptions = signal<readonly CatalogoOption[]>([]);
-    protected readonly systemOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly isFilterCatalogLoading = signal<boolean>(true);
     protected readonly filterCatalogMessage = signal<string | null>(null);
+    protected readonly todayDate = this.toDateInputValue(new Date());
     protected readonly users = signal<readonly UserRecord[]>([]);
     protected readonly pagination = signal<UserPagination>(DEFAULT_PAGINATION);
     protected readonly isLoading = signal<boolean>(false);
@@ -141,34 +206,168 @@ export class UserManagementPage {
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly filterTabs: readonly UserFilterTab[] = [
         { id: 'all', label: 'Todos' },
-        { id: 'account-access', label: 'Cuenta y acceso' },
+        { id: 'general', label: 'Información general' },
+        { id: 'adscription', label: 'Adscripción' },
+        { id: 'account', label: 'Cuenta' },
     ];
     protected readonly tableTabs: readonly UserTableTab[] = [
         { id: 'general', label: 'Datos generales', shortLabel: 'General' },
+        { id: 'adscription', label: 'Adscripción', shortLabel: 'Adscripción' },
         { id: 'access', label: 'Acceso y roles', shortLabel: 'Acceso' },
         { id: 'validations', label: 'Validaciones', shortLabel: 'Validaciones' },
     ];
     protected readonly filterDefinitions = computed<readonly UserFilterDefinition[]>(() => [
         {
-            key: 'tipoUsuarioId',
-            label: 'Tipo de usuario',
-            emptyLabel: 'Selecciona un tipo de usuario',
-            group: 'account-access',
-            options: this.userTypeOptions(),
+            key: 'primerApellido',
+            label: 'Primer apellido',
+            placeholder: 'Captura el primer apellido',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 100,
+            inputMode: 'text',
+        },
+        {
+            key: 'segundoApellido',
+            label: 'Segundo apellido',
+            placeholder: 'Captura el segundo apellido',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 100,
+            inputMode: 'text',
+        },
+        {
+            key: 'nombres',
+            label: 'Nombre(s)',
+            placeholder: 'Captura el nombre o nombres',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 100,
+            inputMode: 'text',
+        },
+        {
+            key: 'curp',
+            label: 'CURP',
+            placeholder: '18 caracteres',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 18,
+            inputMode: 'text',
+        },
+        {
+            key: 'rfc',
+            label: 'RFC',
+            placeholder: '13 caracteres',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 13,
+            inputMode: 'text',
+        },
+        {
+            key: 'correo',
+            label: 'Correo electrónico',
+            placeholder: 'usuario@dominio.com',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 254,
+            inputMode: 'email',
+        },
+        {
+            key: 'numeroTelefonico',
+            label: 'Número telefónico',
+            placeholder: '10 dígitos',
+            group: 'general',
+            kind: 'text',
+            options: [],
+            maxLength: 10,
+            inputMode: 'numeric',
+        },
+        {
+            key: 'tipoInstitucionId',
+            label: 'Tipo de institución',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'adscription',
+            kind: 'catalog',
+            options: this.institutionTypeOptions(),
+        },
+        {
+            key: 'entidadId',
+            label: 'Entidad',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'adscription',
+            kind: 'catalog',
+            options: this.stateOptions(),
+        },
+        {
+            key: 'municipioId',
+            label: 'Municipio/Alcaldía',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'adscription',
+            kind: 'catalog',
+            options: this.municipalityOptions(),
+        },
+        {
+            key: 'institucionId',
+            label: 'Institución',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'adscription',
+            kind: 'catalog',
+            options: this.institutionOptions(),
+        },
+        {
+            key: 'organoAdministrativoDesconcentradoId',
+            label: 'Órgano Administrativo Desconcentrado',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'adscription',
+            kind: 'catalog',
+            options: this.decentralizedBodyOptions(),
+        },
+        {
+            key: 'unidadAdministrativaId',
+            label: 'Unidad Administrativa',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'adscription',
+            kind: 'catalog',
+            options: this.administrativeUnitOptions(),
+        },
+        {
+            key: 'nombreUsuario',
+            label: 'Nombre de usuario',
+            placeholder: '14 caracteres',
+            group: 'account',
+            kind: 'text',
+            options: [],
+            maxLength: 14,
+            inputMode: 'text',
         },
         {
             key: 'estadoCuentaId',
-            label: 'Estado de cuenta',
-            emptyLabel: 'Selecciona un estado de cuenta',
-            group: 'account-access',
+            label: 'Estatus',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'account',
+            kind: 'catalog',
             options: this.accountStatusOptions(),
         },
         {
-            key: 'sistemaId',
-            label: 'Sistema',
-            emptyLabel: 'Selecciona un sistema',
-            group: 'account-access',
-            options: this.systemOptions(),
+            key: 'fechaInicio',
+            label: 'Fecha de inicio del último movimiento',
+            placeholder: 'dd/mm/aaaa',
+            group: 'account',
+            kind: 'date',
+            options: [],
+        },
+        {
+            key: 'fechaFin',
+            label: 'Fecha de fin del último movimiento',
+            placeholder: 'dd/mm/aaaa',
+            group: 'account',
+            kind: 'date',
+            options: [],
         },
     ]);
     protected readonly visibleFilterDefinitions = computed<readonly UserFilterDefinition[]>(() => {
@@ -182,17 +381,59 @@ export class UserManagementPage {
         });
     });
     protected readonly selectableFilterDefinitions = computed<readonly UserFilterDefinition[]>(() =>
-        this.filterDefinitions().filter((filter) => !this.isFilterDefinitionDisabled(filter)),
+        this.filterDefinitions().filter((filter) => !this.isFilterCheckboxDisabled(filter)),
     );
     protected readonly effectiveDraftFilters = computed<UserFilterValues>(() => {
         const selectedKeys = new Set(this.draftFilterKeys());
         const draft = this.draftFilters();
+        const effective = { ...EMPTY_USER_FILTERS } as Record<UserFilterKey, string>;
 
-        return {
-            tipoUsuarioId: selectedKeys.has('tipoUsuarioId') ? draft.tipoUsuarioId : '',
-            estadoCuentaId: selectedKeys.has('estadoCuentaId') ? draft.estadoCuentaId : '',
-            sistemaId: selectedKeys.has('sistemaId') ? draft.sistemaId : '',
-        };
+        (Object.keys(EMPTY_USER_FILTERS) as UserFilterKey[]).forEach((key) => {
+            effective[key] = selectedKeys.has(key) ? draft[key].trim() : '';
+        });
+
+        return effective as unknown as UserFilterValues;
+    });
+    protected readonly draftFilterErrors = computed<Partial<Record<UserFilterKey, string>>>(() => {
+        const errors: Partial<Record<UserFilterKey, string>> = {};
+        const filters = this.draftFilters();
+
+        this.draftFilterKeys().forEach((key) => {
+            const error = this.validateFilterValue(key, filters[key]);
+            if (error) {
+                errors[key] = error;
+            }
+        });
+
+        const start = filters.fechaInicio;
+        const end = filters.fechaFin;
+        if (start && end && start > end) {
+            errors.fechaInicio = 'La fecha de inicio no puede ser posterior a la fecha de fin.';
+            errors.fechaFin = 'La fecha de fin no puede ser anterior a la fecha de inicio.';
+        }
+
+        return errors;
+    });
+    protected readonly filterFormError = computed<string | null>(() => {
+        const selectedKeys = this.draftFilterKeys();
+
+        if (!selectedKeys.length) {
+            return 'Selecciona al menos un criterio de búsqueda.';
+        }
+
+        const selectedNameFields = NAME_FILTER_KEYS.filter(
+            (key) => selectedKeys.includes(key) && Boolean(this.draftFilters()[key].trim()),
+        );
+        if (selectedNameFields.length === 1) {
+            return 'Para buscar por nombre debes proporcionar al menos dos campos entre nombre(s), primer apellido y segundo apellido.';
+        }
+
+        const selectedDateFields = DATE_FILTER_KEYS.filter((key) => selectedKeys.includes(key));
+        if (selectedDateFields.length === 1) {
+            return 'El período de último movimiento requiere fecha de inicio y fecha de fin.';
+        }
+
+        return null;
     });
     protected readonly activeFilterCount = computed(() =>
         Object.values(this.appliedFilters()).filter((value) => Boolean(value)).length,
@@ -206,40 +447,34 @@ export class UserManagementPage {
     protected readonly someDraftFiltersSelected = computed(() =>
         this.selectedDraftFilterCount() > 0 && !this.allDraftFiltersSelected(),
     );
-    protected readonly hasIncompleteDraftFilters = computed(() => {
-        const filters = this.draftFilters();
-        return this.draftFilterKeys().some((key) => !filters[key]);
-    });
+    protected readonly hasIncompleteDraftFilters = computed(() =>
+        Boolean(this.filterFormError()) || Object.keys(this.draftFilterErrors()).length > 0,
+    );
     protected readonly hasPendingFilterChanges = computed(() =>
         JSON.stringify(this.effectiveDraftFilters()) !== JSON.stringify(this.appliedFilters()),
     );
     protected readonly activeFilterChips = computed<readonly UserFilterChip[]>(() => {
         const filters = this.appliedFilters();
-        const chips: UserFilterChip[] = [];
 
-        this.pushFilterChip(
-            chips,
-            'tipoUsuarioId',
-            'Tipo de usuario',
-            filters.tipoUsuarioId,
-            this.userTypeOptions(),
-        );
-        this.pushFilterChip(
-            chips,
-            'estadoCuentaId',
-            'Estado de cuenta',
-            filters.estadoCuentaId,
-            this.accountStatusOptions(),
-        );
-        this.pushFilterChip(
-            chips,
-            'sistemaId',
-            'Sistema',
-            filters.sistemaId,
-            this.systemOptions(),
-        );
+        return this.filterDefinitions().reduce<UserFilterChip[]>((chips, definition) => {
+            const value = filters[definition.key];
+            if (!value) {
+                return chips;
+            }
 
-        return chips;
+            const displayValue = definition.kind === 'catalog'
+                ? definition.options.find((option) => option.value === value)?.label ?? value
+                : definition.kind === 'date'
+                    ? this.formatDateForDisplay(value)
+                    : value;
+
+            chips.push({
+                key: definition.key,
+                label: definition.label,
+                value: displayValue,
+            });
+            return chips;
+        }, []);
     });
     protected readonly shownUsersCount = computed(() => {
         const pagination = this.pagination();
@@ -254,7 +489,7 @@ export class UserManagementPage {
 
     constructor() {
         this.searchTermChanges
-            .pipe(debounceTime(350), distinctUntilChanged(), takeUntilDestroyed())
+            .pipe(debounceTime(350), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
             .subscribe((term) => this.loadUsers(1, term));
 
         this.loadFilterCatalogs();
@@ -296,6 +531,7 @@ export class UserManagementPage {
         const appliedFilters = this.appliedFilters();
         this.draftFilters.set({ ...appliedFilters });
         this.draftFilterKeys.set(this.getActiveFilterKeys(appliedFilters));
+        this.syncDraftCatalogLabels(appliedFilters);
         this.filterCatalogSearch.set('');
         this.selectedFilterTab.set('all');
         this.isFilterPanelOpen.set(true);
@@ -305,6 +541,7 @@ export class UserManagementPage {
         const appliedFilters = this.appliedFilters();
         this.draftFilters.set({ ...appliedFilters });
         this.draftFilterKeys.set(this.getActiveFilterKeys(appliedFilters));
+        this.syncDraftCatalogLabels(appliedFilters);
         this.filterCatalogSearch.set('');
         this.selectedFilterTab.set('all');
         this.isFilterPanelOpen.set(false);
@@ -323,21 +560,24 @@ export class UserManagementPage {
     }
 
     protected setDraftFilterSelected(key: UserFilterKey, selected: boolean): void {
-        if (selected) {
-            if (this.isDraftFilterSelected(key)) {
-                return;
-            }
-
-            const definition = this.filterDefinitions().find((filter) => filter.key === key);
-            if (!definition || this.isFilterDefinitionDisabled(definition)) {
-                return;
-            }
-
-            this.draftFilterKeys.update((keys) => [...keys, key]);
+        if (!selected) {
+            const keysToRemove = DATE_FILTER_KEYS.includes(key) ? DATE_FILTER_KEYS : [key];
+            this.draftFilterKeys.update((keys) =>
+                keys.filter((selectedKey) => !keysToRemove.includes(selectedKey)),
+            );
             return;
         }
 
-        this.draftFilterKeys.update((keys) => keys.filter((selectedKey) => selectedKey !== key));
+        const definition = this.filterDefinitions().find((filter) => filter.key === key);
+        if (!definition || this.isFilterCheckboxDisabled(definition)) {
+            return;
+        }
+
+        const keysToAdd = DATE_FILTER_KEYS.includes(key) ? DATE_FILTER_KEYS : [key];
+        this.draftFilterKeys.update((keys) => [
+            ...keys,
+            ...keysToAdd.filter((candidate) => !keys.includes(candidate)),
+        ]);
     }
 
     protected setAllDraftFiltersSelected(selected: boolean): void {
@@ -353,19 +593,138 @@ export class UserManagementPage {
     }
 
     protected isFilterDefinitionDisabled(filter: UserFilterDefinition): boolean {
-        return this.isFilterCatalogLoading() || !filter.options.length;
+        if (filter.kind !== 'catalog') {
+            return false;
+        }
+
+        if (this.isFilterCatalogLoading()) {
+            return true;
+        }
+
+        const filters = this.draftFilters();
+        switch (filter.key) {
+            case 'entidadId':
+                return !this.requiresEntityForInstitution(filters.tipoInstitucionId) || !filter.options.length;
+            case 'municipioId':
+                return !this.requiresMunicipalityForInstitution(filters.tipoInstitucionId)
+                    || !filters.entidadId
+                    || !filter.options.length;
+            case 'institucionId':
+                return !this.canSelectInstitution(filters) || !filter.options.length;
+            case 'organoAdministrativoDesconcentradoId':
+                return !filters.institucionId || !filter.options.length;
+            case 'unidadAdministrativaId':
+                return !filters.institucionId || !filter.options.length;
+            default:
+                return !filter.options.length;
+        }
+    }
+
+    protected isFilterCheckboxDisabled(filter: UserFilterDefinition): boolean {
+        if (filter.kind !== 'catalog') {
+            return false;
+        }
+
+        if (this.isFilterCatalogLoading()) {
+            return true;
+        }
+
+        // Los filtros dependientes se pueden marcar desde el inicio; únicamente
+        // su campo de valor permanece deshabilitado hasta completar la jerarquía.
+        // Así, "Seleccionar todos" incluye también Entidad, Municipio,
+        // Institución, OAD y Unidad Administrativa.
+        if (
+            filter.key === 'entidadId'
+            || filter.key === 'municipioId'
+            || filter.key === 'institucionId'
+            || filter.key === 'organoAdministrativoDesconcentradoId'
+            || filter.key === 'unidadAdministrativaId'
+        ) {
+            return false;
+        }
+
+        return !filter.options.length;
     }
 
     protected updateDraftFilter(key: UserFilterKey, value: string): void {
+        let normalizedValue = String(value ?? '');
+        if (
+            NAME_FILTER_KEYS.includes(key)
+            || key === 'curp'
+            || key === 'rfc'
+            || key === 'nombreUsuario'
+        ) {
+            normalizedValue = normalizedValue.toUpperCase();
+        }
+
         this.draftFilters.update((filters) => ({
             ...filters,
-            [key]: String(value ?? ''),
+            [key]: normalizedValue,
         }));
+    }
+
+    protected updateCatalogDraftFilter(filter: UserFilterDefinition, label: string): void {
+        const normalizedLabel = String(label ?? '');
+        const selectedOption = filter.options.find(
+            (option) => this.normalizeForCompare(option.label) === this.normalizeForCompare(normalizedLabel),
+        );
+        const previousValue = this.draftFilters()[filter.key];
+        const nextValue = selectedOption?.value ?? '';
+
+        this.draftCatalogLabels.update((labels) => ({
+            ...labels,
+            [filter.key]: normalizedLabel,
+        }));
+        this.draftFilters.update((filters) => ({
+            ...filters,
+            [filter.key]: nextValue,
+        }));
+
+        if (previousValue !== nextValue) {
+            this.handleHierarchyFilterChange(filter.key, nextValue);
+        }
+    }
+
+    protected getDraftCatalogLabel(filter: UserFilterDefinition): string {
+        const labels = this.draftCatalogLabels();
+        if (labels[filter.key] !== undefined) {
+            return labels[filter.key] ?? '';
+        }
+
+        const value = this.draftFilters()[filter.key];
+        return filter.options.find((option) => option.value === value)?.label ?? '';
+    }
+
+    protected getFilterError(key: UserFilterKey): string | null {
+        return this.draftFilterErrors()[key] ?? null;
+    }
+
+    protected getFilterPlaceholder(filter: UserFilterDefinition): string {
+        if (!this.isFilterDefinitionDisabled(filter)) {
+            return filter.placeholder;
+        }
+
+        switch (filter.key) {
+            case 'entidadId':
+                return 'Selecciona primero un tipo estatal o municipal';
+            case 'municipioId':
+                return 'Selecciona primero una entidad y tipo municipal';
+            case 'institucionId':
+                return 'Completa primero la ubicación requerida';
+            case 'organoAdministrativoDesconcentradoId':
+                return 'Selecciona primero una institución';
+            case 'unidadAdministrativaId':
+                return 'Selecciona primero una institución';
+            default:
+                return 'Catálogo no disponible';
+        }
     }
 
     protected clearDraftFilters(): void {
         this.draftFilterKeys.set([]);
         this.draftFilters.set({ ...EMPTY_USER_FILTERS });
+        this.draftCatalogLabels.set({});
+        this.resetDynamicCatalogs();
     }
 
     protected applyFilters(): void {
@@ -384,6 +743,8 @@ export class UserManagementPage {
         this.draftFilterKeys.set([]);
         this.draftFilters.set({ ...EMPTY_USER_FILTERS });
         this.appliedFilters.set({ ...EMPTY_USER_FILTERS });
+        this.draftCatalogLabels.set({});
+        this.resetDynamicCatalogs();
         this.filterCatalogSearch.set('');
         this.selectedFilterTab.set('all');
         this.isFilterPanelOpen.set(false);
@@ -391,14 +752,21 @@ export class UserManagementPage {
     }
 
     protected removeAppliedFilter(key: UserFilterKey): void {
-        const nextFilters: UserFilterValues = {
+        const nextFilters = {
             ...this.appliedFilters(),
             [key]: '',
-        };
+        } as Record<UserFilterKey, string>;
 
-        this.appliedFilters.set(nextFilters);
-        this.draftFilters.set({ ...nextFilters });
-        this.draftFilterKeys.set(this.getActiveFilterKeys(nextFilters));
+        if (DATE_FILTER_KEYS.includes(key)) {
+            nextFilters.fechaInicio = '';
+            nextFilters.fechaFin = '';
+        }
+
+        const typedNextFilters = nextFilters as unknown as UserFilterValues;
+        this.appliedFilters.set(typedNextFilters);
+        this.draftFilters.set({ ...typedNextFilters });
+        this.draftFilterKeys.set(this.getActiveFilterKeys(typedNextFilters));
+        this.syncDraftCatalogLabels(typedNextFilters);
         this.loadUsers(1);
     }
 
@@ -434,11 +802,6 @@ export class UserManagementPage {
     }
 
     protected openUserDetail(user: UserRecord): void {
-        if (this.isUserBaja(user)) {
-            this.errorMessage.set('El usuario ya está dado de baja y no puede editarse.');
-            return;
-        }
-
         const userId = this.resolveTargetUserId(user);
 
         if (!userId) {
@@ -553,9 +916,10 @@ export class UserManagementPage {
         }
 
         const comentarioNormalizado = this.bajaComment().trim().toUpperCase();
+        const commentError = this.validateOperationComment(comentarioNormalizado);
 
-        if (!comentarioNormalizado) {
-            this.bajaCommentError.set('El comentario de baja es obligatorio.');
+        if (commentError) {
+            this.bajaCommentError.set(commentError);
             return;
         }
 
@@ -592,7 +956,7 @@ export class UserManagementPage {
 
     protected openStatusModal(user: UserRecord): void {
         if (this.isCurrentSessionUser(user)) {
-            this.errorMessage.set('No puedes suspender la cuenta con la que tienes la sesión activa.');
+            this.errorMessage.set('Solo puedes consultar el detalle de la cuenta con la que tienes la sesión activa.');
             return;
         }
 
@@ -674,14 +1038,20 @@ export class UserManagementPage {
             return;
         }
 
-        const comentarioNormalizado = this.statusComment().trim().toUpperCase();
+        const isUnlockOperation = this.isUserBlocked(user);
+        const comentarioNormalizado = isUnlockOperation
+            ? 'DESBLOQUEO DE CUENTA'
+            : this.statusComment().trim().toUpperCase();
+        const commentError = isUnlockOperation
+            ? null
+            : this.validateOperationComment(comentarioNormalizado);
 
-        if (!comentarioNormalizado) {
-            this.statusCommentError.set('El comentario es obligatorio.');
+        if (commentError) {
+            this.statusCommentError.set(commentError);
             return;
         }
 
-        const operationName: AccountOperationKind = this.isUserBlocked(user)
+        const operationName: AccountOperationKind = isUnlockOperation
             ? 'desbloqueo'
             : this.isUserSuspended(user)
                 ? 'reactivacion'
@@ -920,11 +1290,20 @@ export class UserManagementPage {
     }
 
     protected shouldShowDeleteButton(user: UserRecord): boolean {
+        return !this.isCurrentSessionUser(user) && !this.isUserBaja(user);
+    }
+
+    protected statusOperationRequiresComment(): boolean {
+        const user = this.statusTargetUser();
+        return Boolean(user) && !this.isUserBlocked(user!);
+    }
+
+    protected isUserReadOnly(user: UserRecord): boolean {
         return (
-            !this.isCurrentSessionUser(user) &&
-            !this.isUserBaja(user) &&
-            !this.isUserSuspended(user) &&
-            !this.isUserBlocked(user)
+            this.isCurrentSessionUser(user)
+            || this.isUserBaja(user)
+            || this.isUserSuspended(user)
+            || this.isUserBlocked(user)
         );
     }
 
@@ -1009,12 +1388,28 @@ export class UserManagementPage {
     private loadUsers(page = 1, search = this.searchTerm().trim()): void {
         const filters = this.appliedFilters();
         const query: UsersQuery = {
-            busqueda: search || undefined,
-            tipoUsuarioId: this.toOptionalPositiveNumber(filters.tipoUsuarioId),
+            busqueda: this.toOptionalText(search),
+            primerApellido: this.toOptionalText(filters.primerApellido),
+            segundoApellido: this.toOptionalText(filters.segundoApellido),
+            nombres: this.toOptionalText(filters.nombres),
+            curp: this.toOptionalText(filters.curp),
+            rfc: this.toOptionalText(filters.rfc),
+            correo: this.toOptionalText(filters.correo),
+            numeroTelefonico: this.toOptionalText(filters.numeroTelefonico),
+            tipoInstitucionId: this.toOptionalPositiveNumber(filters.tipoInstitucionId),
+            entidadId: this.toOptionalPositiveNumber(filters.entidadId),
+            municipioId: this.toOptionalPositiveNumber(filters.municipioId),
+            institucionId: this.toOptionalPositiveNumber(filters.institucionId),
+            organoAdministrativoDesconcentradoId: this.toOptionalPositiveNumber(
+                filters.organoAdministrativoDesconcentradoId,
+            ),
+            unidadAdministrativaId: this.toOptionalPositiveNumber(filters.unidadAdministrativaId),
+            nombreUsuario: this.toOptionalText(filters.nombreUsuario),
             estadoCuentaId: this.toOptionalPositiveNumber(filters.estadoCuentaId),
-            sistemaId: this.toOptionalPositiveNumber(filters.sistemaId),
+            fechaInicio: filters.fechaInicio ? this.toApiDate(filters.fechaInicio) : undefined,
+            fechaFin: filters.fechaFin ? this.toApiDate(filters.fechaFin) : undefined,
             pagina: page,
-            porPagina: this.pagination().porPagina,
+            porPagina: 15,
         };
 
         this.isLoading.set(true);
@@ -1027,14 +1422,11 @@ export class UserManagementPage {
             .subscribe({
                 next: (response) => {
                     this.users.set(response.usuarios);
-                    this.pagination.set(response.paginacion);
+                    this.pagination.set({ ...response.paginacion, porPagina: 15 });
                 },
                 error: (error: unknown) => {
                     this.users.set([]);
-                    this.pagination.set({
-                        ...DEFAULT_PAGINATION,
-                        porPagina: query.porPagina ?? DEFAULT_PAGINATION.porPagina,
-                    });
+                    this.pagination.set(DEFAULT_PAGINATION);
                     this.errorMessage.set(this.toFriendlyError(error));
                 },
             });
@@ -1045,63 +1437,361 @@ export class UserManagementPage {
         this.filterCatalogMessage.set(null);
 
         forkJoin({
-            userTypes: this.catalogosFacade
-                .obtenerTipoUsuarioOptions()
+            institutionTypes: this.catalogosFacade
+                .obtenerTipoInstitucionOptions()
+                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
+            states: this.catalogosFacade
+                .obtenerEstadosOptions()
                 .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
             accountStatuses: this.catalogosFacade
                 .obtenerCuentaUsuarioOptions()
                 .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
-            systems: this.catalogosFacade
-                .obtenerSistemasOptions()
-                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
         })
-            .pipe(finalize(() => this.isFilterCatalogLoading.set(false)))
-            .subscribe(({ userTypes, accountStatuses, systems }) => {
-                this.userTypeOptions.set(userTypes);
+            .pipe(
+                finalize(() => this.isFilterCatalogLoading.set(false)),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe(({ institutionTypes, states, accountStatuses }) => {
+                this.institutionTypeOptions.set(institutionTypes);
+                this.stateOptions.set(states);
                 this.accountStatusOptions.set(accountStatuses);
-                this.systemOptions.set(
-                    systems
-                        .map((option) => this.normalizeSystemOption(option))
-                        .filter((option): option is CatalogoOption => option !== null),
-                );
 
-                if (!userTypes.length || !accountStatuses.length || !systems.length) {
+                if (!institutionTypes.length || !states.length || !accountStatuses.length) {
                     this.filterCatalogMessage.set(
-                        'Algunos catálogos de filtros no están disponibles. Puedes seguir usando la búsqueda y los filtros cargados.',
+                        'Algunos catálogos de búsqueda no están disponibles. Los demás criterios pueden seguir utilizándose.',
                     );
                 }
             });
     }
 
-    private normalizeSystemOption(option: CatalogoOption): CatalogoOption | null {
-        const metadata = option.metadata ?? {};
-        const id = this.toOptionalPositiveNumber(
-            metadata['idSistema'] ?? metadata['sistemaId'] ?? option.value,
-        );
-
-        if (!id) {
-            return null;
+    private handleHierarchyFilterChange(key: UserFilterKey, value: string): void {
+        switch (key) {
+            case 'tipoInstitucionId':
+                this.clearDependentFilterValues([
+                    'entidadId',
+                    'municipioId',
+                    'institucionId',
+                    'organoAdministrativoDesconcentradoId',
+                    'unidadAdministrativaId',
+                ]);
+                this.resetDynamicCatalogs();
+                if (value && !this.requiresEntityForInstitution(value)) {
+                    this.loadInstitutions();
+                }
+                break;
+            case 'entidadId':
+                this.clearDependentFilterValues([
+                    'municipioId',
+                    'institucionId',
+                    'organoAdministrativoDesconcentradoId',
+                    'unidadAdministrativaId',
+                ]);
+                this.municipalityOptions.set([]);
+                this.institutionOptions.set([]);
+                this.decentralizedBodyOptions.set([]);
+                this.administrativeUnitOptions.set([]);
+                if (value && this.requiresMunicipalityForInstitution(this.draftFilters().tipoInstitucionId)) {
+                    this.loadMunicipalities(value);
+                } else if (value) {
+                    this.loadInstitutions();
+                }
+                break;
+            case 'municipioId':
+                this.clearDependentFilterValues([
+                    'institucionId',
+                    'organoAdministrativoDesconcentradoId',
+                    'unidadAdministrativaId',
+                ]);
+                this.institutionOptions.set([]);
+                this.decentralizedBodyOptions.set([]);
+                this.administrativeUnitOptions.set([]);
+                if (value) {
+                    this.loadInstitutions();
+                }
+                break;
+            case 'institucionId':
+                this.clearDependentFilterValues([
+                    'organoAdministrativoDesconcentradoId',
+                    'unidadAdministrativaId',
+                ]);
+                this.decentralizedBodyOptions.set([]);
+                this.administrativeUnitOptions.set([]);
+                if (value) {
+                    this.loadDecentralizedBodies(value);
+                    this.loadAdministrativeUnits();
+                }
+                break;
+            case 'organoAdministrativoDesconcentradoId':
+                this.clearDependentFilterValues(['unidadAdministrativaId']);
+                this.administrativeUnitOptions.set([]);
+                if (this.draftFilters().institucionId) {
+                    this.loadAdministrativeUnits();
+                }
+                break;
         }
-
-        return {
-            ...option,
-            value: String(id),
-        };
     }
 
-    private pushFilterChip(
-        chips: UserFilterChip[],
-        key: UserFilterKey,
-        label: string,
-        value: string,
-        options: readonly CatalogoOption[],
-    ): void {
-        if (!value) {
+    private loadMunicipalities(entityId: string): void {
+        const estadoId = this.toOptionalPositiveNumber(entityId);
+        if (!estadoId) {
+            this.municipalityOptions.set([]);
             return;
         }
 
-        const optionLabel = options.find((option) => option.value === value)?.label ?? value;
-        chips.push({ key, label, value: optionLabel });
+        this.catalogosFacade
+            .obtenerMunicipiosOptions(estadoId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.municipalityOptions.set(options),
+                error: () => {
+                    this.municipalityOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar los municipios de la entidad seleccionada.');
+                },
+            });
+    }
+
+    private loadInstitutions(): void {
+        const filters = this.draftFilters();
+        const tipoInstitucionId = this.toOptionalPositiveNumber(filters.tipoInstitucionId);
+        const estadoId = this.requiresEntityForInstitution(filters.tipoInstitucionId)
+            ? this.toOptionalPositiveNumber(filters.entidadId)
+            : undefined;
+        const padreId = this.requiresMunicipalityForInstitution(filters.tipoInstitucionId)
+            ? this.toOptionalPositiveNumber(filters.municipioId)
+            : undefined;
+
+        if (!tipoInstitucionId || !this.canSelectInstitution(filters)) {
+            this.institutionOptions.set([]);
+            return;
+        }
+
+        this.catalogosFacade
+            .obtenerEstructuraOrgOptions({
+                tipoInstitucionId,
+                estadoId,
+                padreId,
+                soloActivos: 1,
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.institutionOptions.set(options),
+                error: () => {
+                    this.institutionOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar las instituciones relacionadas.');
+                },
+            });
+    }
+
+    private loadDecentralizedBodies(institutionId: string): void {
+        const padreId = this.toOptionalPositiveNumber(institutionId);
+        if (!padreId) {
+            this.decentralizedBodyOptions.set([]);
+            return;
+        }
+
+        const request$ = this.isFederalInstitutionType(this.draftFilters().tipoInstitucionId)
+            ? this.catalogosFacade.obtenerEstructuraOrganizacionalOptions({
+                tipoEstructuraId: TIPO_ESTRUCTURA_ORGANO_DESCONCENTRADO,
+                padreId,
+                soloActivos: 1,
+            })
+            : this.catalogosFacade.obtenerEstructuraOrgOptions({
+                tipoInstitucionId: this.toOptionalPositiveNumber(this.draftFilters().tipoInstitucionId),
+                estadoId: this.toOptionalPositiveNumber(this.draftFilters().entidadId),
+                padreId,
+                soloActivos: 1,
+            });
+
+        request$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.decentralizedBodyOptions.set(options),
+                error: () => {
+                    this.decentralizedBodyOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar los órganos administrativos desconcentrados.');
+                },
+            });
+    }
+
+    private loadAdministrativeUnits(): void {
+        const filters = this.draftFilters();
+        const parentValue = filters.organoAdministrativoDesconcentradoId || filters.institucionId;
+        const padreId = this.toOptionalPositiveNumber(parentValue);
+        if (!padreId) {
+            this.administrativeUnitOptions.set([]);
+            return;
+        }
+
+        const request$ = this.isFederalInstitutionType(filters.tipoInstitucionId)
+            ? this.catalogosFacade.obtenerEstructuraOrganizacionalOptions({
+                tipoEstructuraId: TIPO_ESTRUCTURA_UNIDAD_ADMINISTRATIVA,
+                padreId,
+                soloActivos: 1,
+            })
+            : this.catalogosFacade.obtenerEstructuraOrgOptions({
+                tipoInstitucionId: this.toOptionalPositiveNumber(filters.tipoInstitucionId),
+                estadoId: this.toOptionalPositiveNumber(filters.entidadId),
+                padreId,
+                soloActivos: 1,
+            });
+
+        request$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.administrativeUnitOptions.set(options),
+                error: () => {
+                    this.administrativeUnitOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar las unidades administrativas.');
+                },
+            });
+    }
+
+    private clearDependentFilterValues(keys: readonly UserFilterKey[]): void {
+        this.draftFilters.update((filters) => {
+            const next = { ...filters } as Record<UserFilterKey, string>;
+            keys.forEach((key) => {
+                next[key] = '';
+            });
+            return next as unknown as UserFilterValues;
+        });
+        this.draftCatalogLabels.update((labels) => {
+            const next = { ...labels };
+            keys.forEach((key) => delete next[key]);
+            return next;
+        });
+    }
+
+    private resetDynamicCatalogs(): void {
+        this.municipalityOptions.set([]);
+        this.institutionOptions.set([]);
+        this.decentralizedBodyOptions.set([]);
+        this.administrativeUnitOptions.set([]);
+    }
+
+    private syncDraftCatalogLabels(filters: UserFilterValues): void {
+        const labels: Partial<Record<UserFilterKey, string>> = {};
+        this.filterDefinitions().forEach((definition) => {
+            if (definition.kind !== 'catalog' || !filters[definition.key]) {
+                return;
+            }
+            labels[definition.key] = definition.options.find(
+                (option) => option.value === filters[definition.key],
+            )?.label ?? '';
+        });
+        this.draftCatalogLabels.set(labels);
+    }
+
+    private canSelectInstitution(filters: UserFilterValues): boolean {
+        if (!filters.tipoInstitucionId) {
+            return false;
+        }
+        if (this.requiresEntityForInstitution(filters.tipoInstitucionId) && !filters.entidadId) {
+            return false;
+        }
+        if (this.requiresMunicipalityForInstitution(filters.tipoInstitucionId) && !filters.municipioId) {
+            return false;
+        }
+        return true;
+    }
+
+    private isFederalInstitutionType(value: string): boolean {
+        const label = this.getInstitutionTypeLabel(value);
+        return this.toOptionalPositiveNumber(value) === 1 || label.includes('federal');
+    }
+
+    private requiresEntityForInstitution(value: string): boolean {
+        const label = this.getInstitutionTypeLabel(value);
+        return label.includes('estatal') || label.includes('municipal');
+    }
+
+    private requiresMunicipalityForInstitution(value: string): boolean {
+        return this.getInstitutionTypeLabel(value).includes('municipal');
+    }
+
+    private getInstitutionTypeLabel(value: string): string {
+        const option = this.institutionTypeOptions().find((item) => item.value === value);
+        return this.normalizeForCompare(option?.label ?? value);
+    }
+
+    private validateFilterValue(key: UserFilterKey, rawValue: string): string | null {
+        const value = rawValue.trim();
+        if (!value) {
+            return 'Captura o selecciona un valor.';
+        }
+
+        if (NAME_FILTER_KEYS.includes(key)) {
+            return /^[A-Z ]{1,100}$/.test(value)
+                ? null
+                : 'Solo se permiten letras A-Z y espacios, con máximo 100 caracteres.';
+        }
+
+        switch (key) {
+            case 'curp':
+                return /^[A-Z]{4}\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/.test(value)
+                    ? null
+                    : 'La CURP debe tener 18 caracteres y cumplir el formato establecido.';
+            case 'rfc':
+                return /^[A-Z]{4}\d{6}[A-Z0-9]{3}$/.test(value)
+                    ? null
+                    : 'El RFC debe tener 13 caracteres y cumplir el formato establecido.';
+            case 'correo':
+                return value.length <= 254
+                    && /^[A-Za-z][A-Za-z0-9._%+-]*@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(value)
+                    ? null
+                    : 'Captura un correo válido de máximo 254 caracteres.';
+            case 'numeroTelefonico':
+                return /^\d{10}$/.test(value)
+                    ? null
+                    : 'El número telefónico debe contener exactamente 10 dígitos.';
+            case 'nombreUsuario':
+                return /^[A-Z0-9]{14}$/.test(value)
+                    ? null
+                    : 'El nombre de usuario debe contener exactamente 14 caracteres A-Z o 0-9.';
+            case 'fechaInicio':
+            case 'fechaFin':
+                return value <= this.todayDate
+                    ? null
+                    : 'La fecha no puede ser posterior a la fecha actual.';
+            default:
+                return null;
+        }
+    }
+
+    private validateOperationComment(value: string): string | null {
+        if (value.length < 5) {
+            return 'El comentario debe contener al menos 5 caracteres.';
+        }
+        if (value.length > 1000) {
+            return 'El comentario no puede exceder 1,000 caracteres.';
+        }
+        return /^[A-Z0-9 .,!#$%&/()=?¿¡+@:;_"-]+$/.test(value)
+            ? null
+            : 'El comentario contiene caracteres no permitidos.';
+    }
+
+    private toOptionalText(value: unknown): string | undefined {
+        const normalized = String(value ?? '').trim();
+        return normalized || undefined;
+    }
+
+    private toDateInputValue(value: Date): string {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    private toApiDate(value: string): string {
+        const [year, month, day] = value.split('-');
+        return `${day}/${month}/${year}`;
+    }
+
+    private formatDateForDisplay(value: string): string {
+        return this.toApiDate(value);
+    }
+
+    private showCatalogWarning(message: string): void {
+        this.filterCatalogMessage.set(message);
     }
 
     private toOptionalPositiveNumber(value: unknown): number | undefined {
