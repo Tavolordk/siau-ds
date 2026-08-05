@@ -60,7 +60,8 @@
             <div class="users-active-filters" aria-label="Filtros activos">
                 <div class="users-active-filters__summary">
                     <siau-lucide-icon name="sliders-horizontal" size="15" strokeWidth="2" aria-hidden="true" />
-                    <span>{{ activeFilterCount() }} {{ activeFilterCount() === 1 ? 'filtro activo' : 'filtros activos' }}</span>
+                    <span>{{ activeFilterCount() }} {{ activeFilterCount() === 1 ? 'filtro activo' : 'filtros activos'
+                        }}</span>
                 </div>
 
                 <div class="users-active-filters__chips">
@@ -106,8 +107,7 @@
                 @for (tab of tableTabs; track tab.id) {
                 <button type="button" role="tab" class="users-table-tabs__button"
                     [class.users-table-tabs__button--active]="selectedTableTab() === tab.id"
-                    [attr.aria-selected]="selectedTableTab() === tab.id"
-                    (click)="selectTableTab(tab.id)">
+                    [attr.aria-selected]="selectedTableTab() === tab.id" (click)="selectTableTab(tab.id)">
                     <span class="users-table-tabs__label">{{ tab.label }}</span>
                     <span class="users-table-tabs__short-label">{{ tab.shortLabel }}</span>
                 </button>
@@ -230,8 +230,7 @@
                                         title="Desbloquear usuario" aria-label="Desbloquear usuario"
                                         [disabled]="isDetailLoading() || isStatusSubmitting()"
                                         (click)="openUnlockModal(user)">
-                                        <siau-lucide-icon name="unlock" size="16" strokeWidth="2"
-                                            aria-hidden="true" />
+                                        <siau-lucide-icon name="unlock" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
                                     }
 
@@ -273,6 +272,194 @@
     </main>
 </section>
 
+<app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
+    [userDetail]="selectedUserDetail()"
+    [readonlyMode]="selectedUser() !== null && (isUserSuspended(selectedUser()!) || isUserBlocked(selectedUser()!))"
+    (saved)="handleUserSaved()" (closed)="closeUserWizard()"></app-user-registration-wizard>
+
+<siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
+    subtitle="Esta acción dará de baja al usuario seleccionado" icon="trash-2" size="md" headerBadge="Solicitud de baja"
+    (close)="closeBajaModal()">
+    <section class="user-action-modal">
+        @if (bajaTargetUser(); as user) {
+        <div class="user-action-modal__summary">
+            <span class="user-action-modal__summary-icon">
+                <siau-lucide-icon name="user-x" size="20" strokeWidth="2" aria-hidden="true" />
+            </span>
+
+            <div>
+                <h3>{{ user.fullName }}</h3>
+                <p>{{ user.username }} · {{ user.email }}</p>
+            </div>
+        </div>
+        }
+
+        <div class="user-action-modal__warning">
+            <siau-lucide-icon name="triangle-alert" size="17" strokeWidth="2" aria-hidden="true" />
+            <span>
+                Una vez dado de baja, el usuario ya no podrá editarse desde este módulo.
+            </span>
+        </div>
+
+        <div class="user-action-modal__field">
+            <label for="baja-comment">
+                Comentario de baja <span>*</span>
+            </label>
+
+            <textarea id="baja-comment" rows="5" class="user-action-modal__textarea"
+                placeholder="ESCRIBE EL MOTIVO DE LA BAJA" [value]="bajaComment()" [disabled]="isBajaSubmitting()"
+                (input)="updateBajaComment($any($event.target).value)"></textarea>
+
+            <small>
+                El comentario se enviará en mayúsculas al endpoint de baja.
+            </small>
+        </div>
+
+        @if (bajaCommentError(); as error) {
+        <div class="user-action-modal__error" role="alert">
+            <siau-lucide-icon name="circle-x" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>{{ error }}</span>
+        </div>
+        }
+
+        <footer class="user-action-modal__footer">
+            <button type="button" class="user-action-modal__button user-action-modal__button--secondary"
+                [disabled]="isBajaSubmitting()" (click)="closeBajaModal()">
+                Cancelar
+            </button>
+
+            <button type="button" class="user-action-modal__button user-action-modal__button--danger"
+                [disabled]="isBajaSubmitting()" (click)="confirmDarDeBajaUsuario()">
+                <siau-lucide-icon [name]="isBajaSubmitting() ? 'loader-circle' : 'trash-2'" size="15" strokeWidth="2"
+                    aria-hidden="true" />
+
+                {{ isBajaSubmitting() ? 'Procesando...' : 'Confirmar baja' }}
+            </button>
+        </footer>
+    </section>
+</siau-modal>
+
+<siau-modal [open]="isStatusModalOpen()" [title]="getStatusModalTitle()" [subtitle]="getStatusModalSubtitle()"
+    [icon]="getStatusModalIcon()" size="md" [headerBadge]="getStatusModalBadge()" (close)="closeStatusModal()">
+    <section class="user-action-modal">
+        @if (statusTargetUser(); as user) {
+        <div class="user-action-modal__summary">
+            <span class="user-action-modal__summary-icon">
+                <siau-lucide-icon [name]="getStatusModalIcon()" size="20" strokeWidth="2" aria-hidden="true" />
+            </span>
+
+            <div>
+                <h3>{{ user.fullName }}</h3>
+                <p>{{ user.username }} · {{ user.email }}</p>
+            </div>
+        </div>
+        }
+
+        <div class="user-action-modal__warning">
+            <siau-lucide-icon name="triangle-alert" size="17" strokeWidth="2" aria-hidden="true" />
+            <span>{{ getStatusModalWarning() }}</span>
+        </div>
+
+        <div class="user-action-modal__field">
+            <label for="status-comment">
+                Comentario <span>*</span>
+            </label>
+
+            <textarea id="status-comment" rows="5" class="user-action-modal__textarea"
+                [placeholder]="getStatusCommentPlaceholder()" [value]="statusComment()"
+                [disabled]="isStatusSubmitting()" (input)="updateStatusComment($any($event.target).value)"></textarea>
+
+            <small>
+                El comentario se enviará en mayúsculas al endpoint correspondiente.
+            </small>
+        </div>
+
+        @if (statusCommentError(); as error) {
+        <div class="user-action-modal__error" role="alert">
+            <siau-lucide-icon name="circle-x" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>{{ error }}</span>
+        </div>
+        }
+
+        <footer class="user-action-modal__footer">
+            <button type="button" class="user-action-modal__button user-action-modal__button--secondary"
+                [disabled]="isStatusSubmitting()" (click)="closeStatusModal()">
+                Cancelar
+            </button>
+
+            <button type="button" class="user-action-modal__button"
+                [class.user-action-modal__button--success]="isStatusReactivateOperation()"
+                [class.user-action-modal__button--danger]="!isStatusReactivateOperation()"
+                [disabled]="isStatusSubmitting()" (click)="confirmToggleUserStatus()">
+                <siau-lucide-icon [name]="isStatusSubmitting() ? 'loader-circle' : getStatusModalIcon()" size="15"
+                    strokeWidth="2" aria-hidden="true" />
+
+                {{ isStatusSubmitting() ? 'Procesando...' : getStatusConfirmLabel() }}
+            </button>
+        </footer>
+    </section>
+</siau-modal>
+
+@if (operationSuccess(); as success) {
+<siau-modal [open]="true" [title]="success.title" subtitle="El estatus de la cuenta se modificó correctamente"
+    [icon]="success.icon" size="md" [headerBadge]="success.badge" (close)="closeOperationSuccessModal()">
+    <section class="account-operation-success">
+        <div class="account-operation-success__hero">
+            <span class="account-operation-success__icon" aria-hidden="true">
+                <siau-lucide-icon [name]="success.icon" size="38" strokeWidth="1.9" />
+            </span>
+
+            <div>
+                <p class="account-operation-success__eyebrow">Cambio de estatus confirmado</p>
+                <h3>{{ success.heading }}</h3>
+                <p>{{ success.message }}</p>
+            </div>
+        </div>
+
+        <section class="account-operation-success__account">
+            <div class="account-operation-success__account-heading">
+                <span>Cuenta modificada</span>
+                <strong>{{ success.username }}</strong>
+            </div>
+
+            <dl class="account-operation-success__details">
+                <div>
+                    <dt>Nombre</dt>
+                    <dd>{{ success.fullName }}</dd>
+                </div>
+
+                <div>
+                    <dt>Correo</dt>
+                    <dd>{{ success.email }}</dd>
+                </div>
+
+                <div>
+                    <dt>ID de usuario</dt>
+                    <dd>{{ success.userId }}</dd>
+                </div>
+
+                <div>
+                    <dt>Nuevo estatus</dt>
+                    <dd>
+                        <span class="account-operation-success__status">{{ success.newStatus }}</span>
+                    </dd>
+                </div>
+            </dl>
+        </section>
+
+        <div class="account-operation-success__refresh-note">
+            <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>La lista principal de usuarios se actualizará al cerrar este mensaje.</span>
+        </div>
+
+        <button type="button" class="account-operation-success__button" (click)="closeOperationSuccessModal()">
+            <siau-lucide-icon name="check" size="15" strokeWidth="2" aria-hidden="true" />
+            Aceptar y actualizar lista
+        </button>
+    </section>
+</siau-modal>
+}
+
 @if (isFilterPanelOpen()) {
 <button type="button" class="users-filter-panel__backdrop" aria-label="Cerrar filtros"
     (click)="closeFilterPanel()"></button>
@@ -285,8 +472,8 @@
             <h2 id="users-filter-panel-title">Filtrar usuarios</h2>
         </div>
 
-        <button type="button" class="users-filter-panel__close" title="Cerrar filtros"
-            aria-label="Cerrar filtros" (click)="closeFilterPanel()">
+        <button type="button" class="users-filter-panel__close" title="Cerrar filtros" aria-label="Cerrar filtros"
+            (click)="closeFilterPanel()">
             <siau-lucide-icon name="x" size="19" strokeWidth="2" aria-hidden="true" />
         </button>
     </header>
@@ -294,10 +481,8 @@
     <div class="users-filter-compact__toolbar">
         <nav class="users-filter-compact__tabs" role="tablist" aria-label="Categorías de filtros">
             @for (tab of filterTabs; track tab.id) {
-            <button type="button" role="tab"
-                [class.users-filter-compact__tab--active]="selectedFilterTab() === tab.id"
-                [attr.aria-selected]="selectedFilterTab() === tab.id"
-                (click)="selectFilterTab(tab.id)">
+            <button type="button" role="tab" [class.users-filter-compact__tab--active]="selectedFilterTab() === tab.id"
+                [attr.aria-selected]="selectedFilterTab() === tab.id" (click)="selectFilterTab(tab.id)">
                 {{ tab.label }}
             </button>
             }
@@ -310,8 +495,7 @@
                 <input type="search" [ngModel]="filterCatalogSearch()"
                     (ngModelChange)="updateFilterCatalogSearch($event)" placeholder="Buscar filtro..." />
                 @if (filterCatalogSearch()) {
-                <button type="button" aria-label="Limpiar búsqueda de filtros"
-                    (click)="updateFilterCatalogSearch('')">
+                <button type="button" aria-label="Limpiar búsqueda de filtros" (click)="updateFilterCatalogSearch('')">
                     <siau-lucide-icon name="x" size="13" strokeWidth="2" aria-hidden="true" />
                 </button>
                 }
@@ -346,8 +530,7 @@
                     <span>{{ filter.label }}</span>
                 </label>
 
-                <select [ngModel]="draftFilters()[filter.key]"
-                    (ngModelChange)="updateDraftFilter(filter.key, $event)"
+                <select [ngModel]="draftFilters()[filter.key]" (ngModelChange)="updateDraftFilter(filter.key, $event)"
                     [attr.aria-label]="'Valor para ' + filter.label"
                     [disabled]="!isDraftFilterSelected(filter.key) || isFilterDefinitionDisabled(filter)">
                     <option value="">{{ filter.emptyLabel }}</option>
@@ -386,8 +569,8 @@
         </div>
 
         <div class="users-filter-panel__footer-actions">
-            <button type="button" class="users-filter-panel__reset"
-                [disabled]="!selectedDraftFilterCount()" (click)="clearDraftFilters()">
+            <button type="button" class="users-filter-panel__reset" [disabled]="!selectedDraftFilterCount()"
+                (click)="clearDraftFilters()">
                 Limpiar
             </button>
 
