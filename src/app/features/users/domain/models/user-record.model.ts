@@ -28,6 +28,9 @@ export interface UserPagination {
 }
 
 export interface UsersQuery {
+    /** Criterio textual admitido por el servicio vigente: nombre, usuario o correo. */
+    readonly busqueda?: string;
+
     // MVC10 - Información general del usuario.
     readonly primerApellido?: string;
     readonly segundoApellido?: string;

@@ -1386,6 +1386,13 @@ export class UserManagementPage {
     private loadUsers(page = 1): void {
         const filters = this.appliedFilters();
         const query: UsersQuery = {
+            // El contrato vigente solo admite un criterio textual genérico.
+            // Los campos separados del modal se convierten a ese criterio sin
+            // perder la estructura visual solicitada por MVC10.
+            busqueda: this.buildBackendSearchTerm(filters),
+            // Se conservan los parámetros de MVC10 para que comiencen a
+            // funcionar en cuanto el servicio v3 los publique. El servicio
+            // vigente ignora los que todavía no reconoce.
             primerApellido: this.toOptionalText(filters.primerApellido),
             segundoApellido: this.toOptionalText(filters.segundoApellido),
             nombres: this.toOptionalText(filters.nombres),
@@ -1403,8 +1410,8 @@ export class UserManagementPage {
             unidadAdministrativaId: this.toOptionalPositiveNumber(filters.unidadAdministrativaId),
             nombreUsuario: this.toOptionalText(filters.nombreUsuario),
             tipoUsuarioId: this.toOptionalPositiveNumber(filters.tipoUsuarioId),
-            sistemaId: this.toOptionalPositiveNumber(filters.sistemaId),
             estadoCuentaId: this.toOptionalPositiveNumber(filters.estadoCuentaId),
+            sistemaId: this.toOptionalPositiveNumber(filters.sistemaId),
             fechaInicio: filters.fechaInicio ? this.toApiDate(filters.fechaInicio) : undefined,
             fechaFin: filters.fechaFin ? this.toApiDate(filters.fechaFin) : undefined,
             pagina: page,
@@ -1420,7 +1427,8 @@ export class UserManagementPage {
             .pipe(finalize(() => this.isLoading.set(false)))
             .subscribe({
                 next: (response) => {
-                    this.users.set(response.usuarios);
+                    const users = this.refineSupportedTextFilters(response.usuarios, filters);
+                    this.users.set(users);
                     this.pagination.set({ ...response.paginacion, porPagina: 15 });
                 },
                 error: (error: unknown) => {
@@ -1429,6 +1437,65 @@ export class UserManagementPage {
                     this.errorMessage.set(this.toFriendlyError(error));
                 },
             });
+    }
+
+    /**
+     * Adapta los campos detallados de la interfaz al parámetro `busqueda`
+     * expuesto por la API actual. Los nombres se ordenan como aparecen en
+     * `nombreCompleto`: nombre(s), primer apellido y segundo apellido.
+     */
+    private buildBackendSearchTerm(filters: UserFilterValues): string | undefined {
+        const fullName = [filters.nombres, filters.primerApellido, filters.segundoApellido]
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .join(' ');
+
+        if (fullName) {
+            return fullName;
+        }
+
+        // Los criterios más específicos se priorizan porque la API vigente
+        // dispone de un solo parámetro textual.
+        return this.toOptionalText(
+            filters.nombreUsuario
+            || filters.correo
+            || filters.curp
+            || filters.rfc
+            || filters.numeroTelefonico,
+        );
+    }
+
+    /**
+     * Refina en el cliente únicamente campos presentes en el listado. No
+     * sustituye al filtrado del backend; evita mostrar coincidencias parciales
+     * cuando `busqueda` encuentra resultados amplios.
+     */
+    private refineSupportedTextFilters(
+        users: readonly UserRecord[],
+        filters: UserFilterValues,
+    ): readonly UserRecord[] {
+        const nameTokens = [filters.nombres, filters.primerApellido, filters.segundoApellido]
+            .map((value) => this.normalizeForCompare(value))
+            .filter(Boolean);
+        const email = this.normalizeForCompare(filters.correo);
+        const username = this.normalizeForCompare(filters.nombreUsuario);
+
+        if (!nameTokens.length && !email && !username) {
+            return users;
+        }
+
+        return users.filter((user) => {
+            const normalizedName = this.normalizeForCompare(user.fullName);
+            const normalizedEmail = this.normalizeForCompare(user.email);
+            const normalizedUsername = this.normalizeForCompare(user.username);
+
+            const matchesName = !nameTokens.length
+                || nameTokens.every((token) => normalizedName.includes(token));
+            const matchesEmail = !email || normalizedEmail.includes(email);
+            const matchesUsername = !username || normalizedUsername.includes(username);
+
+            return matchesName && matchesEmail && matchesUsername;
+        });
     }
 
     private loadFilterCatalogs(): void {
