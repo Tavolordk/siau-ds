@@ -28,9 +28,6 @@ export interface UserPagination {
 }
 
 export interface UsersQuery {
-    /** Búsqueda rápida conservada por compatibilidad con el endpoint actual. */
-    readonly busqueda?: string;
-
     // MVC10 - Información general del usuario.
     readonly primerApellido?: string;
     readonly segundoApellido?: string;

@@ -20,40 +20,32 @@
 
         <article class="users-table-card" [class.users-table-card--filters-open]="isFilterPanelOpen()"
             [attr.aria-busy]="isLoading() || isDetailLoading()">
-            <div class="users-table-card__search-row">
-                <div class="users-table-card__search">
-                    <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
-
-                    <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
-                        (keyup.enter)="searchNow()" placeholder="Buscar por nombre, usuario o correo..."
-                        aria-label="Buscar usuario" />
-
-                    @if (searchTerm()) {
-                    <button type="button" class="users-table-card__search-clear" title="Limpiar búsqueda"
-                        aria-label="Limpiar búsqueda" (click)="clearSearch()">
-                        <siau-lucide-icon name="x" size="15" strokeWidth="2" aria-hidden="true" />
-                    </button>
-                    }
+            <div class="users-table-card__toolbar">
+                <div class="users-table-card__toolbar-copy">
+                    <span>Búsqueda de usuarios</span>
+                    <p>Localiza registros por datos personales, correo, adscripción o información de la cuenta.</p>
                 </div>
 
-                <button type="button" class="users-table-card__filter-button"
-                    [class.users-table-card__filter-button--active]="activeFilterCount() > 0"
-                    [attr.aria-expanded]="isFilterPanelOpen()" aria-controls="users-filter-panel"
-                    (click)="toggleFilterPanel()">
-                    <siau-lucide-icon name="sliders-horizontal" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Filtros</span>
+                <div class="users-table-card__toolbar-actions">
+                    <button type="button" class="users-table-card__filter-button"
+                        [class.users-table-card__filter-button--active]="activeFilterCount() > 0"
+                        [attr.aria-expanded]="isFilterPanelOpen()" aria-controls="users-filter-panel"
+                        (click)="toggleFilterPanel()">
+                        <siau-lucide-icon name="sliders-horizontal" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>Filtros avanzados</span>
 
-                    @if (activeFilterCount() > 0) {
-                    <strong>{{ activeFilterCount() }}</strong>
-                    }
-                </button>
+                        @if (activeFilterCount() > 0) {
+                        <strong>{{ activeFilterCount() }}</strong>
+                        }
+                    </button>
 
-                <button type="button" class="users-table-card__reload" title="Recargar usuarios"
-                    aria-label="Recargar usuarios" [disabled]="isLoading() || isDetailLoading()"
-                    (click)="reloadUsers()">
-                    <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Recargar</span>
-                </button>
+                    <button type="button" class="users-table-card__reload" title="Recargar resultados"
+                        aria-label="Recargar resultados" [disabled]="isLoading() || isDetailLoading()"
+                        (click)="reloadUsers()">
+                        <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>Recargar</span>
+                    </button>
+                </div>
             </div>
 
             @if (activeFilterChips().length) {
@@ -634,7 +626,7 @@
                 [disabled]="hasIncompleteDraftFilters() || !hasPendingFilterChanges() || isLoading()"
                 (click)="applyFilters()">
                 <siau-lucide-icon name="check" size="15" strokeWidth="2" aria-hidden="true" />
-                Aplicar filtros
+                Buscar usuarios
             </button>
         </div>
     </footer>

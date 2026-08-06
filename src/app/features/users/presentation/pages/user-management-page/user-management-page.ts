@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { catchError, debounceTime, distinctUntilChanged, finalize, forkJoin, of, Subject, timeout } from 'rxjs';
+import { catchError, finalize, forkJoin, of, timeout } from 'rxjs';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import { CatalogoOption, CatalogosFacade } from '../../../../../core/catalogos';
 import { SiauModal } from '../../../../../shared/ui';
@@ -35,6 +35,8 @@ type UserFilterKey =
     | 'organoAdministrativoDesconcentradoId'
     | 'unidadAdministrativaId'
     | 'nombreUsuario'
+    | 'tipoUsuarioId'
+    | 'sistemaId'
     | 'estadoCuentaId'
     | 'fechaInicio'
     | 'fechaFin';
@@ -58,6 +60,8 @@ interface UserFilterValues {
     readonly organoAdministrativoDesconcentradoId: string;
     readonly unidadAdministrativaId: string;
     readonly nombreUsuario: string;
+    readonly tipoUsuarioId: string;
+    readonly sistemaId: string;
     readonly estadoCuentaId: string;
     readonly fechaInicio: string;
     readonly fechaFin: string;
@@ -127,6 +131,8 @@ const EMPTY_USER_FILTERS: UserFilterValues = {
     organoAdministrativoDesconcentradoId: '',
     unidadAdministrativaId: '',
     nombreUsuario: '',
+    tipoUsuarioId: '',
+    sistemaId: '',
     estadoCuentaId: '',
     fechaInicio: '',
     fechaFin: '',
@@ -154,11 +160,8 @@ export class UserManagementPage {
     private readonly authStorage = inject(AuthStorage);
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly destroyRef = inject(DestroyRef);
-    private readonly searchTermChanges = new Subject<string>();
-
     private detailRequestSequence = 0;
 
-    protected readonly searchTerm = signal<string>('');
     protected readonly isFilterPanelOpen = signal<boolean>(false);
     protected readonly filterCatalogSearch = signal<string>('');
     protected readonly selectedFilterTab = signal<UserFilterTabKey>('all');
@@ -173,6 +176,8 @@ export class UserManagementPage {
     protected readonly institutionOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly decentralizedBodyOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly administrativeUnitOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly userTypeOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly systemOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly accountStatusOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly isFilterCatalogLoading = signal<boolean>(true);
     protected readonly filterCatalogMessage = signal<string | null>(null);
@@ -208,7 +213,7 @@ export class UserManagementPage {
         { id: 'all', label: 'Todos' },
         { id: 'general', label: 'Información general' },
         { id: 'adscription', label: 'Adscripción' },
-        { id: 'account', label: 'Cuenta' },
+        { id: 'account', label: 'Cuenta y acceso' },
     ];
     protected readonly tableTabs: readonly UserTableTab[] = [
         { id: 'general', label: 'Datos generales', shortLabel: 'General' },
@@ -344,6 +349,22 @@ export class UserManagementPage {
             options: [],
             maxLength: 14,
             inputMode: 'text',
+        },
+        {
+            key: 'tipoUsuarioId',
+            label: 'Tipo de usuario',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'account',
+            kind: 'catalog',
+            options: this.userTypeOptions(),
+        },
+        {
+            key: 'sistemaId',
+            label: 'Sistema',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'account',
+            kind: 'catalog',
+            options: this.systemOptions(),
         },
         {
             key: 'estadoCuentaId',
@@ -488,10 +509,6 @@ export class UserManagementPage {
     protected readonly canGoNext = computed(() => this.pagination().paginaActual < this.pagination().totalPaginas);
 
     constructor() {
-        this.searchTermChanges
-            .pipe(debounceTime(350), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-            .subscribe((term) => this.loadUsers(1, term));
-
         this.loadFilterCatalogs();
         this.loadUsers();
     }
@@ -501,25 +518,6 @@ export class UserManagementPage {
         if (this.isFilterPanelOpen()) {
             this.closeFilterPanel();
         }
-    }
-
-    protected updateSearchTerm(value: string): void {
-        const normalizedValue = String(value ?? '');
-        this.searchTerm.set(normalizedValue);
-        this.searchTermChanges.next(normalizedValue.trim());
-    }
-
-    protected searchNow(): void {
-        this.loadUsers(1);
-    }
-
-    protected clearSearch(): void {
-        if (!this.searchTerm()) {
-            return;
-        }
-
-        this.searchTerm.set('');
-        this.searchTermChanges.next('');
     }
 
     protected toggleFilterPanel(): void {
@@ -1385,10 +1383,9 @@ export class UserManagementPage {
         return (Object.keys(filters) as UserFilterKey[]).filter((key) => Boolean(filters[key]));
     }
 
-    private loadUsers(page = 1, search = this.searchTerm().trim()): void {
+    private loadUsers(page = 1): void {
         const filters = this.appliedFilters();
         const query: UsersQuery = {
-            busqueda: this.toOptionalText(search),
             primerApellido: this.toOptionalText(filters.primerApellido),
             segundoApellido: this.toOptionalText(filters.segundoApellido),
             nombres: this.toOptionalText(filters.nombres),
@@ -1405,6 +1402,8 @@ export class UserManagementPage {
             ),
             unidadAdministrativaId: this.toOptionalPositiveNumber(filters.unidadAdministrativaId),
             nombreUsuario: this.toOptionalText(filters.nombreUsuario),
+            tipoUsuarioId: this.toOptionalPositiveNumber(filters.tipoUsuarioId),
+            sistemaId: this.toOptionalPositiveNumber(filters.sistemaId),
             estadoCuentaId: this.toOptionalPositiveNumber(filters.estadoCuentaId),
             fechaInicio: filters.fechaInicio ? this.toApiDate(filters.fechaInicio) : undefined,
             fechaFin: filters.fechaFin ? this.toApiDate(filters.fechaFin) : undefined,
@@ -1443,6 +1442,12 @@ export class UserManagementPage {
             states: this.catalogosFacade
                 .obtenerEstadosOptions()
                 .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
+            userTypes: this.catalogosFacade
+                .obtenerTipoUsuarioOptions()
+                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
+            systems: this.catalogosFacade
+                .obtenerSistemasIdOptions()
+                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
             accountStatuses: this.catalogosFacade
                 .obtenerCuentaUsuarioOptions()
                 .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
@@ -1451,12 +1456,20 @@ export class UserManagementPage {
                 finalize(() => this.isFilterCatalogLoading.set(false)),
                 takeUntilDestroyed(this.destroyRef),
             )
-            .subscribe(({ institutionTypes, states, accountStatuses }) => {
+            .subscribe(({ institutionTypes, states, userTypes, systems, accountStatuses }) => {
                 this.institutionTypeOptions.set(institutionTypes);
                 this.stateOptions.set(states);
+                this.userTypeOptions.set(userTypes);
+                this.systemOptions.set(systems);
                 this.accountStatusOptions.set(accountStatuses);
 
-                if (!institutionTypes.length || !states.length || !accountStatuses.length) {
+                if (
+                    !institutionTypes.length
+                    || !states.length
+                    || !userTypes.length
+                    || !systems.length
+                    || !accountStatuses.length
+                ) {
                     this.filterCatalogMessage.set(
                         'Algunos catálogos de búsqueda no están disponibles. Los demás criterios pueden seguir utilizándose.',
                     );
