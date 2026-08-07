@@ -103,10 +103,6 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.42);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.54) 0 4.5rem, transparent 4.6rem),
-    linear-gradient(145deg, rgba(27, 31, 74, 0.08), rgba(255, 255, 255, 0.12));
 }
 
 .not-found-card__code {
@@ -114,7 +110,6 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  color: rgba(27, 31, 74, 0.075);
   font-size: clamp(7rem, 13vw, 10rem);
   font-weight: 900;
   line-height: 0.8;
