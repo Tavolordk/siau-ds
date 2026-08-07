@@ -45,6 +45,10 @@ interface UserListItemDto {
     readonly nombreUsuario?: string | null;
     readonly nombreCompleto?: string | null;
     readonly correo?: string | null;
+    readonly institucion?: string | null;
+    readonly nombreInstitucion?: string | null;
+    readonly entidad?: string | null;
+    readonly nombreEntidad?: string | null;
     readonly tipoUsuarioId?: number | null;
     readonly rol?: string | null;
     readonly rolClave?: string | null;
@@ -306,6 +310,16 @@ export class UsersApiRepository {
         const email =
             this.normalizeText(user.correo) || 'Sin correo';
 
+        const institution =
+            this.normalizeText(user.institucion) ||
+            this.normalizeText(user.nombreInstitucion) ||
+            'Sin institución';
+
+        const entity =
+            this.normalizeText(user.entidad) ||
+            this.normalizeText(user.nombreEntidad) ||
+            'Sin entidad';
+
         const role =
             this.normalizeText(user.rol) ||
             this.normalizeText(user.rolClave) ||
@@ -331,6 +345,8 @@ export class UsersApiRepository {
             username,
             fullName,
             email,
+            institution,
+            entity,
             role,
             roleKey,
             status,

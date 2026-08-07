@@ -67,6 +67,15 @@ export class CatalogosFacade {
         return this.repository.obtenerSistemas().pipe(map(mapSistemaToOptions));
     }
 
+    /**
+     * Variante para filtros y contratos que requieren el identificador numérico
+     * del sistema. Se mantiene obtenerSistemasOptions() para los formularios que
+     * trabajan con la clave textual del sistema.
+     */
+    obtenerSistemasIdOptions(): Observable<readonly CatalogoOption[]> {
+        return this.repository.obtenerSistemas().pipe(map(mapSistemaIdToOptions));
+    }
+
     obtenerSistemaPerfilesOptions(sistema: string): Observable<readonly CatalogoOption[]> {
         return this.repository
             .obtenerSistemaPerfiles({
@@ -91,6 +100,27 @@ export class CatalogosFacade {
     obtenerTipoUsuarioOptions(): Observable<readonly CatalogoOption[]> {
         return this.repository.obtenerTipoUsuario().pipe(map(mapCatalogoToOptions));
     }
+}
+
+
+function mapSistemaIdToOptions(items: readonly CatalogoRecord[]): readonly CatalogoOption[] {
+    return items.reduce<CatalogoOption[]>((options, item) => {
+        const id = toText(item['idSistema'] ?? item['sistemaId'] ?? item['id']);
+        const sistema = toText(item['sistema'] ?? item['nombre'] ?? item['descripcion']);
+
+        if (!id || !sistema) {
+            return options;
+        }
+
+        return [
+            ...options,
+            {
+                value: id,
+                label: sistema,
+                metadata: item,
+            },
+        ];
+    }, []);
 }
 
 function mapSistemaToOptions(items: readonly CatalogoRecord[]): readonly CatalogoOption[] {

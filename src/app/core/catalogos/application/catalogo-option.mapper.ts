@@ -37,6 +37,7 @@ const VALUE_KEYS = [
     'sistemaId',
     'idSistema',
     'tipoUsuarioId',
+    'estadoCuentaId',
     'estadoCivilId',
     'sexoId',
     'estadoId',
@@ -94,6 +95,8 @@ const LABEL_KEYS = [
     'sistema',
 
     'tipoUsuario',
+    'estadoCuenta',
+    'estatus',
     'tipoInstitucion',
     'tipoEstructura',
     'clave',

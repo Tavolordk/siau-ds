@@ -18,23 +18,60 @@
             </button>
         </div>
 
-        <article class="users-table-card" [attr.aria-busy]="isLoading() || isDetailLoading()">
-            <div class="users-table-card__search-row">
-                <label class="users-table-card__search">
-                    <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
+        <article class="users-table-card" [class.users-table-card--filters-open]="isFilterPanelOpen()"
+            [attr.aria-busy]="isLoading() || isDetailLoading()">
+            <div class="users-table-card__toolbar">
+                <div class="users-table-card__toolbar-copy">
+                    <span>Búsqueda de usuarios</span>
+                    <p>Localiza registros por datos personales, correo, adscripción o información de la cuenta.</p>
+                </div>
 
-                    <input type="search" [ngModel]="searchTerm()" (ngModelChange)="updateSearchTerm($event)"
-                        (keyup.enter)="searchNow()" placeholder="Buscar por nombre, usuario o correo..."
-                        aria-label="Buscar usuario" />
-                </label>
+                <div class="users-table-card__toolbar-actions">
+                    <button type="button" class="users-table-card__filter-button"
+                        [class.users-table-card__filter-button--active]="activeFilterCount() > 0"
+                        [attr.aria-expanded]="isFilterPanelOpen()" aria-controls="users-filter-panel"
+                        (click)="toggleFilterPanel()">
+                        <siau-lucide-icon name="sliders-horizontal" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>Filtros avanzados</span>
 
-                <button type="button" class="users-table-card__reload" title="Recargar usuarios"
-                    aria-label="Recargar usuarios" [disabled]="isLoading() || isDetailLoading()"
-                    (click)="reloadUsers()">
-                    <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Recargar</span>
+                        @if (activeFilterCount() > 0) {
+                        <strong>{{ activeFilterCount() }}</strong>
+                        }
+                    </button>
+
+                    <button type="button" class="users-table-card__reload" title="Recargar resultados"
+                        aria-label="Recargar resultados" [disabled]="isLoading() || isDetailLoading()"
+                        (click)="reloadUsers()">
+                        <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>Recargar</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (activeFilterChips().length) {
+            <div class="users-active-filters" aria-label="Filtros activos">
+                <div class="users-active-filters__summary">
+                    <siau-lucide-icon name="sliders-horizontal" size="15" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ activeFilterCount() }} {{ activeFilterCount() === 1 ? 'filtro activo' : 'filtros activos' }}</span>
+                </div>
+
+                <div class="users-active-filters__chips">
+                    @for (filter of activeFilterChips(); track filter.key) {
+                    <span class="users-active-filter-chip">
+                        <span><strong>{{ filter.label }}:</strong> {{ filter.value }}</span>
+                        <button type="button" [attr.aria-label]="'Quitar filtro ' + filter.label"
+                            (click)="removeAppliedFilter(filter.key)">
+                            <siau-lucide-icon name="x" size="13" strokeWidth="2.2" aria-hidden="true" />
+                        </button>
+                    </span>
+                    }
+                </div>
+
+                <button type="button" class="users-active-filters__clear" (click)="clearAllFilters()">
+                    Limpiar todos
                 </button>
             </div>
+            }
 
             @if (errorMessage(); as error) {
             <div class="users-table-card__message users-table-card__message--error" role="alert">
@@ -57,17 +94,39 @@
             </div>
             }
 
+            <nav class="users-table-tabs" role="tablist" aria-label="Información visible en la tabla">
+                @for (tab of tableTabs; track tab.id) {
+                <button type="button" role="tab" class="users-table-tabs__button"
+                    [class.users-table-tabs__button--active]="selectedTableTab() === tab.id"
+                    [attr.aria-selected]="selectedTableTab() === tab.id"
+                    (click)="selectTableTab(tab.id)">
+                    <span class="users-table-tabs__label">{{ tab.label }}</span>
+                    <span class="users-table-tabs__short-label">{{ tab.shortLabel }}</span>
+                </button>
+                }
+            </nav>
+
             <div class="users-table-card__scroll">
-                <table class="users-table">
+                <table class="users-table" [attr.data-view]="selectedTableTab()">
                     <thead>
                         <tr>
                             <th>Nombre de usuario</th>
                             <th>Nombre completo</th>
+
+                            @if (selectedTableTab() === 'general') {
                             <th>Correo</th>
+                            <th>Estatus</th>
+                            } @else if (selectedTableTab() === 'adscription') {
+                            <th>Institución</th>
+                            <th>Entidad</th>
+                            } @else if (selectedTableTab() === 'access') {
                             <th>Rol</th>
                             <th>Estatus</th>
+                            } @else {
                             <th>RNPSP</th>
                             <th>C. Confianza</th>
+                            }
+
                             <th class="users-table__center">Acciones</th>
                         </tr>
                     </thead>
@@ -75,7 +134,7 @@
                     <tbody>
                         @if (isLoading()) {
                         <tr class="users-table__state-row">
-                            <td colspan="8">
+                            <td colspan="5">
                                 <div class="users-table__state">
                                     <span class="users-table__loader" aria-hidden="true"></span>
                                     <strong>Consultando usuarios...</strong>
@@ -85,11 +144,11 @@
                         </tr>
                         } @else if (!filteredUsers().length) {
                         <tr class="users-table__state-row">
-                            <td colspan="8">
+                            <td colspan="5">
                                 <div class="users-table__state">
                                     <siau-lucide-icon name="users" size="24" strokeWidth="2" aria-hidden="true" />
                                     <strong>No hay usuarios para mostrar</strong>
-                                    <small>Intenta con otra búsqueda o recarga la información.</small>
+                                    <small>Intenta con otros criterios de búsqueda.</small>
                                 </div>
                             </td>
                         </tr>
@@ -104,10 +163,25 @@
                                 <span>{{ user.fullName }}</span>
                             </td>
 
+                            @if (selectedTableTab() === 'general') {
                             <td data-label="Correo">
                                 <span>{{ user.email }}</span>
                             </td>
 
+                            <td data-label="Estatus">
+                                <span class="badge" [class]="'badge badge--' + getStatusTone(user)">
+                                    {{ user.status }}
+                                </span>
+                            </td>
+                            } @else if (selectedTableTab() === 'adscription') {
+                            <td data-label="Institución">
+                                <span>{{ user.institution }}</span>
+                            </td>
+
+                            <td data-label="Entidad">
+                                <span>{{ user.entity }}</span>
+                            </td>
+                            } @else if (selectedTableTab() === 'access') {
                             <td data-label="Rol">
                                 <span class="badge" [class]="'badge badge--' + getRoleTone(user.role)">
                                     {{ user.role }}
@@ -119,7 +193,7 @@
                                     {{ user.status }}
                                 </span>
                             </td>
-
+                            } @else {
                             <td data-label="RNPSP">
                                 <span class="badge" [class]="'badge badge--' + getRegistryTone(user.rnpsp)">
                                     {{ user.rnpsp }}
@@ -131,13 +205,14 @@
                                     {{ user.trust }}
                                 </span>
                             </td>
+                            }
 
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
                                     <button type="button" class="users-table__action users-table__action--detail"
-                                        [attr.title]="isUserSuspended(user) || isUserBlocked(user) ? 'Ver detalle. Usuario sin edición.' : 'Ver / editar'"
-                                        [attr.aria-label]="isUserSuspended(user) || isUserBlocked(user) ? 'Ver detalle de usuario sin edición' : 'Ver o editar usuario'"
-                                        [disabled]="isDetailLoading() || isUserBaja(user)"
+                                        [attr.title]="isUserReadOnly(user) ? 'Ver detalle' : 'Ver / editar'"
+                                        [attr.aria-label]="isUserReadOnly(user) ? 'Ver detalle de usuario' : 'Ver o editar usuario'"
+                                        [disabled]="isDetailLoading()"
                                         (click)="openUserDetail(user)">
                                         <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
@@ -165,8 +240,7 @@
 
                                     @if (shouldShowDeleteButton(user)) {
                                     <button type="button" class="users-table__action users-table__action--delete"
-                                        [attr.title]="isUserBaja(user) ? 'Usuario ya dado de baja' : 'Dar de baja'"
-                                        [attr.aria-label]="isUserBaja(user) ? 'Usuario ya dado de baja' : 'Dar de baja usuario'"
+                                        title="Dar de baja" aria-label="Dar de baja usuario"
                                         [disabled]="isDetailLoading() || isBajaSubmitting()"
                                         (click)="openBajaModal(user)">
                                         <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
@@ -203,7 +277,7 @@
 
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
     [userDetail]="selectedUserDetail()"
-    [readonlyMode]="selectedUser() !== null && (isUserSuspended(selectedUser()!) || isUserBlocked(selectedUser()!))"
+    [readonlyMode]="selectedUser() !== null && isUserReadOnly(selectedUser()!)"
     (saved)="handleUserSaved()" (closed)="closeUserWizard()"></app-user-registration-wizard>
 
 <siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
@@ -235,12 +309,12 @@
                 Comentario de baja <span>*</span>
             </label>
 
-            <textarea id="baja-comment" rows="5" class="user-action-modal__textarea"
+            <textarea id="baja-comment" rows="5" maxlength="1000" class="user-action-modal__textarea"
                 placeholder="ESCRIBE EL MOTIVO DE LA BAJA" [value]="bajaComment()" [disabled]="isBajaSubmitting()"
                 (input)="updateBajaComment($any($event.target).value)"></textarea>
 
             <small>
-                El comentario se enviará en mayúsculas al endpoint de baja.
+                De 5 a 1,000 caracteres. Se permiten letras A-Z, números, espacios y signos autorizados.
             </small>
         </div>
 
@@ -289,19 +363,26 @@
             <span>{{ getStatusModalWarning() }}</span>
         </div>
 
+        @if (statusOperationRequiresComment()) {
         <div class="user-action-modal__field">
             <label for="status-comment">
                 Comentario <span>*</span>
             </label>
 
-            <textarea id="status-comment" rows="5" class="user-action-modal__textarea"
+            <textarea id="status-comment" rows="5" maxlength="1000" class="user-action-modal__textarea"
                 [placeholder]="getStatusCommentPlaceholder()" [value]="statusComment()"
                 [disabled]="isStatusSubmitting()" (input)="updateStatusComment($any($event.target).value)"></textarea>
 
             <small>
-                El comentario se enviará en mayúsculas al endpoint correspondiente.
+                De 5 a 1,000 caracteres. El comentario se enviará en mayúsculas.
             </small>
         </div>
+        } @else {
+        <div class="user-action-modal__confirmation-note">
+            <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>El desbloqueo solo requiere confirmar la operación.</span>
+        </div>
+        }
 
         @if (statusCommentError(); as error) {
         <div class="user-action-modal__error" role="alert">
@@ -389,4 +470,165 @@
         </button>
     </section>
 </siau-modal>
+}
+
+@if (isFilterPanelOpen()) {
+<button type="button" class="users-filter-panel__backdrop" aria-label="Cerrar filtros"
+    (click)="closeFilterPanel()"></button>
+
+<section id="users-filter-panel" class="users-filter-panel users-filter-panel--compact" role="dialog" aria-modal="true"
+    aria-labelledby="users-filter-panel-title">
+    <header class="users-filter-panel__header">
+        <div class="users-filter-panel__title">
+            <span class="users-filter-panel__eyebrow">Filtros avanzados</span>
+            <h2 id="users-filter-panel-title">Filtrar usuarios</h2>
+        </div>
+
+        <button type="button" class="users-filter-panel__close" title="Cerrar filtros"
+            aria-label="Cerrar filtros" (click)="closeFilterPanel()">
+            <siau-lucide-icon name="x" size="19" strokeWidth="2" aria-hidden="true" />
+        </button>
+    </header>
+
+    <div class="users-filter-compact__toolbar">
+        <nav class="users-filter-compact__tabs" role="tablist" aria-label="Categorías de filtros">
+            @for (tab of filterTabs; track tab.id) {
+            <button type="button" role="tab"
+                [class.users-filter-compact__tab--active]="selectedFilterTab() === tab.id"
+                [attr.aria-selected]="selectedFilterTab() === tab.id"
+                (click)="selectFilterTab(tab.id)">
+                {{ tab.label }}
+            </button>
+            }
+        </nav>
+
+        <div class="users-filter-compact__tools">
+            <label class="users-filter-compact__search">
+                <span class="sr-only">Buscar un filtro</span>
+                <siau-lucide-icon name="search" size="15" strokeWidth="2" aria-hidden="true" />
+                <input type="search" [ngModel]="filterCatalogSearch()"
+                    (ngModelChange)="updateFilterCatalogSearch($event)" placeholder="Buscar filtro..." />
+                @if (filterCatalogSearch()) {
+                <button type="button" aria-label="Limpiar búsqueda de filtros"
+                    (click)="updateFilterCatalogSearch('')">
+                    <siau-lucide-icon name="x" size="13" strokeWidth="2" aria-hidden="true" />
+                </button>
+                }
+            </label>
+
+            <label class="users-filter-compact__select-all">
+                <input type="checkbox" [ngModel]="allDraftFiltersSelected()"
+                    [indeterminate]="someDraftFiltersSelected()"
+                    [disabled]="isFilterCatalogLoading() || !selectableFilterDefinitions().length"
+                    (ngModelChange)="setAllDraftFiltersSelected($event)" />
+                <span>Seleccionar todos</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="users-filter-compact__body">
+        @if (isFilterCatalogLoading()) {
+        <div class="users-filter-panel__status" role="status">
+            <span class="users-table__loader" aria-hidden="true"></span>
+            <span>Cargando filtros...</span>
+        </div>
+        } @else {
+        <div class="users-filter-compact__list">
+            @for (filter of visibleFilterDefinitions(); track filter.key) {
+            <div class="users-filter-compact__row"
+                [class.users-filter-compact__row--selected]="isDraftFilterSelected(filter.key)"
+                [class.users-filter-compact__row--disabled]="isFilterDefinitionDisabled(filter) && !isDraftFilterSelected(filter.key)"
+                [class.users-filter-compact__row--error]="getFilterError(filter.key)">
+                <label class="users-filter-compact__check">
+                    <input type="checkbox" [ngModel]="isDraftFilterSelected(filter.key)"
+                        [disabled]="isFilterCheckboxDisabled(filter)"
+                        (ngModelChange)="setDraftFilterSelected(filter.key, $event)" />
+                    <span>{{ filter.label }}</span>
+                </label>
+
+                <div class="users-filter-compact__control">
+                    @if (filter.kind === 'catalog') {
+                    <input type="search" autocomplete="off"
+                        [attr.list]="'users-filter-options-' + filter.key"
+                        [value]="getDraftCatalogLabel(filter)"
+                        [placeholder]="getFilterPlaceholder(filter)"
+                        [attr.aria-label]="'Valor para ' + filter.label"
+                        [disabled]="!isDraftFilterSelected(filter.key) || isFilterDefinitionDisabled(filter)"
+                        (input)="updateCatalogDraftFilter(filter, $any($event.target).value)" />
+                    <datalist [id]="'users-filter-options-' + filter.key">
+                        @for (option of filter.options; track option.value) {
+                        <option [value]="option.label"></option>
+                        }
+                    </datalist>
+                    } @else if (filter.kind === 'date') {
+                    <input type="date" [value]="draftFilters()[filter.key]" [max]="todayDate"
+                        [attr.aria-label]="'Valor para ' + filter.label"
+                        [disabled]="!isDraftFilterSelected(filter.key)"
+                        (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
+                    } @else {
+                    <input [type]="filter.inputMode === 'email' ? 'email' : 'text'"
+                        [attr.inputmode]="filter.inputMode" [attr.maxlength]="filter.maxLength ?? null"
+                        autocomplete="off" [value]="draftFilters()[filter.key]"
+                        [placeholder]="filter.placeholder"
+                        [attr.aria-label]="'Valor para ' + filter.label"
+                        [disabled]="!isDraftFilterSelected(filter.key)"
+                        (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
+                    }
+
+                    @if (getFilterError(filter.key); as filterError) {
+                    <small class="users-filter-compact__error" role="alert">{{ filterError }}</small>
+                    }
+                </div>
+            </div>
+            }
+        </div>
+
+        @if (!visibleFilterDefinitions().length) {
+        <div class="users-filter-compact__empty">
+            <siau-lucide-icon name="search" size="20" strokeWidth="1.8" aria-hidden="true" />
+            <span>No hay filtros que coincidan.</span>
+        </div>
+        }
+        }
+
+        @if (filterCatalogMessage(); as catalogMessage) {
+        <div class="users-filter-panel__status users-filter-panel__status--warning" role="status">
+            <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>{{ catalogMessage }}</span>
+        </div>
+        }
+    </div>
+
+    <footer class="users-filter-panel__footer">
+        <div class="users-filter-panel__footer-message" aria-live="polite">
+            @if (filterFormError(); as formError) {
+            <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+            <span>{{ formError }}</span>
+            } @else if (hasIncompleteDraftFilters()) {
+            <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+            <span>Corrige los valores marcados antes de aplicar la búsqueda.</span>
+            } @else {
+            <span>{{ selectedDraftFilterCount() }} de {{ filterDefinitions().length }} filtros seleccionados</span>
+            }
+        </div>
+
+        <div class="users-filter-panel__footer-actions">
+            <button type="button" class="users-filter-panel__reset"
+                [disabled]="!selectedDraftFilterCount()" (click)="clearDraftFilters()">
+                Limpiar
+            </button>
+
+            <button type="button" class="users-filter-panel__cancel" (click)="closeFilterPanel()">
+                Cancelar
+            </button>
+
+            <button type="button" class="users-filter-panel__apply"
+                [disabled]="hasIncompleteDraftFilters() || !hasPendingFilterChanges() || isLoading()"
+                (click)="applyFilters()">
+                <siau-lucide-icon name="check" size="15" strokeWidth="2" aria-hidden="true" />
+                Buscar usuarios
+            </button>
+        </div>
+    </footer>
+</section>
 }

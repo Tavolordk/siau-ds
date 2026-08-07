@@ -8,6 +8,8 @@ export interface UserRecord {
     readonly username: string;
     readonly fullName: string;
     readonly email: string;
+    readonly institution: string;
+    readonly entity: string;
     readonly role: UserRole;
     readonly roleKey: string;
     readonly status: UserStatus;
@@ -26,10 +28,37 @@ export interface UserPagination {
 }
 
 export interface UsersQuery {
+    /** Criterio textual admitido por el servicio vigente: nombre, usuario o correo. */
     readonly busqueda?: string;
-    readonly tipoUsuarioId?: number;
+
+    // MVC10 - Información general del usuario.
+    readonly primerApellido?: string;
+    readonly segundoApellido?: string;
+    readonly nombres?: string;
+    readonly curp?: string;
+    readonly rfc?: string;
+    readonly correo?: string;
+    readonly numeroTelefonico?: string;
+
+    // MVC10 / RN20 - Información de adscripción.
+    readonly tipoInstitucionId?: number;
+    readonly entidadId?: number;
+    readonly municipioId?: number;
+    readonly institucionId?: number;
+    readonly organoAdministrativoDesconcentradoId?: number;
+    readonly unidadAdministrativaId?: number;
+
+    // MVC10 - Información de la cuenta.
+    readonly nombreUsuario?: string;
     readonly estadoCuentaId?: number;
+    /** Fechas enviadas al servicio en formato dd/MM/yyyy. */
+    readonly fechaInicio?: string;
+    readonly fechaFin?: string;
+
+    // Parámetros heredados que el endpoint vigente todavía puede admitir.
+    readonly tipoUsuarioId?: number;
     readonly sistemaId?: number;
+
     readonly pagina?: number;
     readonly porPagina?: number;
 }
