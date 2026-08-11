@@ -3,6 +3,7 @@ import { map, Observable } from 'rxjs';
 import {
     CatalogoOption,
     CatalogoRecord,
+    EstructuraOrganizacionalQuery,
     EstructuraOrgQuery,
 } from '../domain/catalogo.model';
 import { CatalogosRepository } from '../domain/catalogos.repository';
@@ -55,8 +56,28 @@ export class CatalogosFacade {
             .pipe(map(mapCatalogoToOptions));
     }
 
+    /**
+     * Devuelve los registros crudos de estructura para poder reconstruir la
+     * jerarquía padre -> hijo de un `estructuraId` persistido en borradores.
+     */
+    obtenerEstructuraOrganizacional(
+        query: EstructuraOrganizacionalQuery = { soloActivos: 1 },
+    ): Observable<readonly CatalogoRecord[]> {
+        return this.repository.obtenerEstructuraOrganizacional(query);
+    }
+
     obtenerEstructuraOrgOptions(query: EstructuraOrgQuery): Observable<readonly CatalogoOption[]> {
         return this.repository.obtenerEstructuraOrg(query).pipe(map(mapCatalogoToOptions));
+    }
+
+    /**
+     * Variante cruda del catálogo regional; conserva padreId, estadoId y
+     * tipoInstitucionId para rehidratar borradores desde el último hijo.
+     */
+    obtenerEstructuraOrg(
+        query: EstructuraOrgQuery = { soloActivos: 1 },
+    ): Observable<readonly CatalogoRecord[]> {
+        return this.repository.obtenerEstructuraOrg(query);
     }
 
     obtenerSexoOptions(): Observable<readonly CatalogoOption[]> {

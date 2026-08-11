@@ -32,7 +32,7 @@
                         [attr.aria-expanded]="isFilterPanelOpen()" aria-controls="users-filter-panel"
                         (click)="toggleFilterPanel()">
                         <siau-lucide-icon name="sliders-horizontal" size="16" strokeWidth="2" aria-hidden="true" />
-                        <span>Filtros avanzados</span>
+                        <span>Búsqueda Avanzada</span>
 
                         @if (activeFilterCount() > 0) {
                         <strong>{{ activeFilterCount() }}</strong>
@@ -52,7 +52,8 @@
             <div class="users-active-filters" aria-label="Filtros activos">
                 <div class="users-active-filters__summary">
                     <siau-lucide-icon name="sliders-horizontal" size="15" strokeWidth="2" aria-hidden="true" />
-                    <span>{{ activeFilterCount() }} {{ activeFilterCount() === 1 ? 'filtro activo' : 'filtros activos' }}</span>
+                    <span>{{ activeFilterCount() }} {{ activeFilterCount() === 1 ? 'filtro activo' : 'filtros activos'
+                        }}</span>
                 </div>
 
                 <div class="users-active-filters__chips">
@@ -71,6 +72,99 @@
                     Limpiar todos
                 </button>
             </div>
+            }
+
+            @if (isFilterPanelOpen()) {
+            <section id="users-filter-panel" class="users-filter-inline" aria-labelledby="users-filter-inline-title">
+                <header class="users-filter-inline__header">
+                    <div>
+                        <span class="users-filter-inline__eyebrow">Búsqueda avanzada</span>
+                        <h2 id="users-filter-inline-title">Escribe o selecciona los criterios que necesites</h2>
+                        <p>No necesitas activar cada filtro. Solo captura los campos que quieras utilizar.</p>
+                    </div>
+                    <button type="button" class="users-filter-inline__close" title="Ocultar filtros"
+                        aria-label="Ocultar filtros" (click)="closeFilterPanel()">
+                        <siau-lucide-icon name="x" size="18" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </header>
+
+                @if (isFilterCatalogLoading()) {
+                <div class="users-filter-inline__status" role="status">
+                    <span class="users-table__loader" aria-hidden="true"></span>
+                    <span>Cargando catálogos de búsqueda...</span>
+                </div>
+                }
+
+                <div class="users-filter-inline__grid">
+                    @for (filter of filterDefinitions(); track filter.key) {
+                    <label class="users-filter-inline__field"
+                        [class.users-filter-inline__field--error]="getFilterError(filter.key)"
+                        [class.users-filter-inline__field--disabled]="isFilterDefinitionDisabled(filter)">
+                        <span>{{ filter.label }}</span>
+
+                        @if (filter.kind === 'catalog') {
+                        <input type="search" autocomplete="off"
+                            [attr.list]="'users-inline-filter-options-' + filter.key"
+                            [value]="getDraftCatalogLabel(filter)" [placeholder]="getFilterPlaceholder(filter)"
+                            [disabled]="isFilterDefinitionDisabled(filter)"
+                            (input)="updateCatalogDraftFilter(filter, $any($event.target).value)" />
+                        <datalist [id]="'users-inline-filter-options-' + filter.key">
+                            @for (option of filter.options; track option.value) {
+                            <option [value]="option.label"></option>
+                            }
+                        </datalist>
+                        } @else if (filter.kind === 'date') {
+                        <input type="date" [value]="draftFilters()[filter.key]" [max]="todayDate"
+                            (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
+                        } @else {
+                        <input [type]="filter.inputMode === 'email' ? 'email' : 'text'"
+                            [attr.inputmode]="filter.inputMode" [attr.maxlength]="filter.maxLength ?? null"
+                            autocomplete="off" [value]="draftFilters()[filter.key]" [placeholder]="filter.placeholder"
+                            (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
+                        }
+
+                        @if (getFilterError(filter.key); as filterError) {
+                        <small role="alert">{{ filterError }}</small>
+                        }
+                    </label>
+                    }
+                </div>
+
+                @if (filterCatalogMessage(); as catalogMessage) {
+                <div class="users-filter-inline__notice" role="status">
+                    <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ catalogMessage }}</span>
+                </div>
+                }
+
+                <footer class="users-filter-inline__footer">
+                    <div class="users-filter-inline__feedback" aria-live="polite">
+                        @if (filterFormError(); as formError) {
+                        <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+                        <span>{{ formError }}</span>
+                        } @else if (hasIncompleteDraftFilters()) {
+                        <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+                        <span>Corrige los campos marcados antes de buscar.</span>
+                        } @else {
+                        <span>{{ selectedDraftFilterCount() }} {{ selectedDraftFilterCount() === 1 ? 'criterio
+                            capturado' : 'criterios capturados' }}</span>
+                        }
+                    </div>
+
+                    <div class="users-filter-inline__actions">
+                        <button type="button" class="users-filter-inline__clear"
+                            [disabled]="!selectedDraftFilterCount()" (click)="clearDraftFilters()">
+                            Limpiar campos
+                        </button>
+                        <button type="button" class="users-filter-inline__apply"
+                            [disabled]="hasIncompleteDraftFilters() || !hasPendingFilterChanges() || isLoading()"
+                            (click)="applyFilters()">
+                            <siau-lucide-icon name="search" size="15" strokeWidth="2" aria-hidden="true" />
+                            Buscar usuarios
+                        </button>
+                    </div>
+                </footer>
+            </section>
             }
 
             @if (errorMessage(); as error) {
@@ -94,39 +188,16 @@
             </div>
             }
 
-            <nav class="users-table-tabs" role="tablist" aria-label="Información visible en la tabla">
-                @for (tab of tableTabs; track tab.id) {
-                <button type="button" role="tab" class="users-table-tabs__button"
-                    [class.users-table-tabs__button--active]="selectedTableTab() === tab.id"
-                    [attr.aria-selected]="selectedTableTab() === tab.id"
-                    (click)="selectTableTab(tab.id)">
-                    <span class="users-table-tabs__label">{{ tab.label }}</span>
-                    <span class="users-table-tabs__short-label">{{ tab.shortLabel }}</span>
-                </button>
-                }
-            </nav>
-
             <div class="users-table-card__scroll">
-                <table class="users-table" [attr.data-view]="selectedTableTab()">
+                <table class="users-table">
                     <thead>
                         <tr>
                             <th>Nombre de usuario</th>
                             <th>Nombre completo</th>
-
-                            @if (selectedTableTab() === 'general') {
-                            <th>Correo</th>
                             <th>Estatus</th>
-                            } @else if (selectedTableTab() === 'adscription') {
+                            <th>Correo electrónico</th>
                             <th>Institución</th>
                             <th>Entidad</th>
-                            } @else if (selectedTableTab() === 'access') {
-                            <th>Rol</th>
-                            <th>Estatus</th>
-                            } @else {
-                            <th>RNPSP</th>
-                            <th>C. Confianza</th>
-                            }
-
                             <th class="users-table__center">Acciones</th>
                         </tr>
                     </thead>
@@ -134,7 +205,7 @@
                     <tbody>
                         @if (isLoading()) {
                         <tr class="users-table__state-row">
-                            <td colspan="5">
+                            <td colspan="7">
                                 <div class="users-table__state">
                                     <span class="users-table__loader" aria-hidden="true"></span>
                                     <strong>Consultando usuarios...</strong>
@@ -144,7 +215,7 @@
                         </tr>
                         } @else if (!filteredUsers().length) {
                         <tr class="users-table__state-row">
-                            <td colspan="5">
+                            <td colspan="7">
                                 <div class="users-table__state">
                                     <siau-lucide-icon name="users" size="24" strokeWidth="2" aria-hidden="true" />
                                     <strong>No hay usuarios para mostrar</strong>
@@ -155,17 +226,12 @@
                         } @else {
                         @for (user of filteredUsers(); track user.userId) {
                         <tr>
-                            <td data-label="Usuario">
+                            <td data-label="Nombre de usuario">
                                 <span class="users-table__username">{{ user.username }}</span>
                             </td>
 
-                            <td data-label="Nombre">
+                            <td data-label="Nombre completo">
                                 <span>{{ user.fullName }}</span>
-                            </td>
-
-                            @if (selectedTableTab() === 'general') {
-                            <td data-label="Correo">
-                                <span>{{ user.email }}</span>
                             </td>
 
                             <td data-label="Estatus">
@@ -173,7 +239,11 @@
                                     {{ user.status }}
                                 </span>
                             </td>
-                            } @else if (selectedTableTab() === 'adscription') {
+
+                            <td data-label="Correo electrónico">
+                                <span>{{ user.email }}</span>
+                            </td>
+
                             <td data-label="Institución">
                                 <span>{{ user.institution }}</span>
                             </td>
@@ -181,39 +251,13 @@
                             <td data-label="Entidad">
                                 <span>{{ user.entity }}</span>
                             </td>
-                            } @else if (selectedTableTab() === 'access') {
-                            <td data-label="Rol">
-                                <span class="badge" [class]="'badge badge--' + getRoleTone(user.role)">
-                                    {{ user.role }}
-                                </span>
-                            </td>
-
-                            <td data-label="Estatus">
-                                <span class="badge" [class]="'badge badge--' + getStatusTone(user)">
-                                    {{ user.status }}
-                                </span>
-                            </td>
-                            } @else {
-                            <td data-label="RNPSP">
-                                <span class="badge" [class]="'badge badge--' + getRegistryTone(user.rnpsp)">
-                                    {{ user.rnpsp }}
-                                </span>
-                            </td>
-
-                            <td data-label="C. Confianza">
-                                <span class="badge" [class]="'badge badge--' + getTrustTone(user.trust)">
-                                    {{ user.trust }}
-                                </span>
-                            </td>
-                            }
 
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
                                     <button type="button" class="users-table__action users-table__action--detail"
                                         [attr.title]="isUserReadOnly(user) ? 'Ver detalle' : 'Ver / editar'"
                                         [attr.aria-label]="isUserReadOnly(user) ? 'Ver detalle de usuario' : 'Ver o editar usuario'"
-                                        [disabled]="isDetailLoading()"
-                                        (click)="openUserDetail(user)">
+                                        [disabled]="isDetailLoading()" (click)="openUserDetail(user)">
                                         <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
 
@@ -233,8 +277,7 @@
                                         title="Desbloquear usuario" aria-label="Desbloquear usuario"
                                         [disabled]="isDetailLoading() || isStatusSubmitting()"
                                         (click)="openUnlockModal(user)">
-                                        <siau-lucide-icon name="unlock" size="16" strokeWidth="2"
-                                            aria-hidden="true" />
+                                        <siau-lucide-icon name="unlock" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
                                     }
 
@@ -276,8 +319,7 @@
 </section>
 
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
-    [userDetail]="selectedUserDetail()"
-    [readonlyMode]="selectedUser() !== null && isUserReadOnly(selectedUser()!)"
+    [userDetail]="selectedUserDetail()" [readonlyMode]="selectedUser() !== null && isUserReadOnly(selectedUser()!)"
     (saved)="handleUserSaved()" (closed)="closeUserWizard()"></app-user-registration-wizard>
 
 <siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
@@ -411,9 +453,8 @@
 </siau-modal>
 
 @if (operationSuccess(); as success) {
-<siau-modal [open]="true" [title]="success.title"
-    subtitle="El estatus de la cuenta se modificó correctamente" [icon]="success.icon" size="md"
-    [headerBadge]="success.badge" (close)="closeOperationSuccessModal()">
+<siau-modal [open]="true" [title]="success.title" subtitle="El estatus de la cuenta se modificó correctamente"
+    [icon]="success.icon" size="md" [headerBadge]="success.badge" (close)="closeOperationSuccessModal()">
     <section class="account-operation-success">
         <div class="account-operation-success__hero">
             <span class="account-operation-success__icon" aria-hidden="true">
@@ -463,172 +504,10 @@
             <span>La lista principal de usuarios se actualizará al cerrar este mensaje.</span>
         </div>
 
-        <button type="button" class="account-operation-success__button"
-            (click)="closeOperationSuccessModal()">
+        <button type="button" class="account-operation-success__button" (click)="closeOperationSuccessModal()">
             <siau-lucide-icon name="check" size="15" strokeWidth="2" aria-hidden="true" />
             Aceptar y actualizar lista
         </button>
     </section>
 </siau-modal>
-}
-
-@if (isFilterPanelOpen()) {
-<button type="button" class="users-filter-panel__backdrop" aria-label="Cerrar filtros"
-    (click)="closeFilterPanel()"></button>
-
-<section id="users-filter-panel" class="users-filter-panel users-filter-panel--compact" role="dialog" aria-modal="true"
-    aria-labelledby="users-filter-panel-title">
-    <header class="users-filter-panel__header">
-        <div class="users-filter-panel__title">
-            <span class="users-filter-panel__eyebrow">Filtros avanzados</span>
-            <h2 id="users-filter-panel-title">Filtrar usuarios</h2>
-        </div>
-
-        <button type="button" class="users-filter-panel__close" title="Cerrar filtros"
-            aria-label="Cerrar filtros" (click)="closeFilterPanel()">
-            <siau-lucide-icon name="x" size="19" strokeWidth="2" aria-hidden="true" />
-        </button>
-    </header>
-
-    <div class="users-filter-compact__toolbar">
-        <nav class="users-filter-compact__tabs" role="tablist" aria-label="Categorías de filtros">
-            @for (tab of filterTabs; track tab.id) {
-            <button type="button" role="tab"
-                [class.users-filter-compact__tab--active]="selectedFilterTab() === tab.id"
-                [attr.aria-selected]="selectedFilterTab() === tab.id"
-                (click)="selectFilterTab(tab.id)">
-                {{ tab.label }}
-            </button>
-            }
-        </nav>
-
-        <div class="users-filter-compact__tools">
-            <label class="users-filter-compact__search">
-                <span class="sr-only">Buscar un filtro</span>
-                <siau-lucide-icon name="search" size="15" strokeWidth="2" aria-hidden="true" />
-                <input type="search" [ngModel]="filterCatalogSearch()"
-                    (ngModelChange)="updateFilterCatalogSearch($event)" placeholder="Buscar filtro..." />
-                @if (filterCatalogSearch()) {
-                <button type="button" aria-label="Limpiar búsqueda de filtros"
-                    (click)="updateFilterCatalogSearch('')">
-                    <siau-lucide-icon name="x" size="13" strokeWidth="2" aria-hidden="true" />
-                </button>
-                }
-            </label>
-
-            <label class="users-filter-compact__select-all">
-                <input type="checkbox" [ngModel]="allDraftFiltersSelected()"
-                    [indeterminate]="someDraftFiltersSelected()"
-                    [disabled]="isFilterCatalogLoading() || !selectableFilterDefinitions().length"
-                    (ngModelChange)="setAllDraftFiltersSelected($event)" />
-                <span>Seleccionar todos</span>
-            </label>
-        </div>
-    </div>
-
-    <div class="users-filter-compact__body">
-        @if (isFilterCatalogLoading()) {
-        <div class="users-filter-panel__status" role="status">
-            <span class="users-table__loader" aria-hidden="true"></span>
-            <span>Cargando filtros...</span>
-        </div>
-        } @else {
-        <div class="users-filter-compact__list">
-            @for (filter of visibleFilterDefinitions(); track filter.key) {
-            <div class="users-filter-compact__row"
-                [class.users-filter-compact__row--selected]="isDraftFilterSelected(filter.key)"
-                [class.users-filter-compact__row--disabled]="isFilterDefinitionDisabled(filter) && !isDraftFilterSelected(filter.key)"
-                [class.users-filter-compact__row--error]="getFilterError(filter.key)">
-                <label class="users-filter-compact__check">
-                    <input type="checkbox" [ngModel]="isDraftFilterSelected(filter.key)"
-                        [disabled]="isFilterCheckboxDisabled(filter)"
-                        (ngModelChange)="setDraftFilterSelected(filter.key, $event)" />
-                    <span>{{ filter.label }}</span>
-                </label>
-
-                <div class="users-filter-compact__control">
-                    @if (filter.kind === 'catalog') {
-                    <input type="search" autocomplete="off"
-                        [attr.list]="'users-filter-options-' + filter.key"
-                        [value]="getDraftCatalogLabel(filter)"
-                        [placeholder]="getFilterPlaceholder(filter)"
-                        [attr.aria-label]="'Valor para ' + filter.label"
-                        [disabled]="!isDraftFilterSelected(filter.key) || isFilterDefinitionDisabled(filter)"
-                        (input)="updateCatalogDraftFilter(filter, $any($event.target).value)" />
-                    <datalist [id]="'users-filter-options-' + filter.key">
-                        @for (option of filter.options; track option.value) {
-                        <option [value]="option.label"></option>
-                        }
-                    </datalist>
-                    } @else if (filter.kind === 'date') {
-                    <input type="date" [value]="draftFilters()[filter.key]" [max]="todayDate"
-                        [attr.aria-label]="'Valor para ' + filter.label"
-                        [disabled]="!isDraftFilterSelected(filter.key)"
-                        (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
-                    } @else {
-                    <input [type]="filter.inputMode === 'email' ? 'email' : 'text'"
-                        [attr.inputmode]="filter.inputMode" [attr.maxlength]="filter.maxLength ?? null"
-                        autocomplete="off" [value]="draftFilters()[filter.key]"
-                        [placeholder]="filter.placeholder"
-                        [attr.aria-label]="'Valor para ' + filter.label"
-                        [disabled]="!isDraftFilterSelected(filter.key)"
-                        (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
-                    }
-
-                    @if (getFilterError(filter.key); as filterError) {
-                    <small class="users-filter-compact__error" role="alert">{{ filterError }}</small>
-                    }
-                </div>
-            </div>
-            }
-        </div>
-
-        @if (!visibleFilterDefinitions().length) {
-        <div class="users-filter-compact__empty">
-            <siau-lucide-icon name="search" size="20" strokeWidth="1.8" aria-hidden="true" />
-            <span>No hay filtros que coincidan.</span>
-        </div>
-        }
-        }
-
-        @if (filterCatalogMessage(); as catalogMessage) {
-        <div class="users-filter-panel__status users-filter-panel__status--warning" role="status">
-            <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
-            <span>{{ catalogMessage }}</span>
-        </div>
-        }
-    </div>
-
-    <footer class="users-filter-panel__footer">
-        <div class="users-filter-panel__footer-message" aria-live="polite">
-            @if (filterFormError(); as formError) {
-            <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
-            <span>{{ formError }}</span>
-            } @else if (hasIncompleteDraftFilters()) {
-            <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
-            <span>Corrige los valores marcados antes de aplicar la búsqueda.</span>
-            } @else {
-            <span>{{ selectedDraftFilterCount() }} de {{ filterDefinitions().length }} filtros seleccionados</span>
-            }
-        </div>
-
-        <div class="users-filter-panel__footer-actions">
-            <button type="button" class="users-filter-panel__reset"
-                [disabled]="!selectedDraftFilterCount()" (click)="clearDraftFilters()">
-                Limpiar
-            </button>
-
-            <button type="button" class="users-filter-panel__cancel" (click)="closeFilterPanel()">
-                Cancelar
-            </button>
-
-            <button type="button" class="users-filter-panel__apply"
-                [disabled]="hasIncompleteDraftFilters() || !hasPendingFilterChanges() || isLoading()"
-                (click)="applyFilters()">
-                <siau-lucide-icon name="check" size="15" strokeWidth="2" aria-hidden="true" />
-                Buscar usuarios
-            </button>
-        </div>
-    </footer>
-</section>
 }

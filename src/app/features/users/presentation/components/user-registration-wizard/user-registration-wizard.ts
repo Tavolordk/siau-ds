@@ -40,11 +40,20 @@ import {
 } from '../../../data-access/eccc-personal-api.repository';
 import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
+    DraftStructureHierarchies,
+    DraftStructureResolver,
+    ResolvedDraftStructureHierarchy,
+} from '../../../application/draft-structure.resolver';
+import {
     ActualizarAdminRequest,
+    BorradorDatos,
+    BorradorGuardarRequest,
+    BorradorItem,
+    RegistroAdminCuenta,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroAsignacion,
-    RegistroCuenta,
+    RegistroEspecialCuenta,
     RegistroEspecialRequest,
     RegistroEspecialResponse,
     RegistroMedioContacto,
@@ -180,8 +189,6 @@ interface SaveSuccessModalState {
     readonly emailReference: string;
 }
 
-const DEFAULT_ACCOUNT_PASSWORD = 'SSPC-PMex-2025';
-const DEFAULT_ACCOUNT_PASSWORD_HASH = '$2b$12$HashDePruebaParaElCampo...';
 const DEFAULT_NORMAL_SYSTEM_ID = 1;
 const DEFAULT_NORMAL_PROFILE_ID = 267;
 const NO_APLICA_VALUE = '__NO_APLICA__';
@@ -294,6 +301,7 @@ export class UserRegistrationWizard {
 
     private readonly catalogosFacade = inject(CatalogosFacade);
     private readonly usersFacade = inject(UsersFacade);
+    private readonly draftStructureResolver = inject(DraftStructureResolver);
     private readonly correoFacade = inject(CorreoFacade);
     private readonly renapoFacade = inject(RenapoFacade);
     private readonly ecccPersonalApi = inject(EcccPersonalApiRepository);
@@ -319,6 +327,13 @@ export class UserRegistrationWizard {
     protected readonly completedSteps = signal<readonly WizardStepId[]>([]);
     protected readonly form = signal<UserRegistrationForm>({ ...INITIAL_FORM });
     protected readonly isSubmitting = signal<boolean>(false);
+    protected readonly isDraftLoading = signal<boolean>(false);
+    protected readonly isDraftSaving = signal<boolean>(false);
+    protected readonly isDraftDeleting = signal<boolean>(false);
+    protected readonly draftId = signal<number | null>(null);
+    protected readonly draftMessage = signal<string>('');
+    protected readonly draftError = signal<string>('');
+    protected readonly deleteDraftConfirmationOpen = signal<boolean>(false);
     protected readonly formErrors = signal<Record<string, string>>({});
     protected readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
     protected readonly renapoLookupStatus = signal<RenapoLookupStatus>('idle');
@@ -663,6 +678,14 @@ export class UserRegistrationWizard {
         this.isEditMode() && (this.readonlyMode() || !this.editEnabled()),
     );
 
+    protected readonly isDraftBusy = computed(() =>
+        this.isDraftLoading() || this.isDraftSaving() || this.isDraftDeleting(),
+    );
+
+    protected readonly hasBackendDraft = computed(() =>
+        !this.isEditMode() && this.draftId() !== null,
+    );
+
     protected readonly isCurpInputDisabled = computed(() => {
         if (this.isFormDisabled() || this.isSubmitting()) {
             return true;
@@ -864,6 +887,10 @@ export class UserRegistrationWizard {
                 this.resetWizard();
                 this.editEnabled.set(true);
                 this.ensureDefaultSiauProfile();
+
+                if (catalogosReady) {
+                    this.loadRegistrationDraft();
+                }
             });
         });
 
@@ -940,15 +967,70 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (this.isEditMode()) {
+            if (current === 'personal-data') {
+                this.consultEcccAndPersonal();
+            }
+
+            this.markCompleted(current);
+
+            if (currentIndex < stepOrder.length - 1) {
+                this.activeStepId.set(stepOrder[currentIndex + 1]);
+            }
+            return;
+        }
+
+        if (this.isDraftBusy() || currentIndex >= stepOrder.length - 1) {
+            return;
+        }
+
+        const nextStepId = stepOrder[currentIndex + 1];
+        const completedSteps = this.withCompletedStep(current);
+
+        // El borrador es una ayuda de persistencia, no debe bloquear el alta.
+        // Una vez que el paso actual pasó sus validaciones, el usuario continúa
+        // aunque la llamada de guardado falle.
+        this.completedSteps.set(completedSteps);
+        this.activeStepId.set(nextStepId);
+
         if (current === 'personal-data') {
             this.consultEcccAndPersonal();
         }
 
-        this.markCompleted(current);
+        let request: BorradorGuardarRequest;
 
-        if (currentIndex < stepOrder.length - 1) {
-            this.activeStepId.set(stepOrder[currentIndex + 1]);
+        try {
+            request = this.buildDraftSaveRequest(nextStepId, completedSteps);
+        } catch {
+            this.draftMessage.set('');
+            this.draftError.set('No se pudo guardar el borrador. Puedes continuar con el registro.');
+            return;
         }
+
+        this.isDraftSaving.set(true);
+        this.draftError.set('');
+        this.draftMessage.set('Guardando avance...');
+
+        this.usersFacade
+            .saveRegistrationDraft(request)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isDraftSaving.set(false)),
+            )
+            .subscribe({
+                next: (response) => {
+                    const savedDraftId = response.datos?.borradorId;
+                    if (savedDraftId && savedDraftId > 0) {
+                        this.draftId.set(savedDraftId);
+                    }
+
+                    this.draftMessage.set(response.mensaje?.trim() || 'Avance guardado.');
+                },
+                error: () => {
+                    this.draftMessage.set('');
+                    this.draftError.set('No se pudo guardar el borrador. Puedes continuar con el registro.');
+                },
+            });
     }
 
     protected previousStep(): void {
@@ -961,7 +1043,7 @@ export class UserRegistrationWizard {
     }
 
     protected closeWizard(): void {
-        if (this.isSubmitting()) {
+        if (this.isSubmitting() || this.isDraftBusy()) {
             return;
         }
 
@@ -1049,7 +1131,14 @@ export class UserRegistrationWizard {
         saveRequest$
             .pipe(
                 switchMap((response) =>
-                    this.sendAccessCredentialsEmail(response, isExpress).pipe(
+                    this.requestTemporaryPassword(response).pipe(
+                        switchMap((temporaryPassword) =>
+                            this.sendAccessCredentialsEmail(
+                                response,
+                                isExpress,
+                                temporaryPassword,
+                            ),
+                        ),
                         map((emailDelivery) => ({ response, emailDelivery })),
                         catchError((error: unknown) =>
                             of({
@@ -1057,6 +1146,11 @@ export class UserRegistrationWizard {
                                 emailDelivery: this.toFailedEmailDelivery(error),
                             }),
                         ),
+                    ),
+                ),
+                switchMap(({ response, emailDelivery }) =>
+                    this.deleteRegistrationDraftAfterSuccess().pipe(
+                        map(() => ({ response, emailDelivery })),
                     ),
                 ),
                 takeUntilDestroyed(this.destroyRef),
@@ -2206,8 +2300,8 @@ export class UserRegistrationWizard {
 
                     const expirationDate = response.ecccConsultado
                         ? this.toDateInputValue(response.eccc?.fechaVencimiento ?? '') ||
-                          this.toText(response.eccc?.fechaVencimiento) ||
-                          'Sin información'
+                        this.toText(response.eccc?.fechaVencimiento) ||
+                        'Sin información'
                         : 'No consultado';
 
                     const hasAnyResult =
@@ -2335,6 +2429,7 @@ export class UserRegistrationWizard {
     private sendAccessCredentialsEmail(
         response: RegistroAdminResponse | RegistroEspecialResponse,
         isExpress: boolean,
+        temporaryPassword: string,
     ): Observable<CorreoDeliveryResult> {
         const current = this.form();
         const data = response.datos;
@@ -2382,7 +2477,60 @@ export class UserRegistrationWizard {
                 email: recipient,
                 phone: current.phone,
                 system: this.toText(data?.sistema) || 'SIAU',
+                temporaryPassword,
                 isExpress,
+            }),
+        );
+    }
+
+    private requestTemporaryPassword(
+        response: RegistroAdminResponse | RegistroEspecialResponse,
+    ): Observable<string> {
+        const account = this.toText(response.datos?.cuentaGenerada)
+            || this.toText(response.datos?.cuenta);
+
+        if (!account) {
+            return of('').pipe(
+                map(() => {
+                    throw new Error(
+                        'El usuario fue creado, pero la respuesta no incluyó la cuenta necesaria para obtener la contraseña temporal.',
+                    );
+                }),
+            );
+        }
+
+        return this.usersFacade.getTemporaryPassword(account).pipe(
+            map((passwordResponse) => {
+                const temporaryPassword = this.toText(passwordResponse.datos?.passwordTemporal);
+
+                if (!temporaryPassword) {
+                    throw new Error(
+                        passwordResponse.mensaje?.trim()
+                        || 'El usuario fue creado, pero el servicio no devolvió la contraseña temporal.',
+                    );
+                }
+
+                return temporaryPassword;
+            }),
+        );
+    }
+
+    private deleteRegistrationDraftAfterSuccess(): Observable<void> {
+        const borradorId = this.draftId();
+
+        if (!borradorId) {
+            return of(void 0);
+        }
+
+        return this.usersFacade.deleteRegistrationDraft(borradorId).pipe(
+            map(() => {
+                this.draftId.set(null);
+                this.draftMessage.set('');
+                this.draftError.set('');
+            }),
+            catchError((error: unknown) => {
+                console.warn('El usuario fue registrado, pero no fue posible limpiar el borrador.', error);
+                return of(void 0);
             }),
         );
     }
@@ -2431,7 +2579,7 @@ export class UserRegistrationWizard {
             },
             comision: this.buildCommissionRequest(),
             medioContacto: this.buildContactRequest(),
-            cuenta: this.buildAccountRequest(assignedProfile),
+            cuenta: this.buildAdminAccountRequest(assignedProfile),
             comentario: isExpress
                 ? this.requireText(
                     current.expressJustification,
@@ -2583,7 +2731,7 @@ export class UserRegistrationWizard {
             },
             comision: this.buildSpecialCommissionRequest(),
             medioContacto: this.buildContactRequest(),
-            cuenta: this.buildAccountRequest(assignedProfile),
+            cuenta: this.buildSpecialAccountRequest(assignedProfile),
             comentario: this.requireText(
                 current.expressJustification,
                 'Captura la justificación de la creación express.',
@@ -2616,12 +2764,8 @@ export class UserRegistrationWizard {
         };
     }
 
-    private buildAccountRequest(assignedProfile: AssignedSystemProfile | null): RegistroCuenta {
-        const password = this.toText(this.form().password) || DEFAULT_ACCOUNT_PASSWORD;
-
+    private buildAdminAccountRequest(assignedProfile: AssignedSystemProfile | null): RegistroAdminCuenta {
         return {
-            password,
-            passwordHash: DEFAULT_ACCOUNT_PASSWORD_HASH,
             tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
             sistemaId: assignedProfile
                 ? this.resolveAssignedSystemId(assignedProfile)
@@ -2632,6 +2776,23 @@ export class UserRegistrationWizard {
                     'Selecciona un perfil válido.',
                 )
                 : DEFAULT_NORMAL_PROFILE_ID,
+            estadoCuentaId: 1,
+        };
+    }
+
+    private buildSpecialAccountRequest(assignedProfile: AssignedSystemProfile | null): RegistroEspecialCuenta {
+        return {
+            tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+            sistemaId: assignedProfile
+                ? this.resolveAssignedSystemId(assignedProfile)
+                : DEFAULT_NORMAL_SYSTEM_ID,
+            perfilId: assignedProfile
+                ? this.requireCatalogId(
+                    assignedProfile.role,
+                    'Selecciona un perfil válido.',
+                )
+                : DEFAULT_NORMAL_PROFILE_ID,
+            estadoCuentaId: 1,
         };
     }
 
@@ -2972,11 +3133,11 @@ export class UserRegistrationWizard {
                 const record = this.toRecord(item);
 
                 const rawSystemLabel = this.toText(
-                    this.firstValue(record, ['sistema', 'sistemaClave', 'nombreSistema', 'sistemaNombre']),
+                    this.firstValue(record, ['sistema', 'sistemaClave', 'nombreSistema', 'sistemaNombre', 'systemLabel']),
                 );
 
                 const rawSystemId = this.toText(
-                    this.firstValue(record, ['sistemaId', 'idSistema']),
+                    this.firstValue(record, ['sistemaId', 'idSistema', 'system']),
                 );
 
                 const rawRoleLabel = this.toText(
@@ -2988,11 +3149,12 @@ export class UserRegistrationWizard {
                         'rolClave',
                         'nombrePerfil',
                         'perfilNombre',
+                        'roleLabel',
                     ]),
                 );
 
                 const rawRoleId = this.toText(
-                    this.firstValue(record, ['perfilId', 'rolId', 'idPerfil']),
+                    this.firstValue(record, ['perfilId', 'rolId', 'idPerfil', 'role']),
                 );
                 const systemOption = this.findKnownSystemOption(rawSystemId, rawSystemLabel) ?? null;
 
@@ -3402,6 +3564,424 @@ export class UserRegistrationWizard {
         return 'active';
     }
 
+    private withCompletedStep(stepId: WizardStepId): readonly WizardStepId[] {
+        const completed = this.completedSteps();
+        return completed.includes(stepId) ? completed : [...completed, stepId];
+    }
+
+    private buildDraftSaveRequest(
+        _nextStepId: WizardStepId,
+        _completedSteps: readonly WizardStepId[],
+    ): BorradorGuardarRequest {
+        const current = this.form();
+        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
+
+        const datos: BorradorDatos = {
+            datosPersonales: {
+                cuip: this.toNullableText(current.cuip),
+                curp: this.toNullableText(current.curp)?.toUpperCase() ?? null,
+                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
+                nombres: this.toNullableText(current.firstName)?.toUpperCase() ?? null,
+                primerApellido: this.toNullableText(current.lastName)?.toUpperCase() ?? null,
+                segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
+                sexoId: this.toCatalogId(current.gender) ?? null,
+                fechaNacimiento: this.toNullableText(current.birthDate),
+                estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
+            },
+            adscripcion: {
+                estructuraId: this.resolveOptionalAssignmentStructureId(current),
+                cargo: this.toNullableText(current.position)?.toUpperCase() ?? null,
+                funciones: this.toNullableText(current.functions),
+                numeroEmpleado: this.toNullableText(current.employeeNumber),
+                fechaInicio: this.toNullableText(current.admissionDate),
+            },
+            comision: current.commissionEnabled
+                ? {
+                    estructuraId: this.resolveOptionalCommissionStructureId(current),
+                    cargo: null,
+                    funciones: null,
+                    numeroEmpleado: null,
+                    fechaInicio: this.toNullableText(current.commissionAdmissionDate),
+                }
+                : null,
+            medioContacto: {
+                correo: this.normalizeEmail(current.email) || null,
+                celular: this.toNullableText(current.phone),
+            },
+            cuenta: {
+                tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+                sistemaId: assignedProfile
+                    ? (this.toCatalogId(assignedProfile.system) ?? null)
+                    : null,
+                perfilId: assignedProfile
+                    ? (this.toCatalogId(assignedProfile.role) ?? null)
+                    : null,
+            },
+            comentario: this.toNullableText(current.expressJustification),
+        };
+
+        return {
+            // Para un borrador nuevo el contrato requiere null, no 0.
+            borradorId: this.draftId(),
+            datos,
+            auditoria: {
+                usuarioEjecutorId: this.resolveCurrentUserId() ?? 0,
+                correlationId: this.createDraftCorrelationId(),
+            },
+        };
+    }
+
+    private resolveOptionalAssignmentStructureId(current: UserRegistrationForm): number | null {
+        return this.toCatalogId(current.administrativeUnit)
+            ?? this.toCatalogId(current.decentralizedBody)
+            ?? this.toCatalogId(current.institution)
+            ?? null;
+    }
+
+    private resolveOptionalCommissionStructureId(current: UserRegistrationForm): number | null {
+        return this.toCatalogId(current.commissionAdministrativeUnit)
+            ?? this.toCatalogId(current.commissionDecentralizedBody)
+            ?? this.toCatalogId(current.commissionInstitution)
+            ?? null;
+    }
+
+    private createDraftCorrelationId(): string {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+
+        return `siau-borrador-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    private loadRegistrationDraft(): void {
+        if (this.isEditMode() || this.isDraftLoading()) {
+            return;
+        }
+
+        this.isDraftLoading.set(true);
+        this.draftError.set('');
+        this.draftMessage.set('Buscando un borrador pendiente...');
+
+        this.usersFacade
+            .getRegistrationDraft()
+            .pipe(
+                switchMap((draft) => {
+                    if (!draft?.datos) {
+                        return of({
+                            draft,
+                            hierarchies: {
+                                assignment: null,
+                                commission: null,
+                            } as DraftStructureHierarchies,
+                        });
+                    }
+
+                    return this.resolveDraftStructureHierarchies(draft).pipe(
+                        map((hierarchies) => ({ draft, hierarchies })),
+                        catchError((error: unknown) => {
+                            console.error(
+                                'No fue posible reconstruir la jerarquía de la estructura del borrador.',
+                                error,
+                            );
+
+                            return of({
+                                draft,
+                                hierarchies: {
+                                    assignment: null,
+                                    commission: null,
+                                } as DraftStructureHierarchies,
+                            });
+                        }),
+                    );
+                }),
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isDraftLoading.set(false)),
+            )
+            .subscribe({
+                next: ({ draft, hierarchies }) => {
+                    if (!draft?.datos) {
+                        this.draftMessage.set('');
+                        return;
+                    }
+
+                    const restoredForm = this.restoreFormFromDraftData(
+                        draft.datos,
+                        hierarchies,
+                    );
+                    const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos);
+
+                    this.draftId.set(draft.borradorId);
+                    this.form.set({
+                        ...restoredForm,
+                        profiles: restoredProfiles.map((profile) => profile.role),
+                    });
+                    this.seedResolvedDraftStructureOptions(hierarchies);
+                    this.assignedSystemProfiles.set(restoredProfiles);
+                    if (!restoredProfiles.length) {
+                        this.ensureDefaultSiauProfile();
+                    }
+
+                    const inferredStep = this.inferDraftStep(draft.datos);
+                    const requestedStep = draft.pasoActual || inferredStep;
+                    const activeStep = this.isWizardStep(requestedStep)
+                        && CREATE_WIZARD_STEPS.includes(requestedStep)
+                        ? requestedStep
+                        : 'personal-data';
+
+                    this.activeStepId.set(activeStep);
+                    this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
+                    this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
+
+                    const unresolvedAssignment = Boolean(
+                        draft.datos.adscripcion.estructuraId && !hierarchies.assignment,
+                    );
+                    const unresolvedCommission = Boolean(
+                        draft.datos.comision?.estructuraId && !hierarchies.commission,
+                    );
+
+                    // El borrador sólo guarda el último `estructuraId`, así que
+                    // la estructura se muestra en el nivel de institución sin su
+                    // ámbito. Se avisa para que el usuario sepa que debe volver
+                    // a elegir la cascada si necesita cambiarla.
+                    const partialAssignment = Boolean(
+                        hierarchies.assignment?.institution
+                        && !hierarchies.assignment.institutionType,
+                    );
+                    const partialCommission = Boolean(
+                        hierarchies.commission?.institution
+                        && !hierarchies.commission.institutionType,
+                    );
+
+                    if (unresolvedAssignment || unresolvedCommission) {
+                        this.draftError.set(
+                            'Se recuperó el borrador, pero no fue posible reconstruir toda la jerarquía de adscripción. Vuelve a seleccionar los catálogos faltantes.',
+                        );
+                    } else if (partialAssignment || partialCommission) {
+                        this.draftMessage.set(
+                            'Borrador recuperado. La estructura guardada se muestra en el primer nivel; si necesitas cambiarla, vuelve a elegir el tipo de institución.',
+                        );
+                    }
+
+                    this.loadHydratedAssignmentCatalogs(this.form());
+                },
+                error: (error: unknown) => {
+                    this.draftMessage.set('');
+                    this.draftError.set(
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible recuperar el borrador del registro.',
+                    );
+                },
+            });
+    }
+
+    private restoreFormFromDraftData(
+        datos: BorradorDatos,
+        hierarchies: DraftStructureHierarchies,
+    ): UserRegistrationForm {
+        const personal = datos.datosPersonales;
+        const assignment = datos.adscripcion;
+        const commission = datos.comision;
+        const contact = datos.medioContacto;
+        const assignmentHierarchy = hierarchies.assignment;
+        const commissionHierarchy = hierarchies.commission;
+
+        return {
+            ...INITIAL_FORM,
+            cuip: personal.cuip ?? '',
+            curp: personal.curp ?? '',
+            rfc: personal.rfc ?? '',
+            firstName: personal.nombres ?? '',
+            lastName: personal.primerApellido ?? '',
+            secondLastName: personal.segundoApellido ?? '',
+            birthDate: this.toDateInputValue(personal.fechaNacimiento),
+            gender: personal.sexoId ? String(personal.sexoId) : '',
+            civilStatus: personal.estadoCivilId ? String(personal.estadoCivilId) : '',
+
+            // El borrador solo persiste el último estructuraId. Al recuperarlo se
+            // reconstruye la cadena de padres para volver a llenar todos los
+            // selects de adscripción. Si no puede resolverse la ruta, los
+            // selects jerárquicos quedan vacíos para no mostrar el último hijo
+            // incorrectamente como si fuera una institución.
+            institutionType: assignmentHierarchy?.institutionType ?? '',
+            entity: assignmentHierarchy?.entity ?? '',
+            municipality: assignmentHierarchy?.municipality ?? '',
+            institution: assignmentHierarchy?.institution ?? '',
+            decentralizedBody: assignmentHierarchy?.decentralizedBody ?? '',
+            administrativeUnit: assignmentHierarchy?.administrativeUnit ?? '',
+            position: assignment.cargo ?? '',
+            functions: assignment.funciones ?? '',
+            admissionDate: this.toDateInputValue(assignment.fechaInicio),
+            employeeNumber: assignment.numeroEmpleado ?? '',
+
+            commissionEnabled: Boolean(commission),
+            commissionInstitutionType: commissionHierarchy?.institutionType ?? '',
+            commissionEntity: commissionHierarchy?.entity ?? '',
+            commissionMunicipality: commissionHierarchy?.municipality ?? '',
+            commissionInstitution: commissionHierarchy?.institution ?? '',
+            commissionDecentralizedBody: commissionHierarchy?.decentralizedBody ?? '',
+            commissionAdministrativeUnit: commissionHierarchy?.administrativeUnit ?? '',
+            commissionAdmissionDate: this.toDateInputValue(commission?.fechaInicio),
+
+            email: contact.correo ?? '',
+            phone: (contact.celular ?? '').replace(/\D/g, '').slice(0, 10),
+            expressJustification: datos.comentario ?? '',
+            password: '',
+            confirmPassword: '',
+        };
+    }
+
+    /**
+     * El GET de borradores sólo regresa el último `estructuraId` seleccionado.
+     * La reconstrucción de institución -> OAD -> UA vive en
+     * `DraftStructureResolver`, que recorre el árbol de catálogos hacia abajo
+     * porque los SP no permiten leer un registro por id ni subir al padre.
+     */
+    private resolveDraftStructureHierarchies(
+        draft: BorradorItem,
+    ): Observable<DraftStructureHierarchies> {
+        return this.draftStructureResolver.resolverJerarquias(draft);
+    }
+
+    private seedResolvedDraftStructureOptions(
+        hierarchies: DraftStructureHierarchies,
+    ): void {
+        this.seedResolvedStructureOptions(
+            hierarchies.assignment,
+            this.institutionOptions,
+            this.decentralizedBodyOptions,
+            this.administrativeUnitOptions,
+        );
+        this.seedResolvedStructureOptions(
+            hierarchies.commission,
+            this.commissionInstitutionOptions,
+            this.commissionDecentralizedBodyOptions,
+            this.commissionAdministrativeUnitOptions,
+        );
+    }
+
+    private seedResolvedStructureOptions(
+        hierarchy: ResolvedDraftStructureHierarchy | null,
+        institutions: WritableSignal<readonly SiauSelectOption[]>,
+        decentralizedBodies: WritableSignal<readonly SiauSelectOption[]>,
+        administrativeUnits: WritableSignal<readonly SiauSelectOption[]>,
+    ): void {
+        institutions.set(hierarchy?.institutionOption ? [hierarchy.institutionOption] : []);
+        decentralizedBodies.set(
+            hierarchy?.decentralizedBodyOption ? [hierarchy.decentralizedBodyOption] : [],
+        );
+        administrativeUnits.set(
+            hierarchy?.administrativeUnitOption ? [hierarchy.administrativeUnitOption] : [],
+        );
+    }
+
+    private restoreProfilesFromDraftData(datos: BorradorDatos): AssignedSystemProfile[] {
+        const systemId = datos.cuenta.sistemaId;
+        const profileId = datos.cuenta.perfilId;
+
+        if (!systemId || !profileId) {
+            return [];
+        }
+
+        const systemValue = String(systemId);
+        const roleValue = String(profileId);
+        const systemOption = this.findKnownSystemOption(systemValue);
+        const roleOption = this.roleOptions().find((option) => option.value === roleValue);
+
+        return [{
+            id: `${systemValue}:${roleValue}`,
+            system: systemValue,
+            systemLabel: systemOption?.label ?? systemValue,
+            role: roleValue,
+            roleLabel: roleOption?.label ?? roleValue,
+        }];
+    }
+
+    private inferDraftStep(datos: BorradorDatos): WizardStepId {
+        if (datos.cuenta.sistemaId && datos.cuenta.perfilId) {
+            return 'profiles';
+        }
+
+        if (datos.medioContacto.correo || datos.medioContacto.celular) {
+            return 'profiles';
+        }
+
+        if (datos.adscripcion.estructuraId) {
+            return datos.comision ? 'documents' : 'commission';
+        }
+
+        if (
+            datos.datosPersonales.curp
+            || datos.datosPersonales.nombres
+            || datos.datosPersonales.primerApellido
+        ) {
+            return 'assignment';
+        }
+
+        return 'personal-data';
+    }
+
+    private inferCompletedDraftSteps(activeStep: WizardStepId): readonly WizardStepId[] {
+        const order = this.stepOrder();
+        const index = order.indexOf(activeStep);
+
+        return index > 0
+            ? order.slice(0, index).filter((step) => CREATE_WIZARD_STEPS.includes(step))
+            : [];
+    }
+
+    protected deleteRegistrationDraft(): void {
+        const borradorId = this.draftId();
+
+        if (!borradorId || this.isDraftBusy() || this.isSubmitting()) {
+            return;
+        }
+
+        this.deleteDraftConfirmationOpen.set(true);
+    }
+
+    protected closeDeleteDraftConfirmation(): void {
+        if (this.isDraftDeleting()) {
+            return;
+        }
+
+        this.deleteDraftConfirmationOpen.set(false);
+    }
+
+    protected confirmDeleteRegistrationDraft(): void {
+        const borradorId = this.draftId();
+
+        if (!borradorId || this.isDraftDeleting() || this.isSubmitting()) {
+            return;
+        }
+
+        this.isDraftDeleting.set(true);
+        this.draftError.set('');
+
+        this.usersFacade
+            .deleteRegistrationDraft(borradorId)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isDraftDeleting.set(false)),
+            )
+            .subscribe({
+                next: () => {
+                    this.deleteDraftConfirmationOpen.set(false);
+                    this.resetWizard();
+                    this.ensureDefaultSiauProfile();
+                    this.draftMessage.set('Borrador eliminado. Se inició un registro nuevo.');
+                },
+                error: (error: unknown) => {
+                    this.deleteDraftConfirmationOpen.set(false);
+                    this.draftError.set(
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible eliminar el borrador.',
+                    );
+                },
+            });
+    }
+
     private markCompleted(stepId: WizardStepId): void {
         this.completedSteps.update((current) => {
             if (current.includes(stepId)) {
@@ -3422,6 +4002,13 @@ export class UserRegistrationWizard {
         this.editEnabled.set(true);
         this.form.set({ ...INITIAL_FORM, profiles: [] });
         this.isSubmitting.set(false);
+        this.isDraftLoading.set(false);
+        this.isDraftSaving.set(false);
+        this.isDraftDeleting.set(false);
+        this.draftId.set(null);
+        this.draftMessage.set('');
+        this.draftError.set('');
+        this.deleteDraftConfirmationOpen.set(false);
         this.formErrors.set({});
         this.saveSuccess.set(null);
         this.selectedSystem.set('');
@@ -3455,7 +4042,11 @@ export class UserRegistrationWizard {
             this.loadAssignmentInstitutions();
         }
 
-        if (form.institution) {
+        // Sin tipo de institución no se puede armar una consulta válida de
+        // hijos: el borrador recuperado sólo trae la estructura persistida en el
+        // nivel de institución, así que se conserva la opción ya sembrada en
+        // lugar de disparar una petición incompleta.
+        if (form.institutionType && form.institution) {
             this.loadAssignmentDecentralizedBodies();
             this.loadAssignmentAdministrativeUnits();
         }
@@ -3472,7 +4063,7 @@ export class UserRegistrationWizard {
             this.loadCommissionInstitutions();
         }
 
-        if (form.commissionInstitution) {
+        if (form.commissionInstitutionType && form.commissionInstitution) {
             this.loadCommissionDecentralizedBodies();
             this.loadCommissionAdministrativeUnits();
         }

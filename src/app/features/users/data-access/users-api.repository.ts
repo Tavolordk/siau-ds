@@ -1,10 +1,15 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { catchError, map, Observable, throwError } from 'rxjs';
+import { catchError, map, Observable, of, throwError } from 'rxjs';
 import { CONSULTAS_API_BASE_URL } from '../../../core/http/consultas-api-base-url.token';
 import {
     ActualizarAdminRequest,
     ActualizarAdminResponse,
+    BorradorGuardarRequest,
+    BorradorItem,
+    BorradorOperacionResponse,
+    PasswordTemporalResponse,
+    BorradorDatos,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroEspecialRequest,
@@ -18,9 +23,13 @@ import {
     UsersQuery,
 } from '../domain/models/user-record.model';
 
-const USERS_PATH = '/api/v1/consultas/usuarios';
-const REGISTRO_ADMIN_PATH = '/api/v1/registro/registro_admin';
-const REGISTRO_ESPECIAL_PATH = '/api/v1/registro/registro_especial';
+const REGISTRO_ROOT_PATH = '/api/v1/registro';
+const USERS_SEARCH_PATH = `${REGISTRO_ROOT_PATH}/usuarios/busqueda-avanzada`;
+const USERS_DETAIL_PATH = '/api/v1/consultas/usuarios';
+const REGISTRO_ADMIN_PATH = `${REGISTRO_ROOT_PATH}/registro_admin`;
+const REGISTRO_ESPECIAL_PATH = `${REGISTRO_ROOT_PATH}/registro_especial`;
+const BORRADORES_PATH = `${REGISTRO_ROOT_PATH}/borradores`;
+const PASSWORD_TEMPORAL_PATH = `${REGISTRO_ROOT_PATH}/usuarios`;
 const ACTUALIZAR_ADMIN_PATH = '/api/v1/solicitudes/actualizar_admin';
 const SOLICITUD_BAJA_PATH = '/api/v1/solicitudes/baja';
 const SOLICITUD_SUSPENDER_PATH = '/api/v1/solicitudes/suspender';
@@ -40,66 +49,154 @@ interface ApiResponseDto<T> {
     readonly traceId?: string | null;
 }
 
-interface UserListItemDto {
+interface AdvancedUserListItemDto {
     readonly usuarioId?: number | null;
-    readonly nombreUsuario?: string | null;
-    readonly nombreCompleto?: string | null;
-    readonly correo?: string | null;
-    readonly institucion?: string | null;
-    readonly nombreInstitucion?: string | null;
+    readonly primerApellido?: string | null;
+    readonly segundoApellido?: string | null;
+    readonly nombres?: string | null;
+    readonly curp?: string | null;
+    readonly rfc?: string | null;
+    readonly correoElectronico?: string | null;
+    readonly numeroTelefonico?: string | null;
+    readonly tipoInstitucionId?: number | null;
+    readonly tipoInstitucion?: string | null;
+    readonly entidadId?: number | null;
     readonly entidad?: string | null;
-    readonly nombreEntidad?: string | null;
-    readonly tipoUsuarioId?: number | null;
-    readonly rol?: string | null;
-    readonly rolClave?: string | null;
-    readonly estadoCuentaId?: number | null;
+    readonly municipioAlcaldiaId?: number | null;
+    readonly municipioAlcaldia?: string | null;
+    readonly institucionId?: number | null;
+    readonly institucion?: string | null;
+    readonly organoAdministrativoDesconcentradoId?: number | null;
+    readonly organoAdministrativoDesconcentrado?: string | null;
+    readonly unidadAdministrativaId?: number | null;
+    readonly unidadAdministrativa?: string | null;
+    readonly nombreUsuario?: string | null;
+    readonly estatusId?: number | null;
     readonly estatus?: string | null;
-    readonly estatusClave?: string | null;
-    readonly rnpsp?: string | null;
-    readonly cConfianza?: string | null;
+    readonly fechaUltimoMovimiento?: string | null;
     readonly fechaAlta?: string | null;
     readonly fechaActualizacion?: string | null;
 }
 
-interface PaginationDto {
+interface AdvancedUsersResponseDto {
+    readonly mensaje?: string | null;
     readonly totalRegistros?: number | null;
     readonly totalPaginas?: number | null;
     readonly paginaActual?: number | null;
     readonly porPagina?: number | null;
-}
-
-interface UsersResponseDto {
-    readonly usuarios?: readonly UserListItemDto[] | null;
-    readonly paginacion?: PaginationDto | null;
+    readonly datos?: readonly AdvancedUserListItemDto[] | null;
 }
 
 interface UserDetailResponseDto {
     readonly datos?: Record<string, unknown> | null;
 }
 
+type UnknownRecord = Record<string, unknown>;
+
 @Injectable({ providedIn: 'root' })
 export class UsersApiRepository {
     private readonly http = inject(HttpClient);
     private readonly baseUrl = inject(CONSULTAS_API_BASE_URL).replace(/\/$/, '');
 
-    getUsers(query: UsersQuery): Observable<UsersPageResult> {
+    /** Lista inicial de la sección Usuarios. No depende de ejecutar una búsqueda avanzada. */
+    getAllUsers(page = 1, pageSize = 15): Observable<UsersPageResult> {
         return this.http
-            .get<ApiResponseDto<UsersResponseDto>>(`${this.baseUrl}${USERS_PATH}`, {
-                params: this.toHttpParams(query),
+            .get<unknown>(`${this.baseUrl}${USERS_DETAIL_PATH}`, {
+                params: {
+                    pagina: String(page),
+                    porPagina: String(pageSize),
+                },
             })
             .pipe(
-                map((response) =>
-                    this.unwrapResponse(
-                        response,
-                        'No fue posible consultar usuarios.',
-                    ),
+                map((response) => this.toGenericUsersPageResult(response, page, pageSize)),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible obtener la lista de usuarios.'),
                 ),
+            );
+    }
+
+    searchUsers(query: UsersQuery): Observable<UsersPageResult> {
+        return this.http
+            .post<AdvancedUsersResponseDto>(
+                `${this.baseUrl}${USERS_SEARCH_PATH}`,
+                query,
+            )
+            .pipe(
                 map((response) => this.toUsersPageResult(response, query)),
                 catchError((error: unknown) =>
                     this.handleError(
                         error,
-                        'No fue posible consultar usuarios.',
+                        'No fue posible realizar la búsqueda avanzada de usuarios.',
                     ),
+                ),
+            );
+    }
+
+    /** Compatibilidad con llamadas existentes: si no hay filtros usa el GET general. */
+    getUsers(query: UsersQuery): Observable<UsersPageResult> {
+        const hasSearchCriteria = Object.entries(query).some(([key, value]) =>
+            key !== 'pagina'
+            && key !== 'porPagina'
+            && value !== null
+            && value !== undefined
+            && String(value).trim() !== '',
+        );
+
+        return hasSearchCriteria
+            ? this.searchUsers(query)
+            : this.getAllUsers(query.pagina ?? 1, query.porPagina ?? 15);
+    }
+
+    saveRegistrationDraft(request: BorradorGuardarRequest): Observable<BorradorOperacionResponse> {
+        return this.http
+            .post<unknown>(`${this.baseUrl}${BORRADORES_PATH}`, request)
+            .pipe(
+                map((response) => this.toDraftOperationResponse(response, request)),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible guardar el avance del registro.'),
+                ),
+            );
+    }
+
+    getRegistrationDraft(): Observable<BorradorItem | null> {
+        return this.http
+            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`)
+            .pipe(
+                map((response) => this.toDraftItem(response)),
+                catchError((error: unknown) => {
+                    if (error instanceof HttpErrorResponse && (error.status === 404 || error.status === 204)) {
+                        return of(null);
+                    }
+
+                    return this.handleError(error, 'No fue posible recuperar el borrador del registro.');
+                }),
+            );
+    }
+
+    deleteRegistrationDraft(borradorId: number): Observable<void> {
+        return this.http
+            .delete<unknown>(
+                `${this.baseUrl}${BORRADORES_PATH}/${encodeURIComponent(String(borradorId))}`,
+            )
+            .pipe(
+                map(() => void 0),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible eliminar el borrador del registro.'),
+                ),
+            );
+    }
+
+    getTemporaryPassword(account: string): Observable<PasswordTemporalResponse> {
+        const normalizedAccount = String(account ?? '').trim();
+
+        return this.http
+            .get<unknown>(
+                `${this.baseUrl}${PASSWORD_TEMPORAL_PATH}/${encodeURIComponent(normalizedAccount)}/password-temporal`,
+            )
+            .pipe(
+                map((response) => this.toPasswordTemporalResponse(response, normalizedAccount)),
+                catchError((error: unknown) =>
+                    this.handleError(error, 'No fue posible obtener la contraseña temporal.'),
                 ),
             );
     }
@@ -113,14 +210,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible registrar el usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible registrar el usuario.'),
                 ),
             );
     }
@@ -134,14 +226,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible registrar el usuario express.',
-                    ),
+                    this.handleError(error, 'No fue posible registrar el usuario express.'),
                 ),
             );
     }
@@ -155,14 +242,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible actualizar el usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible actualizar el usuario.'),
                 ),
             );
     }
@@ -176,14 +258,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible dar de baja al usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible dar de baja al usuario.'),
                 ),
             );
     }
@@ -197,14 +274,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible suspender al usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible suspender al usuario.'),
                 ),
             );
     }
@@ -218,14 +290,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible reactivar al usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible reactivar al usuario.'),
                 ),
             );
     }
@@ -239,14 +306,9 @@ export class UsersApiRepository {
                 request,
             )
             .pipe(
-                map((response) =>
-                    response ?? { mensaje: null, datos: null },
-                ),
+                map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible desbloquear al usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible desbloquear al usuario.'),
                 ),
             );
     }
@@ -254,9 +316,7 @@ export class UsersApiRepository {
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.http
             .get<ApiResponseDto<UserDetailResponseDto>>(
-                `${this.baseUrl}${USERS_PATH}/${encodeURIComponent(
-                    String(userId),
-                )}`,
+                `${this.baseUrl}${USERS_DETAIL_PATH}/${encodeURIComponent(String(userId))}`,
             )
             .pipe(
                 map((response) =>
@@ -270,195 +330,376 @@ export class UsersApiRepository {
                     datos: response.datos ?? {},
                 })),
                 catchError((error: unknown) =>
-                    this.handleError(
-                        error,
-                        'No fue posible consultar el detalle del usuario.',
-                    ),
+                    this.handleError(error, 'No fue posible consultar el detalle del usuario.'),
                 ),
             );
     }
 
     private toUsersPageResult(
-        response: UsersResponseDto,
+        response: AdvancedUsersResponseDto,
         query: UsersQuery,
     ): UsersPageResult {
-        const usuarios = (response.usuarios ?? []).map((user) =>
-            this.toUserRecord(user),
-        );
-
-        const paginacion = this.toPagination(
-            response.paginacion,
-            query,
-            usuarios.length,
-        );
+        const usuarios = (response.datos ?? []).map((user) => this.toUserRecord(user));
 
         return {
             usuarios,
-            paginacion,
+            paginacion: this.toPagination(response, query, usuarios.length),
         };
     }
 
-    private toUserRecord(user: UserListItemDto): UserRecord {
+    private toGenericUsersPageResult(response: unknown, page: number, pageSize: number): UsersPageResult {
+        const root = this.asRecord(response);
+        const nested = this.asRecord(root?.['datos'] ?? root?.['data']);
+        const candidates = [
+            response,
+            root?.['datos'],
+            root?.['data'],
+            root?.['usuarios'],
+            root?.['items'],
+            root?.['registros'],
+            nested?.['usuarios'],
+            nested?.['items'],
+            nested?.['datos'],
+            nested?.['registros'],
+        ];
+        const rawItems = candidates.find((candidate) => Array.isArray(candidate)) as readonly unknown[] | undefined;
+        const allUsers = (rawItems ?? []).map((item) => this.toUserRecordFromUnknown(item));
+
+        const metadata = nested ?? root;
+        const totalRecords = this.readNumber(metadata, ['totalRegistros', 'total', 'totalRecords'], allUsers.length);
+        const currentPage = this.readNumber(metadata, ['paginaActual', 'pagina', 'page'], page);
+        const responsePageSize = this.readNumber(metadata, ['porPagina', 'tamanoPagina', 'pageSize'], pageSize);
+        const declaredPages = this.readNumber(metadata, ['totalPaginas', 'pages', 'totalPages'], 0);
+
+        // Si el GET regresa toda la colección sin metadatos, la paginación se hace en memoria.
+        const hasPaginationMetadata = Boolean(
+            metadata
+            && (metadata['totalPaginas'] !== undefined
+                || metadata['paginaActual'] !== undefined
+                || metadata['porPagina'] !== undefined
+                || metadata['totalRegistros'] !== undefined),
+        );
+        const users = hasPaginationMetadata
+            ? allUsers
+            : allUsers.slice(Math.max(0, page - 1) * pageSize, Math.max(0, page - 1) * pageSize + pageSize);
+        const computedTotalPages = Math.max(1, Math.ceil(totalRecords / Math.max(1, responsePageSize)));
+
+        return {
+            usuarios: users,
+            paginacion: {
+                totalRegistros: totalRecords,
+                totalPaginas: Math.max(1, declaredPages || computedTotalPages),
+                paginaActual: Math.max(1, currentPage),
+                porPagina: Math.max(1, responsePageSize),
+            },
+        };
+    }
+
+    private toUserRecordFromUnknown(value: unknown): UserRecord {
+        const record = this.asRecord(value) ?? {};
+        const dto: AdvancedUserListItemDto = {
+            usuarioId: this.readNumber(record, ['usuarioId', 'idUsuario', 'id'], 0),
+            nombres: this.readText(record, ['nombres', 'nombre', 'name']),
+            primerApellido: this.readText(record, ['primerApellido', 'apellidoPaterno', 'primer_apellido']),
+            segundoApellido: this.readText(record, ['segundoApellido', 'apellidoMaterno', 'segundo_apellido']),
+            correoElectronico: this.readText(record, ['correoElectronico', 'correo', 'email']),
+            numeroTelefonico: this.readText(record, ['numeroTelefonico', 'telefono', 'celular']),
+            nombreUsuario: this.readText(record, ['nombreUsuario', 'usuario', 'cuenta', 'username']),
+            estatus: this.readText(record, ['estatus', 'estadoCuenta', 'estado', 'status']),
+            institucion: this.readText(record, ['institucion', 'nombreInstitucion']),
+            entidad: this.readText(record, ['entidad', 'nombreEntidad']),
+            fechaAlta: this.readText(record, ['fechaAlta', 'fechaRegistro', 'createdAt']),
+            fechaActualizacion: this.readText(record, ['fechaActualizacion', 'updatedAt']),
+        };
+
+        return this.toUserRecord(dto);
+    }
+
+    private toUserRecord(user: AdvancedUserListItemDto): UserRecord {
         const userId = this.toNumber(user.usuarioId, 0);
-
-        const username =
-            this.normalizeText(user.nombreUsuario) || `usuario-${userId}`;
-
-        const fullName =
-            this.normalizeText(user.nombreCompleto) || 'Sin nombre';
-
-        const email =
-            this.normalizeText(user.correo) || 'Sin correo';
-
-        const institution =
-            this.normalizeText(user.institucion) ||
-            this.normalizeText(user.nombreInstitucion) ||
-            'Sin institución';
-
-        const entity =
-            this.normalizeText(user.entidad) ||
-            this.normalizeText(user.nombreEntidad) ||
-            'Sin entidad';
-
-        const role =
-            this.normalizeText(user.rol) ||
-            this.normalizeText(user.rolClave) ||
-            'Sin rol';
-
-        const roleKey = this.normalizeText(user.rolClave);
-
-        const status =
-            this.normalizeText(user.estatus) ||
-            this.normalizeText(user.estatusClave) ||
-            'Sin estatus';
-
-        const statusKey = this.normalizeText(user.estatusClave);
-
-        const rnpsp =
-            this.normalizeText(user.rnpsp) || 'No registrado';
-
-        const trust =
-            this.normalizeText(user.cConfianza) || 'No capturado';
+        const username = this.normalizeText(user.nombreUsuario) || `usuario-${userId}`;
+        const fullName = [
+            this.normalizeText(user.nombres),
+            this.normalizeText(user.primerApellido),
+            this.normalizeText(user.segundoApellido),
+        ].filter(Boolean).join(' ') || 'Sin nombre';
 
         return {
             userId,
             username,
             fullName,
-            email,
-            institution,
-            entity,
-            role,
-            roleKey,
-            status,
-            statusKey,
-            rnpsp,
-            trust,
+            email: this.normalizeText(user.correoElectronico) || 'Sin correo',
+            institution: this.normalizeText(user.institucion) || 'Sin institución',
+            entity: this.normalizeText(user.entidad) || 'Sin entidad',
+            role: 'Sin rol',
+            roleKey: '',
+            status: this.normalizeText(user.estatus) || 'Sin estatus',
+            statusKey: this.normalizeText(user.estatus),
+            rnpsp: 'No registrado',
+            trust: 'No capturado',
             createdAt: user.fechaAlta ?? null,
             updatedAt: user.fechaActualizacion ?? null,
         };
     }
 
     private toPagination(
-        pagination: PaginationDto | null | undefined,
+        response: AdvancedUsersResponseDto,
         query: UsersQuery,
         currentCount: number,
     ): UserPagination {
-        const currentPage = this.toNumber(
-            pagination?.paginaActual,
-            query.pagina ?? 1,
-        );
-
-        const pageSize = this.toNumber(
-            pagination?.porPagina,
-            query.porPagina ?? currentCount,
-        );
-
-        const totalRecords = this.toNumber(
-            pagination?.totalRegistros,
-            currentCount,
-        );
-
+        const currentPage = this.toNumber(response.paginaActual, query.pagina ?? 1);
+        const pageSize = this.toNumber(response.porPagina, query.porPagina ?? Math.max(1, currentCount));
+        const totalRecords = this.toNumber(response.totalRegistros, currentCount);
         const totalPages = this.toNumber(
-            pagination?.totalPaginas,
-            pageSize > 0
-                ? Math.max(1, Math.ceil(totalRecords / pageSize))
-                : 1,
+            response.totalPaginas,
+            pageSize > 0 ? Math.max(1, Math.ceil(totalRecords / pageSize)) : 1,
         );
 
         return {
             totalRegistros: totalRecords,
-            totalPaginas: totalPages,
-            paginaActual: currentPage,
-            porPagina: pageSize,
+            totalPaginas: Math.max(1, totalPages),
+            paginaActual: Math.max(1, currentPage),
+            porPagina: Math.max(1, pageSize),
         };
     }
 
-    private toHttpParams(query: UsersQuery): HttpParams {
-        let params = new HttpParams();
+    private toDraftOperationResponse(
+        response: unknown,
+        request: BorradorGuardarRequest,
+    ): BorradorOperacionResponse {
+        const root = this.asRecord(response);
+        const item = this.toDraftItem(response) ?? {
+            borradorId: this.toPositiveNumber(request.borradorId) ?? null,
+            pasoActual: null,
+            datos: request.datos,
+            catalogos: null,
+            fechaActualizacion: null,
+        };
 
-        Object.entries(query).forEach(([key, value]) => {
-            if (
-                value !== undefined &&
-                value !== null &&
-                value !== ''
-            ) {
-                params = params.set(key, String(value));
-            }
-        });
-
-        return params;
+        return {
+            mensaje: this.readText(root, ['mensaje', 'message']) || 'Borrador guardado.',
+            datos: item,
+        };
     }
 
-    private unwrapResponse<T>(
-        response: ApiResponseDto<T>,
-        fallbackMessage: string,
-    ): T {
+    private toDraftItem(response: unknown): BorradorItem | null {
+        if (response === null || response === undefined) {
+            return null;
+        }
+
+        if (Array.isArray(response)) {
+            return response.length ? this.toDraftItem(response[0]) : null;
+        }
+
+        const root = this.asRecord(response);
+        if (!root) {
+            return null;
+        }
+
+        const rootLooksLikeDraftItem =
+            this.readNumber(root, ['borradorId', 'idBorrador', 'id'], 0) > 0
+            || this.looksLikeDraftData(root['datos'])
+            || typeof root['datos'] === 'string';
+
+        const data = rootLooksLikeDraftItem
+            ? root
+            : (root['datos'] ?? root['data'] ?? root['borrador'] ?? root);
+
+        if (Array.isArray(data)) {
+            return data.length ? this.toDraftItem(data[0]) : null;
+        }
+
+        const record = this.asRecord(data);
+        if (!record) {
+            return null;
+        }
+
+        const draftData = this.toDraftData(
+            record['datos']
+            ?? record['contenido']
+            ?? record['payload']
+            ?? record['formulario']
+            ?? record['data']
+            ?? record,
+        );
+        const id = this.readNumber(record, ['borradorId', 'idBorrador', 'id'], 0);
+        const pasoActual = this.readText(record, ['pasoActual', 'paso', 'step']);
+
+        if (!draftData && !id && !pasoActual) {
+            return null;
+        }
+
+        const catalogos = this.asRecord(record['catalogos']);
+
+        return {
+            borradorId: id > 0 ? id : null,
+            pasoActual: pasoActual || null,
+            datos: draftData,
+            catalogos: catalogos
+                ? {
+                    sexo: this.readNullableText(catalogos, ['sexo']),
+                    estadoCivil: this.readNullableText(catalogos, ['estadoCivil']),
+                    adscripcion: this.readNullableText(catalogos, ['adscripcion']),
+                    comision: this.readNullableText(catalogos, ['comision']),
+                    tipoUsuario: this.readNullableText(catalogos, ['tipoUsuario']),
+                    sistema: this.readNullableText(catalogos, ['sistema']),
+                    perfil: this.readNullableText(catalogos, ['perfil']),
+                }
+                : null,
+            fechaActualizacion: this.readText(record, ['fechaActualizacion', 'actualizadoEn', 'updatedAt']) || null,
+        };
+    }
+
+    private looksLikeDraftData(value: unknown): boolean {
+        const record = this.asRecord(value);
+        return Boolean(
+            record
+            && (
+                record['datosPersonales']
+                || record['adscripcion']
+                || record['medioContacto']
+                || record['cuenta']
+            ),
+        );
+    }
+
+    private toDraftData(value: unknown): BorradorDatos | null {
+        let parsed = value;
+
+        // Tolerancia para borradores viejos que pudieran haberse persistido
+        // serializados; el contrato nuevo se envía y se espera como objeto.
+        if (typeof parsed === 'string') {
+            try {
+                parsed = JSON.parse(parsed) as unknown;
+            } catch {
+                return null;
+            }
+        }
+
+        const record = this.asRecord(parsed);
+        if (!record) {
+            return null;
+        }
+
+        const source = this.looksLikeDraftData(record)
+            ? record
+            : this.asRecord(record['datos']);
+
+        if (!source || !this.looksLikeDraftData(source)) {
+            return null;
+        }
+
+        const personal = this.asRecord(source['datosPersonales']) ?? {};
+        const assignment = this.asRecord(source['adscripcion']) ?? {};
+        const commission = source['comision'] === null
+            ? null
+            : this.asRecord(source['comision']);
+        const contact = this.asRecord(source['medioContacto']) ?? {};
+        const account = this.asRecord(source['cuenta']) ?? {};
+
+        return {
+            datosPersonales: {
+                cuip: this.readNullableText(personal, ['cuip']),
+                curp: this.readNullableText(personal, ['curp']),
+                rfc: this.readNullableText(personal, ['rfc']),
+                nombres: this.readNullableText(personal, ['nombres']),
+                primerApellido: this.readNullableText(personal, ['primerApellido']),
+                segundoApellido: this.readNullableText(personal, ['segundoApellido']),
+                sexoId: this.readNullableNumber(personal, ['sexoId']),
+                fechaNacimiento: this.readNullableText(personal, ['fechaNacimiento']),
+                estadoCivilId: this.readNullableNumber(personal, ['estadoCivilId']),
+            },
+            adscripcion: {
+                estructuraId: this.readNullableNumber(assignment, ['estructuraId']),
+                cargo: this.readNullableText(assignment, ['cargo']),
+                funciones: this.readNullableText(assignment, ['funciones']),
+                numeroEmpleado: this.readNullableText(assignment, ['numeroEmpleado']),
+                fechaInicio: this.readNullableText(assignment, ['fechaInicio']),
+            },
+            comision: commission
+                ? {
+                    estructuraId: this.readNullableNumber(commission, ['estructuraId']),
+                    cargo: this.readNullableText(commission, ['cargo']),
+                    funciones: this.readNullableText(commission, ['funciones']),
+                    numeroEmpleado: this.readNullableText(commission, ['numeroEmpleado']),
+                    fechaInicio: this.readNullableText(commission, ['fechaInicio']),
+                }
+                : null,
+            medioContacto: {
+                correo: this.readNullableText(contact, ['correo']),
+                celular: this.readNullableText(contact, ['celular']),
+            },
+            cuenta: {
+                tipoUsuarioId: this.readNullableNumber(account, ['tipoUsuarioId']),
+                sistemaId: this.readNullableNumber(account, ['sistemaId']),
+                perfilId: this.readNullableNumber(account, ['perfilId']),
+            },
+            comentario: this.readNullableText(source, ['comentario']),
+        };
+    }
+
+    private readNullableText(record: Record<string, unknown>, keys: readonly string[]): string | null {
+        const value = this.readText(record, keys);
+        return value || null;
+    }
+
+    private readNullableNumber(record: Record<string, unknown>, keys: readonly string[]): number | null {
+        for (const key of keys) {
+            const value = Number(record[key]);
+            if (Number.isFinite(value) && value > 0) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private toPasswordTemporalResponse(response: unknown, account: string): PasswordTemporalResponse {
+        const root = this.asRecord(response);
+        const data = this.asRecord(root?.['datos'] ?? root?.['data'] ?? root) ?? {};
+        const password = this.readText(data, [
+            'passwordTemporal',
+            'contrasenaTemporal',
+            'contraseñaTemporal',
+            'password',
+            'claveTemporal',
+        ]);
+
+        return {
+            mensaje: this.readText(root, ['mensaje', 'message']) || null,
+            datos: {
+                cuenta: this.readText(data, ['cuenta', 'usuario', 'nombreUsuario']) || account,
+                passwordTemporal: password || null,
+                fechaExpiracion: this.readText(data, ['fechaExpiracion', 'expiraEn', 'expirationDate']) || null,
+            },
+        };
+    }
+
+    private unwrapResponse<T>(response: ApiResponseDto<T>, fallbackMessage: string): T {
         if (response.success && response.data) {
             return response.data;
         }
 
         const apiMessage =
-            response.errors?.find(
-                (error) => error.detail || error.message,
-            )?.detail ??
-            response.errors?.find(
-                (error) => error.message,
-            )?.message ??
-            fallbackMessage;
+            response.errors?.find((error) => error.detail || error.message)?.detail
+            ?? response.errors?.find((error) => error.message)?.message
+            ?? fallbackMessage;
 
         throw new Error(apiMessage);
     }
 
-    private handleError(
-        error: unknown,
-        fallbackMessage: string,
-    ): Observable<never> {
-        if (
-            error instanceof Error &&
-            !(error instanceof HttpErrorResponse)
-        ) {
+    private handleError(error: unknown, fallbackMessage: string): Observable<never> {
+        if (error instanceof Error && !(error instanceof HttpErrorResponse)) {
             return throwError(() => error);
         }
 
         if (error instanceof HttpErrorResponse) {
-            return throwError(
-                () =>
-                    new Error(
-                        this.getHttpErrorMessage(
-                            error,
-                            fallbackMessage,
-                        ),
-                    ),
-            );
+            return throwError(() => new Error(this.getHttpErrorMessage(error, fallbackMessage)));
         }
 
         return throwError(() => new Error(fallbackMessage));
     }
 
-    private getHttpErrorMessage(
-        error: HttpErrorResponse,
-        fallbackMessage: string,
-    ): string {
+    private getHttpErrorMessage(error: HttpErrorResponse, fallbackMessage: string): string {
         const apiError = error.error as
             | {
                 mensaje?: string;
@@ -467,62 +708,62 @@ export class UsersApiRepository {
                 errors?: readonly ApiErrorDto[];
             }
             | null;
+        const responseError = apiError?.errors?.find((item) => item.detail || item.message);
 
-        const responseError = apiError?.errors?.find(
-            (item) => item.detail || item.message,
-        );
-
-        if (responseError?.detail) {
-            return responseError.detail;
-        }
-
-        if (responseError?.message) {
-            return responseError.message;
-        }
-
-        if (apiError?.mensaje) {
-            return apiError.mensaje;
-        }
-
-        if (apiError?.message) {
-            return apiError.message;
-        }
-
-        if (apiError?.error) {
-            return apiError.error;
-        }
-
-        if (error.status === 0) {
-            return 'No fue posible conectar con el servicio de consultas de usuarios.';
-        }
-
-        if (error.status === 401) {
-            return 'No tienes permisos para consultar los catálogos.';
-        }
-
-        if (error.status === 403) {
-            return 'No tienes permisos para consultar usuarios.';
-        }
-
-        if (error.status === 404) {
-            return 'No se encontró información del usuario solicitado.';
-        }
-
+        if (responseError?.detail) return responseError.detail;
+        if (responseError?.message) return responseError.message;
+        if (apiError?.mensaje) return apiError.mensaje;
+        if (apiError?.message) return apiError.message;
+        if (apiError?.error) return apiError.error;
+        if (error.status === 0) return 'No fue posible conectar con el servicio de usuarios.';
+        if (error.status === 401) return 'Tu sesión no está autorizada para realizar esta operación.';
+        if (error.status === 403) return 'No tienes permisos para realizar esta operación.';
+        if (error.status === 404) return 'No se encontró la información solicitada.';
+        if (error.status === 503) return 'El servicio de usuarios no está disponible temporalmente.';
         return fallbackMessage;
     }
 
-    private normalizeText(
-        value: string | null | undefined,
-    ): string {
+    private asRecord(value: unknown): UnknownRecord | null {
+        return value !== null && typeof value === 'object' && !Array.isArray(value)
+            ? value as UnknownRecord
+            : null;
+    }
+
+    private readText(record: UnknownRecord | null, keys: readonly string[]): string {
+        if (!record) return '';
+
+        for (const key of keys) {
+            const value = record[key];
+            if (typeof value === 'string' || typeof value === 'number') {
+                const text = String(value).trim();
+                if (text) return text;
+            }
+        }
+
+        return '';
+    }
+
+    private readNumber(record: UnknownRecord | null, keys: readonly string[], fallback: number): number {
+        if (!record) return fallback;
+
+        for (const key of keys) {
+            const value = Number(record[key]);
+            if (Number.isFinite(value)) return value;
+        }
+
+        return fallback;
+    }
+
+    private normalizeText(value: string | null | undefined): string {
         return String(value ?? '').trim();
     }
 
-    private toNumber(
-        value: number | null | undefined,
-        fallback: number,
-    ): number {
-        return typeof value === 'number' && Number.isFinite(value)
-            ? value
-            : fallback;
+    private toNumber(value: number | null | undefined, fallback: number): number {
+        return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+    }
+
+    private toPositiveNumber(value: unknown): number | null {
+        const number = Number(value);
+        return Number.isFinite(number) && number > 0 ? number : null;
     }
 }

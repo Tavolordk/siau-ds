@@ -7,6 +7,7 @@ export interface UserCredentialsEmailTemplateInput {
     readonly email: string;
     readonly phone: string;
     readonly system: string;
+    readonly temporaryPassword: string;
     readonly isExpress: boolean;
 }
 
@@ -18,6 +19,7 @@ export function buildUserCredentialsEmailRequest(
     const email = escapeHtml(input.email);
     const phone = escapeHtml(formatPhone(input.phone));
     const system = escapeHtml(input.system || 'SIAU');
+    const temporaryPassword = escapeHtml(input.temporaryPassword);
     const accountType = input.isExpress ? 'cuenta express' : 'cuenta de acceso';
 
     return {
@@ -73,9 +75,22 @@ export function buildUserCredentialsEmailRequest(
               </td>
             </tr>
             <tr>
+              <td style="padding:8px 32px 8px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#fff8e9;border:1px solid #ead7a7;border-radius:14px;">
+                  <tr>
+                    <td style="padding:18px 20px;">
+                      <div style="margin:0;color:#8a641d;font-size:10px;font-weight:700;letter-spacing:0.08em;line-height:1.3;text-transform:uppercase;">Contraseña temporal</div>
+                      <div style="margin-top:7px;color:#1b1f4a;font-size:23px;font-weight:800;letter-spacing:0.04em;line-height:1.25;word-break:break-word;">${temporaryPassword}</div>
+                      <div style="margin-top:7px;color:#76531b;font-size:12px;line-height:1.5;">Utilízala en tu primer acceso y cámbiala cuando el sistema lo solicite. No la compartas.</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
               <td style="padding:20px 32px 8px;">
                 <p style="margin:0;color:#1b1f4a;font-size:15px;font-weight:800;line-height:1.4;">Cómo ingresar a SIAU</p>
-                <p style="margin:7px 0 0;color:#4f6076;font-size:14px;line-height:1.55;">Escribe tu cuenta y utiliza cualquiera de tus medios de contacto registrados para recibir el código de acceso.</p>
+                <p style="margin:7px 0 0;color:#4f6076;font-size:14px;line-height:1.55;">Escribe tu cuenta y la contraseña temporal indicada arriba. Tus medios de contacto registrados seguirán disponibles para los mecanismos de verificación del sistema.</p>
               </td>
             </tr>
             <tr>

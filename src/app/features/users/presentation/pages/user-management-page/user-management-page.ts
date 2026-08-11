@@ -35,14 +35,11 @@ type UserFilterKey =
     | 'organoAdministrativoDesconcentradoId'
     | 'unidadAdministrativaId'
     | 'nombreUsuario'
-    | 'tipoUsuarioId'
-    | 'sistemaId'
     | 'estadoCuentaId'
     | 'fechaInicio'
     | 'fechaFin';
 type UserFilterGroupKey = 'general' | 'adscription' | 'account';
 type UserFilterTabKey = 'all' | UserFilterGroupKey;
-type UserTableTabKey = 'general' | 'adscription' | 'access' | 'validations';
 type UserFilterKind = 'text' | 'catalog' | 'date';
 
 interface UserFilterValues {
@@ -60,8 +57,6 @@ interface UserFilterValues {
     readonly organoAdministrativoDesconcentradoId: string;
     readonly unidadAdministrativaId: string;
     readonly nombreUsuario: string;
-    readonly tipoUsuarioId: string;
-    readonly sistemaId: string;
     readonly estadoCuentaId: string;
     readonly fechaInicio: string;
     readonly fechaFin: string;
@@ -81,12 +76,6 @@ interface UserFilterDefinition {
 interface UserFilterTab {
     readonly id: UserFilterTabKey;
     readonly label: string;
-}
-
-interface UserTableTab {
-    readonly id: UserTableTabKey;
-    readonly label: string;
-    readonly shortLabel: string;
 }
 
 interface UserFilterChip {
@@ -131,8 +120,6 @@ const EMPTY_USER_FILTERS: UserFilterValues = {
     organoAdministrativoDesconcentradoId: '',
     unidadAdministrativaId: '',
     nombreUsuario: '',
-    tipoUsuarioId: '',
-    sistemaId: '',
     estadoCuentaId: '',
     fechaInicio: '',
     fechaFin: '',
@@ -165,7 +152,6 @@ export class UserManagementPage {
     protected readonly isFilterPanelOpen = signal<boolean>(false);
     protected readonly filterCatalogSearch = signal<string>('');
     protected readonly selectedFilterTab = signal<UserFilterTabKey>('all');
-    protected readonly selectedTableTab = signal<UserTableTabKey>('general');
     protected readonly draftFilterKeys = signal<readonly UserFilterKey[]>([]);
     protected readonly draftFilters = signal<UserFilterValues>({ ...EMPTY_USER_FILTERS });
     protected readonly appliedFilters = signal<UserFilterValues>({ ...EMPTY_USER_FILTERS });
@@ -176,8 +162,6 @@ export class UserManagementPage {
     protected readonly institutionOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly decentralizedBodyOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly administrativeUnitOptions = signal<readonly CatalogoOption[]>([]);
-    protected readonly userTypeOptions = signal<readonly CatalogoOption[]>([]);
-    protected readonly systemOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly accountStatusOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly isFilterCatalogLoading = signal<boolean>(true);
     protected readonly filterCatalogMessage = signal<string | null>(null);
@@ -214,12 +198,6 @@ export class UserManagementPage {
         { id: 'general', label: 'Información general' },
         { id: 'adscription', label: 'Adscripción' },
         { id: 'account', label: 'Cuenta y acceso' },
-    ];
-    protected readonly tableTabs: readonly UserTableTab[] = [
-        { id: 'general', label: 'Datos generales', shortLabel: 'General' },
-        { id: 'adscription', label: 'Adscripción', shortLabel: 'Adscripción' },
-        { id: 'access', label: 'Acceso y roles', shortLabel: 'Acceso' },
-        { id: 'validations', label: 'Validaciones', shortLabel: 'Validaciones' },
     ];
     protected readonly filterDefinitions = computed<readonly UserFilterDefinition[]>(() => [
         {
@@ -351,22 +329,6 @@ export class UserManagementPage {
             inputMode: 'text',
         },
         {
-            key: 'tipoUsuarioId',
-            label: 'Tipo de usuario',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'account',
-            kind: 'catalog',
-            options: this.userTypeOptions(),
-        },
-        {
-            key: 'sistemaId',
-            label: 'Sistema',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'account',
-            kind: 'catalog',
-            options: this.systemOptions(),
-        },
-        {
             key: 'estadoCuentaId',
             label: 'Estatus',
             placeholder: 'Escribe para buscar y selecciona',
@@ -405,12 +367,11 @@ export class UserManagementPage {
         this.filterDefinitions().filter((filter) => !this.isFilterCheckboxDisabled(filter)),
     );
     protected readonly effectiveDraftFilters = computed<UserFilterValues>(() => {
-        const selectedKeys = new Set(this.draftFilterKeys());
         const draft = this.draftFilters();
         const effective = { ...EMPTY_USER_FILTERS } as Record<UserFilterKey, string>;
 
         (Object.keys(EMPTY_USER_FILTERS) as UserFilterKey[]).forEach((key) => {
-            effective[key] = selectedKeys.has(key) ? draft[key].trim() : '';
+            effective[key] = String(draft[key] ?? '').trim();
         });
 
         return effective as unknown as UserFilterValues;
@@ -419,7 +380,11 @@ export class UserManagementPage {
         const errors: Partial<Record<UserFilterKey, string>> = {};
         const filters = this.draftFilters();
 
-        this.draftFilterKeys().forEach((key) => {
+        (Object.keys(filters) as UserFilterKey[]).forEach((key) => {
+            if (!filters[key]) {
+                return;
+            }
+
             const error = this.validateFilterValue(key, filters[key]);
             if (error) {
                 errors[key] = error;
@@ -436,21 +401,11 @@ export class UserManagementPage {
         return errors;
     });
     protected readonly filterFormError = computed<string | null>(() => {
-        const selectedKeys = this.draftFilterKeys();
+        const filters = this.draftFilters();
+        const hasStart = Boolean(filters.fechaInicio);
+        const hasEnd = Boolean(filters.fechaFin);
 
-        if (!selectedKeys.length) {
-            return 'Selecciona al menos un criterio de búsqueda.';
-        }
-
-        const selectedNameFields = NAME_FILTER_KEYS.filter(
-            (key) => selectedKeys.includes(key) && Boolean(this.draftFilters()[key].trim()),
-        );
-        if (selectedNameFields.length === 1) {
-            return 'Para buscar por nombre debes proporcionar al menos dos campos entre nombre(s), primer apellido y segundo apellido.';
-        }
-
-        const selectedDateFields = DATE_FILTER_KEYS.filter((key) => selectedKeys.includes(key));
-        if (selectedDateFields.length === 1) {
+        if (hasStart !== hasEnd) {
             return 'El período de último movimiento requiere fecha de inicio y fecha de fin.';
         }
 
@@ -551,10 +506,6 @@ export class UserManagementPage {
 
     protected selectFilterTab(tab: UserFilterTabKey): void {
         this.selectedFilterTab.set(tab);
-    }
-
-    protected selectTableTab(tab: UserTableTabKey): void {
-        this.selectedTableTab.set(tab);
     }
 
     protected setDraftFilterSelected(key: UserFilterKey, selected: boolean): void {
@@ -659,6 +610,7 @@ export class UserManagementPage {
             ...filters,
             [key]: normalizedValue,
         }));
+        this.syncDraftFilterKey(key, normalizedValue);
     }
 
     protected updateCatalogDraftFilter(filter: UserFilterDefinition, label: string): void {
@@ -677,6 +629,7 @@ export class UserManagementPage {
             ...filters,
             [filter.key]: nextValue,
         }));
+        this.syncDraftFilterKey(filter.key, nextValue);
 
         if (previousValue !== nextValue) {
             this.handleHierarchyFilterChange(filter.key, nextValue);
@@ -731,9 +684,7 @@ export class UserManagementPage {
         }
 
         this.appliedFilters.set({ ...this.effectiveDraftFilters() });
-        this.filterCatalogSearch.set('');
-        this.selectedFilterTab.set('all');
-        this.isFilterPanelOpen.set(false);
+        this.draftFilterKeys.set(this.getActiveFilterKeys(this.effectiveDraftFilters()));
         this.loadUsers(1);
     }
 
@@ -745,7 +696,6 @@ export class UserManagementPage {
         this.resetDynamicCatalogs();
         this.filterCatalogSearch.set('');
         this.selectedFilterTab.set('all');
-        this.isFilterPanelOpen.set(false);
         this.loadUsers(1);
     }
 
@@ -1379,6 +1329,21 @@ export class UserManagementPage {
         return normalizedValue;
     }
 
+    private syncDraftFilterKey(key: UserFilterKey, value: string): void {
+        const hasValue = Boolean(String(value ?? '').trim());
+        this.draftFilterKeys.update((keys) => {
+            if (hasValue && !keys.includes(key)) {
+                return [...keys, key];
+            }
+
+            if (!hasValue && keys.includes(key)) {
+                return keys.filter((item) => item !== key);
+            }
+
+            return keys;
+        });
+    }
+
     private getActiveFilterKeys(filters: UserFilterValues): readonly UserFilterKey[] {
         return (Object.keys(filters) as UserFilterKey[]).filter((key) => Boolean(filters[key]));
     }
@@ -1386,34 +1351,25 @@ export class UserManagementPage {
     private loadUsers(page = 1): void {
         const filters = this.appliedFilters();
         const query: UsersQuery = {
-            // El contrato vigente solo admite un criterio textual genérico.
-            // Los campos separados del modal se convierten a ese criterio sin
-            // perder la estructura visual solicitada por MVC10.
-            busqueda: this.buildBackendSearchTerm(filters),
-            // Se conservan los parámetros de MVC10 para que comiencen a
-            // funcionar en cuanto el servicio v3 los publique. El servicio
-            // vigente ignora los que todavía no reconoce.
             primerApellido: this.toOptionalText(filters.primerApellido),
             segundoApellido: this.toOptionalText(filters.segundoApellido),
             nombres: this.toOptionalText(filters.nombres),
             curp: this.toOptionalText(filters.curp),
             rfc: this.toOptionalText(filters.rfc),
             correo: this.toOptionalText(filters.correo),
-            numeroTelefonico: this.toOptionalText(filters.numeroTelefonico),
+            telefono: this.toOptionalText(filters.numeroTelefonico),
             tipoInstitucionId: this.toOptionalPositiveNumber(filters.tipoInstitucionId),
             entidadId: this.toOptionalPositiveNumber(filters.entidadId),
-            municipioId: this.toOptionalPositiveNumber(filters.municipioId),
             institucionId: this.toOptionalPositiveNumber(filters.institucionId),
-            organoAdministrativoDesconcentradoId: this.toOptionalPositiveNumber(
+            organoId: this.toOptionalPositiveNumber(
                 filters.organoAdministrativoDesconcentradoId,
             ),
-            unidadAdministrativaId: this.toOptionalPositiveNumber(filters.unidadAdministrativaId),
+            unidadId: this.toOptionalPositiveNumber(filters.unidadAdministrativaId),
             nombreUsuario: this.toOptionalText(filters.nombreUsuario),
-            tipoUsuarioId: this.toOptionalPositiveNumber(filters.tipoUsuarioId),
             estadoCuentaId: this.toOptionalPositiveNumber(filters.estadoCuentaId),
-            sistemaId: this.toOptionalPositiveNumber(filters.sistemaId),
-            fechaInicio: filters.fechaInicio ? this.toApiDate(filters.fechaInicio) : undefined,
-            fechaFin: filters.fechaFin ? this.toApiDate(filters.fechaFin) : undefined,
+            // <input type="date"> ya entrega yyyy-MM-dd, que es el formato del endpoint.
+            fechaInicio: this.toOptionalText(filters.fechaInicio),
+            fechaFin: this.toOptionalText(filters.fechaFin),
             pagina: page,
             porPagina: 15,
         };
@@ -1422,14 +1378,17 @@ export class UserManagementPage {
         this.errorMessage.set(null);
         this.informationMessage.set(null);
 
-        this.usersFacade
-            .getUsers(query)
+        const hasAdvancedFilters = Object.entries(filters).some(([, value]) => Boolean(String(value ?? '').trim()));
+        const request$ = hasAdvancedFilters
+            ? this.usersFacade.searchUsers(query)
+            : this.usersFacade.getAllUsers(page, 15);
+
+        request$
             .pipe(finalize(() => this.isLoading.set(false)))
             .subscribe({
                 next: (response) => {
-                    const users = this.refineSupportedTextFilters(response.usuarios, filters);
-                    this.users.set(users);
-                    this.pagination.set({ ...response.paginacion, porPagina: 15 });
+                    this.users.set(response.usuarios);
+                    this.pagination.set(response.paginacion);
                 },
                 error: (error: unknown) => {
                     this.users.set([]);
@@ -1437,65 +1396,6 @@ export class UserManagementPage {
                     this.errorMessage.set(this.toFriendlyError(error));
                 },
             });
-    }
-
-    /**
-     * Adapta los campos detallados de la interfaz al parámetro `busqueda`
-     * expuesto por la API actual. Los nombres se ordenan como aparecen en
-     * `nombreCompleto`: nombre(s), primer apellido y segundo apellido.
-     */
-    private buildBackendSearchTerm(filters: UserFilterValues): string | undefined {
-        const fullName = [filters.nombres, filters.primerApellido, filters.segundoApellido]
-            .map((value) => value.trim())
-            .filter(Boolean)
-            .join(' ');
-
-        if (fullName) {
-            return fullName;
-        }
-
-        // Los criterios más específicos se priorizan porque la API vigente
-        // dispone de un solo parámetro textual.
-        return this.toOptionalText(
-            filters.nombreUsuario
-            || filters.correo
-            || filters.curp
-            || filters.rfc
-            || filters.numeroTelefonico,
-        );
-    }
-
-    /**
-     * Refina en el cliente únicamente campos presentes en el listado. No
-     * sustituye al filtrado del backend; evita mostrar coincidencias parciales
-     * cuando `busqueda` encuentra resultados amplios.
-     */
-    private refineSupportedTextFilters(
-        users: readonly UserRecord[],
-        filters: UserFilterValues,
-    ): readonly UserRecord[] {
-        const nameTokens = [filters.nombres, filters.primerApellido, filters.segundoApellido]
-            .map((value) => this.normalizeForCompare(value))
-            .filter(Boolean);
-        const email = this.normalizeForCompare(filters.correo);
-        const username = this.normalizeForCompare(filters.nombreUsuario);
-
-        if (!nameTokens.length && !email && !username) {
-            return users;
-        }
-
-        return users.filter((user) => {
-            const normalizedName = this.normalizeForCompare(user.fullName);
-            const normalizedEmail = this.normalizeForCompare(user.email);
-            const normalizedUsername = this.normalizeForCompare(user.username);
-
-            const matchesName = !nameTokens.length
-                || nameTokens.every((token) => normalizedName.includes(token));
-            const matchesEmail = !email || normalizedEmail.includes(email);
-            const matchesUsername = !username || normalizedUsername.includes(username);
-
-            return matchesName && matchesEmail && matchesUsername;
-        });
     }
 
     private loadFilterCatalogs(): void {
@@ -1509,12 +1409,6 @@ export class UserManagementPage {
             states: this.catalogosFacade
                 .obtenerEstadosOptions()
                 .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
-            userTypes: this.catalogosFacade
-                .obtenerTipoUsuarioOptions()
-                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
-            systems: this.catalogosFacade
-                .obtenerSistemasIdOptions()
-                .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
             accountStatuses: this.catalogosFacade
                 .obtenerCuentaUsuarioOptions()
                 .pipe(catchError(() => of([] as readonly CatalogoOption[]))),
@@ -1523,18 +1417,14 @@ export class UserManagementPage {
                 finalize(() => this.isFilterCatalogLoading.set(false)),
                 takeUntilDestroyed(this.destroyRef),
             )
-            .subscribe(({ institutionTypes, states, userTypes, systems, accountStatuses }) => {
+            .subscribe(({ institutionTypes, states, accountStatuses }) => {
                 this.institutionTypeOptions.set(institutionTypes);
                 this.stateOptions.set(states);
-                this.userTypeOptions.set(userTypes);
-                this.systemOptions.set(systems);
                 this.accountStatusOptions.set(accountStatuses);
 
                 if (
                     !institutionTypes.length
                     || !states.length
-                    || !userTypes.length
-                    || !systems.length
                     || !accountStatuses.length
                 ) {
                     this.filterCatalogMessage.set(
@@ -1861,13 +1751,9 @@ export class UserManagementPage {
         return `${year}-${month}-${day}`;
     }
 
-    private toApiDate(value: string): string {
-        const [year, month, day] = value.split('-');
-        return `${day}/${month}/${year}`;
-    }
-
     private formatDateForDisplay(value: string): string {
-        return this.toApiDate(value);
+        const [year, month, day] = value.split('-');
+        return year && month && day ? `${day}/${month}/${year}` : value;
     }
 
     private showCatalogWarning(message: string): void {

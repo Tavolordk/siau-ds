@@ -28,37 +28,24 @@ export interface UserPagination {
 }
 
 export interface UsersQuery {
-    /** Criterio textual admitido por el servicio vigente: nombre, usuario o correo. */
-    readonly busqueda?: string;
-
-    // MVC10 - Información general del usuario.
+    // Contrato POST /api/v1/registro/usuarios/busqueda-avanzada.
     readonly primerApellido?: string;
     readonly segundoApellido?: string;
     readonly nombres?: string;
     readonly curp?: string;
     readonly rfc?: string;
     readonly correo?: string;
-    readonly numeroTelefonico?: string;
-
-    // MVC10 / RN20 - Información de adscripción.
+    readonly telefono?: string;
     readonly tipoInstitucionId?: number;
     readonly entidadId?: number;
-    readonly municipioId?: number;
     readonly institucionId?: number;
-    readonly organoAdministrativoDesconcentradoId?: number;
-    readonly unidadAdministrativaId?: number;
-
-    // MVC10 - Información de la cuenta.
+    readonly organoId?: number;
+    readonly unidadId?: number;
     readonly nombreUsuario?: string;
     readonly estadoCuentaId?: number;
-    /** Fechas enviadas al servicio en formato dd/MM/yyyy. */
+    /** Fechas en formato ISO yyyy-MM-dd, como las publica el contrato Swagger. */
     readonly fechaInicio?: string;
     readonly fechaFin?: string;
-
-    // Parámetros heredados que el endpoint vigente todavía puede admitir.
-    readonly tipoUsuarioId?: number;
-    readonly sistemaId?: number;
-
     readonly pagina?: number;
     readonly porPagina?: number;
 }
@@ -71,6 +58,97 @@ export interface UsersPageResult {
 export interface UserDetailRecord {
     readonly userId: number;
     readonly datos: Record<string, unknown>;
+}
+
+
+export interface BorradorDatosPersonales {
+    readonly cuip: string | null;
+    readonly curp: string | null;
+    readonly rfc: string | null;
+    readonly nombres: string | null;
+    readonly primerApellido: string | null;
+    readonly segundoApellido: string | null;
+    readonly sexoId: number | null;
+    readonly fechaNacimiento: string | null;
+    readonly estadoCivilId: number | null;
+}
+
+export interface BorradorAdscripcion {
+    readonly estructuraId: number | null;
+    readonly cargo: string | null;
+    readonly funciones: string | null;
+    readonly numeroEmpleado: string | null;
+    readonly fechaInicio: string | null;
+}
+
+export interface BorradorMedioContacto {
+    readonly correo: string | null;
+    readonly celular: string | null;
+}
+
+export interface BorradorCuenta {
+    readonly tipoUsuarioId: number | null;
+    readonly sistemaId: number | null;
+    readonly perfilId: number | null;
+}
+
+export interface BorradorDatos {
+    readonly datosPersonales: BorradorDatosPersonales;
+    readonly adscripcion: BorradorAdscripcion;
+    readonly comision: BorradorAdscripcion | null;
+    readonly medioContacto: BorradorMedioContacto;
+    readonly cuenta: BorradorCuenta;
+    readonly comentario: string | null;
+}
+
+export interface BorradorAuditoria {
+    readonly usuarioEjecutorId: number;
+    readonly correlationId: string;
+}
+
+/**
+ * Contrato de POST /api/v1/registro/borradores.
+ * `datos` se envía como objeto JSON con la misma estructura funcional
+ * que utiliza el SP de borradores; no se serializa como string.
+ */
+export interface BorradorGuardarRequest {
+    readonly borradorId: number | null;
+    readonly datos: BorradorDatos;
+    readonly auditoria: BorradorAuditoria;
+}
+
+export interface BorradorCatalogos {
+    readonly sexo: string | null;
+    readonly estadoCivil: string | null;
+    readonly adscripcion: string | null;
+    readonly comision: string | null;
+    readonly tipoUsuario: string | null;
+    readonly sistema: string | null;
+    readonly perfil: string | null;
+}
+
+export interface BorradorItem {
+    readonly borradorId: number | null;
+    readonly pasoActual: string | null;
+    readonly datos: BorradorDatos | null;
+    readonly catalogos: BorradorCatalogos | null;
+    readonly fechaActualizacion: string | null;
+}
+
+export interface BorradorOperacionResponse {
+    readonly mensaje: string | null;
+    readonly datos: BorradorItem | null;
+}
+
+export interface PasswordTemporalData {
+    readonly cuenta: string | null;
+    readonly passwordTemporal: string | null;
+    readonly fechaExpiracion: string | null;
+}
+
+export interface PasswordTemporalResponse {
+    readonly mensaje: string | null;
+    readonly datos: PasswordTemporalData | null;
 }
 
 export interface RegistroDatosPersonales {
@@ -98,9 +176,14 @@ export interface RegistroMedioContacto {
     readonly celular: string | null;
 }
 
-export interface RegistroCuenta {
-    readonly password?: string | null;
-    readonly passwordHash?: string | null;
+export interface RegistroAdminCuenta {
+    readonly tipoUsuarioId: number;
+    readonly sistemaId: number;
+    readonly perfilId: number;
+    readonly estadoCuentaId?: number;
+}
+
+export interface RegistroEspecialCuenta {
     readonly tipoUsuarioId: number;
     readonly sistemaId: number;
     readonly perfilId: number;
@@ -117,7 +200,7 @@ export interface RegistroAdminRequest {
     readonly adscripcion: RegistroAsignacion;
     readonly comision: RegistroAsignacion | null;
     readonly medioContacto: RegistroMedioContacto;
-    readonly cuenta: RegistroCuenta;
+    readonly cuenta: RegistroAdminCuenta;
     readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
 }
@@ -159,7 +242,7 @@ export interface RegistroEspecialRequest {
     readonly adscripcion: RegistroEspecialAsignacion;
     readonly comision: RegistroEspecialAsignacion | null;
     readonly medioContacto: RegistroMedioContacto;
-    readonly cuenta: RegistroCuenta;
+    readonly cuenta: RegistroEspecialCuenta;
     readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
 }
