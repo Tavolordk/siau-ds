@@ -120,6 +120,7 @@ interface IdentitySnapshot {
 
 interface CurpValidationSummary {
     readonly personal: string;
+    readonly sau: string;
     readonly eccc: string;
     readonly expirationDate: string;
     readonly message: string;
@@ -2161,6 +2162,7 @@ export class UserRegistrationWizard {
         this.lastEcccPersonalLookupKey = lookupKey;
         this.curpValidationSummary.set({
             personal: 'Consultando...',
+            sau: 'Consultando...',
             eccc: 'Consultando...',
             expirationDate: 'Consultando...',
             message: 'Consultando información de Personal, SAU y ECCC...',
@@ -2189,6 +2191,11 @@ export class UserRegistrationWizard {
                             : 'No encontrado'
                         : 'No consultado';
 
+                    const sauUsername = this.toText(response.sau?.usuario?.usuario);
+                    const sauStatus = response.sauConsultado
+                        ? sauUsername || 'No encontrado'
+                        : 'No consultado';
+
                     const ecccResultado = this.toText(response.eccc?.resultadoIntegral);
                     const ecccVigencia = this.toText(response.eccc?.estatusVigencia);
                     const ecccStatus = response.ecccConsultado
@@ -2210,6 +2217,7 @@ export class UserRegistrationWizard {
 
                     this.curpValidationSummary.set({
                         personal: personalStatus,
+                        sau: sauStatus,
                         eccc: ecccStatus,
                         expirationDate,
                         message:
@@ -2239,6 +2247,7 @@ export class UserRegistrationWizard {
                     console.error('Error consultando Personal, SAU y ECCC.', error);
                     this.curpValidationSummary.set({
                         personal: 'No disponible',
+                        sau: 'No disponible',
                         eccc: 'No disponible',
                         expirationDate: 'No disponible',
                         message: errorMessage,
