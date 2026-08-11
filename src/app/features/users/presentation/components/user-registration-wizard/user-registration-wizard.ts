@@ -3004,8 +3004,8 @@ export class UserRegistrationWizard {
             this.hasText(this.firstValue(commission, ['municipio', 'municipioAlcaldia', 'municipioId'])) ||
             this.hasText(this.firstValue(commission, ['institucion', 'institucionId'])) ||
             this.hasText(this.firstValue(commission, ['dependencia', 'dependenciaId'])) ||
-            this.hasText(this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
-            this.hasText(this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit'])) ||
+            this.hasText(this.firstValue(commission, ['organo', 'organoId', 'organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
+            this.hasText(this.firstValue(commission, ['unidad', 'unidadId', 'unidadAdministrativa', 'administrativeUnit'])) ||
             this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])) ||
             this.hasText(this.firstValue(commission, ['estructuraId', 'estructuraOrgId']));
 
@@ -3043,16 +3043,18 @@ export class UserRegistrationWizard {
                 ['institucion', 'institucionNombre', 'estructura'],
                 this.institutionOptions,
             ),
+            // El detalle (`s2Adscripcion`) usa `organoId`/`organo` y
+            // `unidadId`/`unidad`; los alias largos vienen de otros contratos.
             decentralizedBody: this.resolveRecordSelectValue(
                 assignment,
-                ['organoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado'],
-                ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
+                ['organoId', 'organoDesconcentradoId', 'organoAdministrativoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado', 'idOrgano'],
+                ['organo', 'organoDesconcentrado', 'organoAdministrativoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
                 this.decentralizedBodyOptions,
             ),
             administrativeUnit: this.resolveRecordSelectValue(
                 assignment,
-                ['unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa'],
-                ['unidadAdministrativa', 'administrativeUnit'],
+                ['unidadId', 'unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa', 'idUnidad'],
+                ['unidad', 'unidadAdministrativa', 'administrativeUnit'],
                 this.administrativeUnitOptions,
             ),
             position: this.toText(this.firstValue(assignment, ['cargo', 'puesto'])),
@@ -3079,14 +3081,14 @@ export class UserRegistrationWizard {
             ),
             commissionDecentralizedBody: this.resolveRecordSelectValue(
                 commission,
-                ['organoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado'],
-                ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
+                ['organoId', 'organoDesconcentradoId', 'organoAdministrativoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado', 'idOrgano'],
+                ['organo', 'organoDesconcentrado', 'organoAdministrativoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
                 this.commissionDecentralizedBodyOptions,
             ),
             commissionAdministrativeUnit: this.resolveRecordSelectValue(
                 commission,
-                ['unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa'],
-                ['unidadAdministrativa', 'administrativeUnit'],
+                ['unidadId', 'unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa', 'idUnidad'],
+                ['unidad', 'unidadAdministrativa', 'administrativeUnit'],
                 this.commissionAdministrativeUnitOptions,
             ),
             commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
@@ -4401,7 +4403,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    target.set([NO_APLICA_OPTION]);
+                    this.resetDynamicCatalogOptions(target);
                     console.error('Error cargando municipios.', error);
                 },
             });
@@ -4630,7 +4632,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    target.set([NO_APLICA_OPTION]);
+                    this.resetDynamicCatalogOptions(target);
                     console.error('Error cargando estructura organizacional federal.', error);
                 },
             });
@@ -4668,7 +4670,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    target.set([NO_APLICA_OPTION]);
+                    this.resetDynamicCatalogOptions(target);
                     console.error('Error cargando estructura orgánica estatal o municipal.', error);
                 },
             });
@@ -4700,22 +4702,42 @@ export class UserRegistrationWizard {
         options: readonly SiauSelectOption[],
     ): void {
         const cleanOptions = this.deduplicateSelectOptions(options);
+        const preservedSelectedOption = this.preservedSelectedOption(target);
 
+        // Al abrir un detalle, la opción del registro ya viene sembrada con su
+        // etiqueta. Si el catálogo llega vacío (o falla) no debe borrarse, o el
+        // select se queda en blanco aunque el usuario sí tenga órgano/unidad.
         if (cleanOptions.length === 0) {
-            target.set([NO_APLICA_OPTION]);
+            target.set(preservedSelectedOption ? [preservedSelectedOption] : [NO_APLICA_OPTION]);
             return;
         }
-
-        const selectedValue = this.selectedValueForDynamicTarget(target);
-        const preservedSelectedOption = target().find(
-            (option) => option.value === selectedValue && !this.isNoAplicaValue(option.value),
-        );
 
         target.set(
             preservedSelectedOption
                 ? this.deduplicateSelectOptions([preservedSelectedOption, ...cleanOptions])
                 : cleanOptions,
         );
+    }
+
+    private preservedSelectedOption(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): SiauSelectOption | null {
+        const selectedValue = this.selectedValueForDynamicTarget(target);
+
+        if (!selectedValue || this.isNoAplicaValue(selectedValue)) {
+            return null;
+        }
+
+        return target().find((option) => option.value === selectedValue) ?? null;
+    }
+
+    /** Vacía un catálogo dinámico sin perder la opción ya seleccionada. */
+    private resetDynamicCatalogOptions(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): void {
+        const preserved = this.preservedSelectedOption(target);
+
+        target.set(preserved ? [preserved] : [NO_APLICA_OPTION]);
     }
 
     private selectedValueForDynamicTarget(

@@ -365,9 +365,26 @@ export class UsersApiRepository {
         const rawItems = candidates.find((candidate) => Array.isArray(candidate)) as readonly unknown[] | undefined;
         const allUsers = (rawItems ?? []).map((item) => this.toUserRecordFromUnknown(item));
 
-        const metadata = nested ?? root;
+        // Los metadatos pueden venir al ras de la respuesta o dentro de un objeto
+        // `paginacion` anidado (contrato de /consultas/usuarios). Si sólo se mira
+        // el nivel superior, `totalPaginas` se calcula con el tamaño de la página
+        // actual y la lista queda congelada en la primera.
+        const metadata = this.findPaginationMetadata(root, nested);
         const totalRecords = this.readNumber(metadata, ['totalRegistros', 'total', 'totalRecords'], allUsers.length);
-        const currentPage = this.readNumber(metadata, ['paginaActual', 'pagina', 'page'], page);
+        const responsePage = this.readNumber(metadata, ['paginaActual', 'pagina', 'page'], 0);
+
+        // La página solicitada es la fuente de verdad: algunos endpoints
+        // devuelven siempre `paginaActual: 1` y eso dejaba el pie de tabla
+        // congelado en "Página 1 de N" aunque el listado sí avanzara.
+        const currentPage = Math.max(1, page || responsePage || 1);
+
+        if (responsePage > 0 && responsePage !== currentPage) {
+            console.warn(
+                'El backend devolvió una página distinta a la solicitada.',
+                { solicitada: currentPage, devuelta: responsePage },
+            );
+        }
+
         const responsePageSize = this.readNumber(metadata, ['porPagina', 'tamanoPagina', 'pageSize'], pageSize);
         const declaredPages = this.readNumber(metadata, ['totalPaginas', 'pages', 'totalPages'], 0);
 
@@ -393,6 +410,50 @@ export class UsersApiRepository {
                 porPagina: Math.max(1, responsePageSize),
             },
         };
+    }
+
+    /**
+     * Busca el bloque de paginación en las formas conocidas del backend:
+     * `{ paginacion: {...} }`, `{ data: { paginacion: {...} } }`, `{ meta: {...} }`
+     * o los campos sueltos en la raíz.
+     */
+    private findPaginationMetadata(
+        root: UnknownRecord | null,
+        nested: UnknownRecord | null,
+    ): UnknownRecord | null {
+        const paginationKeys = [
+            'totalRegistros',
+            'total',
+            'totalRecords',
+            'totalPaginas',
+            'pages',
+            'totalPages',
+            'paginaActual',
+            'pagina',
+            'page',
+            'porPagina',
+            'tamanoPagina',
+            'pageSize',
+        ];
+
+        const candidates: ReadonlyArray<UnknownRecord | null> = [
+            this.asRecord(nested?.['paginacion']),
+            this.asRecord(root?.['paginacion']),
+            this.asRecord(nested?.['pagination']),
+            this.asRecord(root?.['pagination']),
+            this.asRecord(nested?.['meta']),
+            this.asRecord(root?.['meta']),
+            nested,
+            root,
+        ];
+
+        return (
+            candidates.find(
+                (candidate) =>
+                    candidate
+                    && paginationKeys.some((key) => candidate[key] !== undefined),
+            ) ?? nested ?? root
+        );
     }
 
     private toUserRecordFromUnknown(value: unknown): UserRecord {
@@ -447,7 +508,9 @@ export class UsersApiRepository {
         query: UsersQuery,
         currentCount: number,
     ): UserPagination {
-        const currentPage = this.toNumber(response.paginaActual, query.pagina ?? 1);
+        // Igual que en el GET general: manda la página pedida, no la que eche
+        // de vuelta el backend.
+        const currentPage = query.pagina ?? this.toNumber(response.paginaActual, 1);
         const pageSize = this.toNumber(response.porPagina, query.porPagina ?? Math.max(1, currentCount));
         const totalRecords = this.toNumber(response.totalRegistros, currentCount);
         const totalPages = this.toNumber(
