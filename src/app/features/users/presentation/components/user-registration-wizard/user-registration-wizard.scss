@@ -2198,6 +2198,39 @@
   background: rgba(255, 255, 255, 0.14);
 }
 
+.registration-wizard__curp-validation-message {
+  margin: 1px 0 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.registration-wizard__curp-validation-message--loading {
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.registration-wizard__curp-validation-message--success {
+  border-color: rgba(130, 214, 170, 0.32);
+  color: rgb(226, 255, 239);
+  background: rgba(26, 127, 82, 0.22);
+}
+
+.registration-wizard__curp-validation-message--warning {
+  border-color: rgba(255, 210, 119, 0.34);
+  color: rgb(255, 244, 211);
+  background: rgba(158, 104, 0, 0.24);
+}
+
+.registration-wizard__curp-validation-message--error {
+  border-color: rgba(255, 154, 181, 0.34);
+  color: rgb(255, 229, 236);
+  background: rgba(155, 34, 71, 0.28);
+}
+
 /* En escritorio damos más aire a la validación y evitamos que la fecha se parta. */
 @media (min-width: 921px) {
   .registration-wizard__curp-validation--sidebar {

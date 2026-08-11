@@ -54,6 +54,12 @@
                     </div>
 
                 </dl>
+
+                @if (curpValidation.message) {
+                <div [class]="getCurpValidationMessageClass(curpValidation.messageTone)" role="status">
+                    {{ curpValidation.message }}
+                </div>
+                }
             </section>
             }
 
@@ -216,6 +222,12 @@
                     </div>
 
                 </dl>
+
+                @if (curpValidation.message) {
+                <div [class]="getCurpValidationMessageClass(curpValidation.messageTone)" role="status">
+                    {{ curpValidation.message }}
+                </div>
+                }
             </section>
             }
 

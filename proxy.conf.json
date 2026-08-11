@@ -27,7 +27,7 @@
         }
     },
     "/eccc-personal-api": {
-        "target": "http://10.237.3.12:44380",
+        "target": "http://10.241.83.7:3204",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
