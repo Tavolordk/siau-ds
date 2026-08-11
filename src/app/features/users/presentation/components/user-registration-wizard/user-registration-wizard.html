@@ -171,6 +171,27 @@
             }
 
             @if (!isEditMode()) {
+            @if (isDraftLoading() || draftMessage() || draftError() || hasBackendDraft()) {
+            <section class="registration-wizard__draft-bar"
+                [class.registration-wizard__draft-bar--error]="draftError()" aria-live="polite">
+                <div class="registration-wizard__draft-bar-icon">
+                    <siau-lucide-icon [name]="draftError() ? 'triangle-alert' : (isDraftLoading() || isDraftSaving() ? 'loader-circle' : 'save')"
+                        size="16" strokeWidth="2" aria-hidden="true" />
+                </div>
+                <div class="registration-wizard__draft-bar-copy">
+                    <strong>{{ draftError() ? 'Aviso del borrador' : 'Guardado automático' }}</strong>
+                    <span>{{ draftError() || draftMessage() || 'Tu avance se guarda al continuar a la siguiente sección.' }}</span>
+                </div>
+                @if (hasBackendDraft()) {
+                <button type="button" class="registration-wizard__draft-delete"
+                    [disabled]="isDraftBusy() || isSubmitting()" (click)="deleteRegistrationDraft()">
+                    <siau-lucide-icon name="trash-2" size="14" strokeWidth="2" aria-hidden="true" />
+                    {{ isDraftDeleting() ? 'Eliminando...' : 'Eliminar borrador' }}
+                </button>
+                }
+            </section>
+            }
+
             <div class="registration-wizard__express-card"
                 [class.registration-wizard__express-card--active]="form().expressCreation">
                 <label class="registration-wizard__express-toggle">
@@ -983,7 +1004,7 @@
 
             <footer class="registration-wizard__footer">
                 <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                    [disabled]="activeIndex() === 0 || isSubmitting()" (click)="previousStep()">
+                    [disabled]="activeIndex() === 0 || isSubmitting() || isDraftBusy()" (click)="previousStep()">
                     <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
                     Anterior
                 </button>
@@ -996,24 +1017,61 @@
 
                 <div class="registration-wizard__actions">
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting()" (click)="nextStep()">
+                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting() || isDraftBusy()" (click)="nextStep()">
                         Siguiente
                         <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
-                        [disabled]="isSubmitting()" (click)="closeWizard()">
+                        [disabled]="isSubmitting() || isDraftBusy()" (click)="closeWizard()">
                         Cancelar
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--primary"
-                        [disabled]="isFormDisabled() || isSubmitting() || !isLastStep()" (click)="submit()">
+                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !isLastStep()" (click)="submit()">
                         <siau-lucide-icon [name]="primaryButtonIcon()" size="14" strokeWidth="2" aria-hidden="true" />
                         {{ primaryButtonLabel() }}
                     </button>
                 </div>
             </footer>
         </form>
+    </section>
+</siau-modal>
+
+
+<siau-modal [open]="deleteDraftConfirmationOpen()" title="Eliminar borrador"
+    subtitle="Confirma si deseas descartar el avance guardado" icon="triangle-alert" size="sm"
+    headerBadge="Confirmación" (close)="closeDeleteDraftConfirmation()">
+    <section class="registration-wizard__draft-confirmation">
+        <div class="registration-wizard__draft-confirmation-icon" aria-hidden="true">
+            <siau-lucide-icon name="trash-2" size="26" strokeWidth="1.9" />
+        </div>
+
+        <div class="registration-wizard__draft-confirmation-copy">
+            <h3>¿Eliminar este borrador?</h3>
+            <p>
+                Se eliminará el avance guardado de este registro. Esta acción no elimina usuarios ya registrados.
+            </p>
+        </div>
+
+        <div class="registration-wizard__draft-confirmation-note">
+            <siau-lucide-icon name="info" size="15" strokeWidth="2" aria-hidden="true" />
+            <span>Después de eliminarlo, el formulario quedará listo para iniciar un registro nuevo.</span>
+        </div>
+
+        <footer class="registration-wizard__draft-confirmation-actions">
+            <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
+                [disabled]="isDraftDeleting()" (click)="closeDeleteDraftConfirmation()">
+                Cancelar
+            </button>
+
+            <button type="button" class="registration-wizard__button registration-wizard__button--danger"
+                [disabled]="isDraftDeleting()" (click)="confirmDeleteRegistrationDraft()">
+                <siau-lucide-icon [name]="isDraftDeleting() ? 'loader-circle' : 'trash-2'" size="14"
+                    strokeWidth="2" aria-hidden="true" />
+                {{ isDraftDeleting() ? 'Eliminando...' : 'Sí, eliminar borrador' }}
+            </button>
+        </footer>
     </section>
 </siau-modal>
 

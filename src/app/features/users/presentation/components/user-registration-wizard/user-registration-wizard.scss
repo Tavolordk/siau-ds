@@ -2337,3 +2337,179 @@
     margin-left: 12px;
   }
 }
+
+/* Borrador de alta: el guardado ocurre al avanzar de sección. */
+.registration-wizard__draft-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0 0 1rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid #cbdbe7;
+    border-radius: 0.8rem;
+    background: #f5f9fc;
+    color: #24364a;
+}
+
+.registration-wizard__draft-bar--error {
+    border-color: #e7c3c3;
+    background: #fff6f6;
+    color: #7b2f2f;
+}
+
+.registration-wizard__draft-bar-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: rgba(27, 31, 74, 0.08);
+}
+
+.registration-wizard__draft-bar-copy {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.registration-wizard__draft-bar-copy strong {
+    font-size: 0.82rem;
+}
+
+.registration-wizard__draft-bar-copy span {
+    font-size: 0.76rem;
+    line-height: 1.35;
+    color: #5e6f82;
+}
+
+.registration-wizard__draft-delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.25rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid #d6a9a9;
+    border-radius: 0.55rem;
+    background: #fff;
+    color: #8a3030;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.registration-wizard__draft-delete:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+    .registration-wizard__draft-bar {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .registration-wizard__draft-delete {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+
+/* Confirmación de eliminación de borrador */
+.registration-wizard__draft-confirmation {
+    padding: 1.35rem 1.4rem 1.3rem;
+    display: grid;
+    justify-items: center;
+    gap: 0.9rem;
+    text-align: center;
+    color: #1b1f4a;
+}
+
+.registration-wizard__draft-confirmation-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(97, 18, 50, 0.18);
+    background: rgba(97, 18, 50, 0.08);
+    color: #611232;
+}
+
+.registration-wizard__draft-confirmation-copy {
+    display: grid;
+    gap: 0.4rem;
+    max-width: 21rem;
+}
+
+.registration-wizard__draft-confirmation-copy h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 750;
+    color: #1b1f4a;
+}
+
+.registration-wizard__draft-confirmation-copy p {
+    margin: 0;
+    color: #5e6f82;
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+.registration-wizard__draft-confirmation-note {
+    width: 100%;
+    padding: 0.7rem 0.8rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    border: 1px solid rgba(160, 178, 187, 0.35);
+    border-radius: 0.7rem;
+    background: #f5f9fc;
+    color: #53677d;
+    text-align: left;
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+.registration-wizard__draft-confirmation-note siau-lucide-icon {
+    flex: none;
+    margin-top: 0.08rem;
+    color: #1b1f4a;
+}
+
+.registration-wizard__draft-confirmation-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding-top: 0.1rem;
+}
+
+.registration-wizard__button--danger {
+    border-color: #611232;
+    background: #611232;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.registration-wizard__button--danger:not(:disabled):hover {
+    border-color: #4d0e28;
+    background: #4d0e28;
+}
+
+@media (max-width: 480px) {
+    .registration-wizard__draft-confirmation {
+        padding: 1.1rem 1rem;
+    }
+
+    .registration-wizard__draft-confirmation-actions {
+        flex-direction: column-reverse;
+    }
+
+    .registration-wizard__draft-confirmation-actions .registration-wizard__button {
+        width: 100%;
+    }
+}

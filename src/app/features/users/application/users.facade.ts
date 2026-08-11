@@ -4,6 +4,10 @@ import { UsersApiRepository } from '../data-access/users-api.repository';
 import {
     ActualizarAdminRequest,
     ActualizarAdminResponse,
+    BorradorGuardarRequest,
+    BorradorItem,
+    BorradorOperacionResponse,
+    PasswordTemporalResponse,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroEspecialRequest,
@@ -19,53 +23,63 @@ import {
 export class UsersFacade {
     private readonly repository = inject(UsersApiRepository);
 
+    getAllUsers(page = 1, pageSize = 15): Observable<UsersPageResult> {
+        return this.repository.getAllUsers(page, pageSize);
+    }
+
+    searchUsers(query: UsersQuery): Observable<UsersPageResult> {
+        return this.repository.searchUsers(query);
+    }
+
     getUsers(query: UsersQuery): Observable<UsersPageResult> {
         return this.repository.getUsers(query);
+    }
+
+    saveRegistrationDraft(request: BorradorGuardarRequest): Observable<BorradorOperacionResponse> {
+        return this.repository.saveRegistrationDraft(request);
+    }
+
+    getRegistrationDraft(): Observable<BorradorItem | null> {
+        return this.repository.getRegistrationDraft();
+    }
+
+    deleteRegistrationDraft(borradorId: number): Observable<void> {
+        return this.repository.deleteRegistrationDraft(borradorId);
+    }
+
+    getTemporaryPassword(account: string): Observable<PasswordTemporalResponse> {
+        return this.repository.getTemporaryPassword(account);
     }
 
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.repository.getUserDetail(userId);
     }
 
-    createAdminUser(
-        request: RegistroAdminRequest,
-    ): Observable<RegistroAdminResponse> {
+    createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {
         return this.repository.createAdminUser(request);
     }
 
-    createSpecialUser(
-        request: RegistroEspecialRequest,
-    ): Observable<RegistroEspecialResponse> {
+    createSpecialUser(request: RegistroEspecialRequest): Observable<RegistroEspecialResponse> {
         return this.repository.createSpecialUser(request);
     }
 
-    updateAdminUser(
-        request: ActualizarAdminRequest,
-    ): Observable<ActualizarAdminResponse> {
+    updateAdminUser(request: ActualizarAdminRequest): Observable<ActualizarAdminResponse> {
         return this.repository.updateAdminUser(request);
     }
 
-    darDeBajaUsuario(
-        request: SolicitudOperacionRequest,
-    ): Observable<SolicitudOperacionResponse> {
+    darDeBajaUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.repository.darDeBajaUsuario(request);
     }
 
-    suspenderUsuario(
-        request: SolicitudOperacionRequest,
-    ): Observable<SolicitudOperacionResponse> {
+    suspenderUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.repository.suspenderUsuario(request);
     }
 
-    reactivarUsuario(
-        request: SolicitudOperacionRequest,
-    ): Observable<SolicitudOperacionResponse> {
+    reactivarUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.repository.reactivarUsuario(request);
     }
 
-    desbloquearUsuario(
-        request: SolicitudOperacionRequest,
-    ): Observable<SolicitudOperacionResponse> {
+    desbloquearUsuario(request: SolicitudOperacionRequest): Observable<SolicitudOperacionResponse> {
         return this.repository.desbloquearUsuario(request);
     }
 }
