@@ -56,6 +56,7 @@ type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
 type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
 type CurpValidationStatus = string;
+type CurpValidationMessageTone = 'loading' | 'success' | 'warning' | 'error';
 type StructureProfileLookupStatus = 'idle' | 'loading' | 'success' | 'error';
 
 type WizardStepId =
@@ -119,8 +120,11 @@ interface IdentitySnapshot {
 
 interface CurpValidationSummary {
     readonly personal: string;
+    readonly sau: string;
     readonly eccc: string;
     readonly expirationDate: string;
+    readonly message: string;
+    readonly messageTone: CurpValidationMessageTone;
 }
 
 interface UserProfileOption {
@@ -1965,6 +1969,10 @@ export class UserRegistrationWizard {
         return `registration-wizard__curp-validation-pill registration-wizard__curp-validation-pill--${tone}`;
     }
 
+    protected getCurpValidationMessageClass(tone: CurpValidationMessageTone): string {
+        return `registration-wizard__curp-validation-message registration-wizard__curp-validation-message--${tone}`;
+    }
+
     private consultRenapo(curp: string): void {
         const normalizedCurp = this.toText(curp).toUpperCase();
 
@@ -2154,64 +2162,131 @@ export class UserRegistrationWizard {
         this.lastEcccPersonalLookupKey = lookupKey;
         this.curpValidationSummary.set({
             personal: 'Consultando...',
+            sau: 'Consultando...',
             eccc: 'Consultando...',
             expirationDate: 'Consultando...',
+            message: 'Consultando información de Personal, SAU y ECCC...',
+            messageTone: 'loading',
         });
 
-        forkJoin({
-            eccc: this.ecccPersonalApi.consultarEccc(request).pipe(
-                catchError((error: unknown) => {
-                    console.error('Error consultando ECCC.', error);
-                    return of(null);
-                }),
-            ),
-            personal: this.ecccPersonalApi.consultarPersonal(request).pipe(
-                catchError((error: unknown) => {
-                    console.error('Error consultando Personal.', error);
-                    return of(null);
-                }),
-            ),
-        })
+        this.ecccPersonalApi
+            .consultarIntegral(request)
             .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(({ eccc, personal }) => {
-                const currentRequest = this.buildEcccPersonalLookupRequest(this.form());
-                const currentLookupKey = currentRequest ? JSON.stringify(currentRequest) : '';
+            .subscribe({
+                next: (response) => {
+                    const currentRequest = this.buildEcccPersonalLookupRequest(this.form());
+                    const currentLookupKey = currentRequest ? JSON.stringify(currentRequest) : '';
 
-                if (
-                    requestSequence !== this.ecccPersonalLookupSequence ||
-                    lookupKey !== currentLookupKey
-                ) {
-                    return;
-                }
+                    if (
+                        requestSequence !== this.ecccPersonalLookupSequence ||
+                        lookupKey !== currentLookupKey
+                    ) {
+                        return;
+                    }
 
-                this.curpValidationSummary.set({
-                    personal: this.toText(personal?.estatusPersonal) || 'Sin información',
-                    eccc: this.toText(eccc?.estatusActual) || 'Sin información',
-                    expirationDate:
-                        this.toText(eccc?.fechaVencimiento) || 'Sin información',
-                });
+                    const personal = response.personal?.[0] ?? null;
+                    const personalStatus = response.personalConsultado
+                        ? response.personalEncontrado
+                            ? this.toText(personal?.estatusPersonal) || 'Encontrado'
+                            : 'No encontrado'
+                        : 'No consultado';
+
+                    const sauUsername = this.toText(response.sau?.usuario?.usuario);
+                    const sauStatus = response.sauConsultado
+                        ? sauUsername || 'No encontrado'
+                        : 'No consultado';
+
+                    const ecccResultado = this.toText(response.eccc?.resultadoIntegral);
+                    const ecccVigencia = this.toText(response.eccc?.estatusVigencia);
+                    const ecccStatus = response.ecccConsultado
+                        ? [ecccResultado, ecccVigencia]
+                            .filter((value, index, values) => value && values.indexOf(value) === index)
+                            .join(' · ') || 'Sin información'
+                        : 'No consultado';
+
+                    const expirationDate = response.ecccConsultado
+                        ? this.toDateInputValue(response.eccc?.fechaVencimiento ?? '') ||
+                          this.toText(response.eccc?.fechaVencimiento) ||
+                          'Sin información'
+                        : 'No consultado';
+
+                    const hasAnyResult =
+                        response.personalEncontrado ||
+                        Boolean(response.sau?.usuario) ||
+                        Boolean(response.eccc);
+
+                    this.curpValidationSummary.set({
+                        personal: personalStatus,
+                        sau: sauStatus,
+                        eccc: ecccStatus,
+                        expirationDate,
+                        message:
+                            this.toText(response.mensaje) ||
+                            (hasAnyResult
+                                ? 'La consulta integral se realizó correctamente.'
+                                : 'La consulta se realizó correctamente, pero no se encontró información.'),
+                        messageTone: hasAnyResult ? 'success' : 'warning',
+                    });
+                },
+                error: (error: unknown) => {
+                    const currentRequest = this.buildEcccPersonalLookupRequest(this.form());
+                    const currentLookupKey = currentRequest ? JSON.stringify(currentRequest) : '';
+
+                    if (
+                        requestSequence !== this.ecccPersonalLookupSequence ||
+                        lookupKey !== currentLookupKey
+                    ) {
+                        return;
+                    }
+
+                    const errorMessage =
+                        error instanceof Error && this.toText(error.message)
+                            ? this.toText(error.message)
+                            : 'No fue posible consultar la información de Personal, SAU y ECCC.';
+
+                    console.error('Error consultando Personal, SAU y ECCC.', error);
+                    this.curpValidationSummary.set({
+                        personal: 'No disponible',
+                        sau: 'No disponible',
+                        eccc: 'No disponible',
+                        expirationDate: 'No disponible',
+                        message: errorMessage,
+                        messageTone: 'error',
+                    });
+                },
             });
     }
 
     private buildEcccPersonalLookupRequest(
         form: UserRegistrationForm,
     ): EcccPersonalLookupRequest | null {
-        const cuip = this.toText(form.cuip).toUpperCase();
-        const nombre = this.toText(form.firstName);
-        const primerApellido = this.toText(form.lastName);
-        const segundoApellido = this.toText(form.secondLastName);
         const curp = this.toText(form.curp).toUpperCase();
+        const rfc = this.toText(form.rfc).toUpperCase();
+        const cuip = this.toText(form.cuip).toUpperCase();
+        const nombre = this.toText(form.firstName).toUpperCase();
+        const primerApellido = this.toText(form.lastName).toUpperCase();
+        const segundoApellido = this.toText(form.secondLastName).toUpperCase();
+        const fechaNacimiento = this.toDateInputValue(form.birthDate);
 
-        if (!cuip || !nombre || !primerApellido || !this.isValidCurp(curp)) {
+        if (
+            !cuip ||
+            !nombre ||
+            !primerApellido ||
+            !this.isValidCurp(curp) ||
+            !rfc ||
+            !fechaNacimiento
+        ) {
             return null;
         }
 
         return {
+            curp,
+            rfc,
             cuip,
             nombre,
             primerApellido,
             segundoApellido,
-            curp,
+            fechaNacimiento,
         };
     }
 

@@ -1,8 +1,30 @@
-import { Routes } from '@angular/router';
+import { CanMatchFn, Routes } from '@angular/router';
 import { authGuard } from './core/auth/guards/auth.guard';
 import { publicGuard } from './core/auth/guards/public.guard';
 import { twoFactorGuard } from './core/auth/guards/two-factor.guard';
 import { SiauShell } from './shared/layout/shell/shell';
+
+const SIAU_SHELL_ENTRY_POINTS = new Set([
+  'usuarios',
+  'solicitudes',
+  'administracion',
+  'reportes',
+  'bitacora',
+  'modals',
+]);
+
+/**
+ * Evita que la ruta vacía del shell capture cualquier URL desconocida.
+ * Solo deja entrar al layout autenticado cuando la URL apunta a una
+ * sección real de SIAU (o a la raíz, que redirige a /usuarios).
+ */
+const siauShellCanMatch: CanMatchFn = (_route, segments) => {
+  if (segments.length === 0) {
+    return true;
+  }
+
+  return SIAU_SHELL_ENTRY_POINTS.has(segments[0].path);
+};
 
 export const routes: Routes = [
   {
@@ -30,6 +52,7 @@ export const routes: Routes = [
   {
     path: '',
     component: SiauShell,
+    canMatch: [siauShellCanMatch],
     canActivate: [authGuard],
     children: [
       {
@@ -79,10 +102,20 @@ export const routes: Routes = [
             (m) => m.ModalsPage,
           ),
       },
+      {
+        path: '**',
+        loadComponent: () =>
+          import('./features/not-found/presentation/pages/not-found-page/not-found-page').then(
+            (m) => m.NotFoundPage,
+          ),
+      },
     ],
   },
   {
     path: '**',
-    redirectTo: 'login',
+    loadComponent: () =>
+      import('./features/not-found/presentation/pages/not-found-page/not-found-page').then(
+        (m) => m.NotFoundPage,
+      ),
   },
 ];

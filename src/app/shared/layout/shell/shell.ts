@@ -35,7 +35,7 @@ export class SiauShell implements OnDestroy {
 
   protected readonly activeItemId = computed(() => {
     const url = this.currentUrl();
-    return this.navItems.find((item) => url.startsWith(item.route))?.id ?? 'usuarios';
+    return this.navItems.find((item) => url.startsWith(item.route))?.id ?? null;
   });
 
   constructor() {

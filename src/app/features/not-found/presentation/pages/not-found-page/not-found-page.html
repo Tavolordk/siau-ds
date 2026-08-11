@@ -1,0 +1,49 @@
+<section class="not-found-page">
+  <header class="not-found-page__header">
+    <div class="not-found-page__heading">
+      <span class="not-found-page__accent" aria-hidden="true"></span>
+
+      <div>
+        <h1>Página no encontrada</h1>
+        <p>La ruta solicitada no está disponible en SIAU</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="not-found-page__content">
+    <article class="not-found-card" aria-labelledby="not-found-title">
+      <div class="not-found-card__visual" aria-hidden="true">
+        <div class="not-found-card__code">404</div>
+      </div>
+      <div class="not-found-card__body">
+        <span class="not-found-card__eyebrow">Ruta no encontrada</span>
+
+        <h2 id="not-found-title">No pudimos encontrar esta página</h2>
+        <p class="not-found-card__description">
+          Es posible que la dirección esté incompleta, haya sido escrita incorrectamente o que la sección ya no exista.
+        </p>
+
+        <div class="not-found-card__path" aria-label="Ruta solicitada">
+          <span class="not-found-card__path-label">Ruta solicitada</span>
+          <code>{{ requestedPath() }}</code>
+        </div>
+
+        <div class="not-found-card__actions">
+          <button type="button" class="not-found-card__button not-found-card__button--primary" (click)="goToUsers()">
+            <siau-lucide-icon name="users" size="17" strokeWidth="2" aria-hidden="true" />
+            <span>Ir a Usuarios</span>
+          </button>
+
+          <button type="button" class="not-found-card__button not-found-card__button--secondary" (click)="goBack()">
+            <siau-lucide-icon name="chevron-left" size="18" strokeWidth="2.2" aria-hidden="true" />
+            <span>Volver</span>
+          </button>
+        </div>
+
+        <p class="not-found-card__hint">
+          Revisa la dirección escrita o utiliza una de las acciones anteriores para continuar.
+        </p>
+      </div>
+    </article>
+  </main>
+</section>
