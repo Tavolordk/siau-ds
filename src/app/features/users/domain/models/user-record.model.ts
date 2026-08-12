@@ -92,12 +92,26 @@ export interface BorradorCuenta {
     readonly perfilId: number | null;
 }
 
+/**
+ * Perfil/sistema persistido dentro del JSON del borrador.
+ * Se usa la misma forma que `RegistroPerfil` del endpoint registro_admin.
+ */
+export interface BorradorPerfil {
+    readonly idSistema: number | null;
+    readonly idPerfil: number | null;
+}
+
 export interface BorradorDatos {
     readonly datosPersonales: BorradorDatosPersonales;
     readonly adscripcion: BorradorAdscripcion;
     readonly comision: BorradorAdscripcion | null;
     readonly medioContacto: BorradorMedioContacto;
+    /**
+     * `cuenta` se conserva por compatibilidad con borradores/API anteriores y
+     * contiene el primer perfil. La fuente completa es `perfiles`.
+     */
     readonly cuenta: BorradorCuenta;
+    readonly perfiles: readonly BorradorPerfil[];
     readonly comentario: string | null;
 }
 
@@ -209,6 +223,12 @@ export interface RegistroAdminCuenta {
     readonly estadoCuentaId?: number;
 }
 
+/** Contrato de un perfil del arreglo `perfiles` de registro_admin. */
+export interface RegistroPerfil {
+    readonly idSistema: number | null;
+    readonly idPerfil: number | null;
+}
+
 export interface RegistroEspecialCuenta {
     readonly tipoUsuarioId: number;
     readonly sistemaId: number;
@@ -226,7 +246,10 @@ export interface RegistroAdminRequest {
     readonly adscripcion: RegistroAsignacion;
     readonly comision: RegistroAsignacion | null;
     readonly medioContacto: RegistroMedioContacto;
+    /** Primer perfil, conservado por compatibilidad con el contrato existente. */
     readonly cuenta: RegistroAdminCuenta;
+    /** Colección completa de sistemas/perfiles asignados. */
+    readonly perfiles: readonly RegistroPerfil[] | null;
     readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
 }

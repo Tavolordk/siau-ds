@@ -12,6 +12,7 @@ import {
     BorradorCatalogos,
     BorradorDatos,
     BorradorEstructuraCatalogo,
+    BorradorPerfil,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroEspecialRequest,
@@ -734,8 +735,20 @@ export class UsersApiRepository {
                 ?? this.readNullableText(account ?? {}, ['tipoUsuario']),
             sistema: this.readNullableText(legacy ?? {}, ['sistema'])
                 ?? this.readNullableText(account ?? {}, ['sistema']),
-            perfil: this.readNullableText(legacy ?? {}, ['perfil'])
-                ?? this.readNullableText(account ?? {}, ['perfil', 'perfilClave']),
+            // El GET de borradores actual expone la descripción del perfil
+            // (por ejemplo, "ADMINISTRADOR"). Se prioriza esa descripción
+            // para enlazarla después contra `sistema_perfiles` y mostrar la
+            // `clavePerfil` correspondiente sin reemplazar el perfilId.
+            perfil: this.readNullableText(account ?? {}, [
+                'descripcionPerfil',
+                'perfilDescripcion',
+            ])
+                ?? this.readNullableText(legacy ?? {}, ['perfil'])
+                ?? this.readNullableText(account ?? {}, [
+                    'perfil',
+                    'perfilClave',
+                    'clavePerfil',
+                ]),
             adscripcionEstructura: assignment,
             comisionEstructura: commission,
         };
@@ -826,6 +839,14 @@ export class UsersApiRepository {
             : this.asRecord(source['comision']);
         const contact = this.asRecord(source['medioContacto']) ?? {};
         const account = this.asRecord(source['cuenta']) ?? {};
+        const perfiles = this.toDraftProfiles(source['perfiles']);
+        const legacySistemaId = this.readNullableNumber(account, ['sistemaId', 'idSistema']);
+        const legacyPerfilId = this.readNullableNumber(account, ['perfilId', 'idPerfil']);
+        const normalizedProfiles = perfiles.length > 0
+            ? perfiles
+            : legacySistemaId && legacyPerfilId
+                ? [{ idSistema: legacySistemaId, idPerfil: legacyPerfilId }]
+                : [];
 
         return {
             datosPersonales: {
@@ -861,11 +882,50 @@ export class UsersApiRepository {
             },
             cuenta: {
                 tipoUsuarioId: this.readNullableNumber(account, ['tipoUsuarioId']),
-                sistemaId: this.readNullableNumber(account, ['sistemaId']),
-                perfilId: this.readNullableNumber(account, ['perfilId']),
+                sistemaId: legacySistemaId,
+                perfilId: legacyPerfilId,
             },
+            perfiles: normalizedProfiles,
             comentario: this.readNullableText(source, ['comentario']),
         };
+    }
+
+    /**
+     * Lee el arreglo de perfiles persistido dentro de `datosJson`.
+     * Tolera tanto `{ idSistema, idPerfil }` (contrato registro_admin) como
+     * `{ sistemaId, perfilId }` para no romper borradores intermedios.
+     */
+    private toDraftProfiles(value: unknown): readonly BorradorPerfil[] {
+        if (!Array.isArray(value)) {
+            return [];
+        }
+
+        const seen = new Set<string>();
+        const result: BorradorPerfil[] = [];
+
+        for (const item of value) {
+            const record = this.asRecord(item);
+            if (!record) {
+                continue;
+            }
+
+            const idSistema = this.readNullableNumber(record, ['idSistema', 'sistemaId']);
+            const idPerfil = this.readNullableNumber(record, ['idPerfil', 'perfilId']);
+
+            if (!idSistema || !idPerfil) {
+                continue;
+            }
+
+            const key = `${idSistema}:${idPerfil}`;
+            if (seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            result.push({ idSistema, idPerfil });
+        }
+
+        return result;
     }
 
     private readNullableText(record: Record<string, unknown>, keys: readonly string[]): string | null {

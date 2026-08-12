@@ -21,7 +21,7 @@ import {
     of,
     switchMap,
 } from 'rxjs';
-import { CatalogoRecord, CatalogosFacade } from '../../../../../core/catalogos';
+import { CatalogoOption, CatalogoRecord, CatalogosFacade } from '../../../../../core/catalogos';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import { CorreoDeliveryResult, CorreoFacade } from '../../../../../core/correo';
 import { RenapoCurpData, RenapoFacade } from '../../../../../core/renapo';
@@ -149,6 +149,13 @@ interface AssignedSystemProfile {
     readonly systemLabel: string;
     readonly role: string;
     readonly roleLabel: string;
+    /** Descripción que devuelve el GET de borradores; se usa para resolver clavePerfil. */
+    readonly roleDescription?: string;
+}
+
+interface SystemProfileFallbackOption extends SiauSelectOption {
+    /** descripcionPerfil del catálogo sistema_perfiles. */
+    readonly description: string;
 }
 
 type StructureSelectionLevel =
@@ -361,7 +368,7 @@ export class UserRegistrationWizard {
      * devuelve para la estructura del borrador.
      */
     private readonly systemProfileFallbackOptions =
-        signal<Record<string, readonly SiauSelectOption[]>>({});
+        signal<Record<string, readonly SystemProfileFallbackOption[]>>({});
     private readonly requestedProfileFallbacks = new Set<string>();
 
     protected readonly showPassword = signal<boolean>(false);
@@ -916,8 +923,16 @@ export class UserRegistrationWizard {
         });
 
         effect(() => {
-            // Dependencias: en cuanto llega cualquiera de los catálogos de
-            // sistemas o perfiles, se resuelven las etiquetas pendientes.
+            /*
+             * Dependencias: los catálogos de sistemas/perfiles Y la lista de
+             * perfiles asignados. Sin esta última, al restaurar un borrador
+             * después de que los catálogos ya cargaron el efecto no vuelve a
+             * correr y las etiquetas se quedan en los ids.
+             *
+             * No hay ciclo: `refreshAssignedProfileLabels` sólo escribe cuando
+             * alguna etiqueta cambió, así que la segunda pasada no hace nada.
+             */
+            this.assignedSystemProfiles();
             this.systemOptions();
             this.allSystemOptions();
             this.structureRoleOptionsBySystem();
@@ -1875,7 +1890,7 @@ export class UserRegistrationWizard {
     }
 
     protected addAssignedProfile(): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
+        if (this.isFormDisabled() || this.isSubmitting() || this.isDraftBusy()) {
             return;
         }
 
@@ -1936,10 +1951,14 @@ export class UserRegistrationWizard {
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
+
+        // El perfil forma parte del borrador. Al agregarlo se persiste de inmediato
+        // para no depender de que el usuario vuelva a presionar "Siguiente".
+        this.saveDraftAfterProfileChange();
     }
 
     protected removeAssignedProfile(id: string): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
+        if (this.isFormDisabled() || this.isSubmitting() || this.isDraftBusy()) {
             return;
         }
 
@@ -1951,6 +1970,55 @@ export class UserRegistrationWizard {
 
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
         this.clearFieldError('profiles');
+
+        // También se persiste la eliminación. Si ya no queda ningún perfil,
+        // buildDraftSaveRequest enviará sistemaId/perfilId como null.
+        this.saveDraftAfterProfileChange();
+    }
+
+    private saveDraftAfterProfileChange(): void {
+        if (this.isEditMode() || this.isDraftBusy()) {
+            return;
+        }
+
+        let request: BorradorGuardarRequest;
+
+        try {
+            request = this.buildDraftSaveRequest(this.activeStepId(), this.completedSteps());
+        } catch {
+            this.draftMessage.set('');
+            this.draftError.set(
+                'No se pudo guardar el cambio de perfil en el borrador. Puedes continuar con el registro.',
+            );
+            return;
+        }
+
+        this.isDraftSaving.set(true);
+        this.draftError.set('');
+        this.draftMessage.set('Guardando cambio de perfil...');
+
+        this.usersFacade
+            .saveRegistrationDraft(request)
+            .pipe(
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isDraftSaving.set(false)),
+            )
+            .subscribe({
+                next: (response) => {
+                    const savedDraftId = response.datos?.borradorId;
+                    if (savedDraftId && savedDraftId > 0) {
+                        this.draftId.set(savedDraftId);
+                    }
+
+                    this.draftMessage.set(response.mensaje?.trim() || 'Cambio de perfil guardado.');
+                },
+                error: () => {
+                    this.draftMessage.set('');
+                    this.draftError.set(
+                        'No se pudo guardar el cambio de perfil en el borrador. Puedes continuar con el registro.',
+                    );
+                },
+            });
     }
 
     protected canRemoveAssignedProfile(_profile: AssignedSystemProfile): boolean {
@@ -2591,7 +2659,8 @@ export class UserRegistrationWizard {
     private buildCreateUserRequest(): RegistroAdminRequest {
         const current = this.form();
         const isExpress = current.expressCreation;
-        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
+        const assignedProfiles = this.assignedSystemProfiles();
+        const assignedProfile = assignedProfiles[0] ?? null;
 
         return {
             datosPersonales: {
@@ -2617,7 +2686,18 @@ export class UserRegistrationWizard {
             },
             comision: this.buildCommissionRequest(),
             medioContacto: this.buildContactRequest(),
+            // `cuenta` mantiene el primer perfil para compatibilidad con el
+            // contrato previo; `perfiles` contiene la asignación completa.
             cuenta: this.buildAdminAccountRequest(assignedProfile),
+            perfiles: assignedProfiles.length > 0
+                ? assignedProfiles.map((profile) => ({
+                    idSistema: this.resolveAssignedSystemId(profile),
+                    idPerfil: this.requireCatalogId(
+                        profile.role,
+                        'Selecciona un perfil válido.',
+                    ),
+                }))
+                : null,
             comentario: isExpress
                 ? this.requireText(
                     current.expressJustification,
@@ -3321,13 +3401,21 @@ export class UserRegistrationWizard {
         const cleanValue = this.toText(systemValue);
         const cleanLabel = this.toText(systemLabel);
 
-        return [...this.systemOptions(), ...this.allSystemOptions()].find((option) =>
-            option.value === cleanValue ||
-            this.normalizeText(option.value) === this.normalizeText(cleanValue) ||
-            this.normalizeText(option.label) === this.normalizeText(cleanValue) ||
-            (cleanLabel.length > 0 &&
-                this.normalizeText(option.label) === this.normalizeText(cleanLabel)),
-        );
+        return [...this.systemOptions(), ...this.allSystemOptions()].find((option) => {
+            const metadataSystemId = this.firstNumberValue(
+                this.optionMetadata(option),
+                ['idSistema', 'sistemaId', 'IdSistema', 'SistemaId', 'id'],
+            );
+
+            return (
+                option.value === cleanValue ||
+                this.normalizeText(option.value) === this.normalizeText(cleanValue) ||
+                this.normalizeText(option.label) === this.normalizeText(cleanValue) ||
+                (metadataSystemId !== null && String(metadataSystemId) === cleanValue) ||
+                (cleanLabel.length > 0 &&
+                    this.normalizeText(option.label) === this.normalizeText(cleanLabel))
+            );
+        });
     }
 
     private isSiauSystem(systemValue: string, systemLabel = ''): boolean {
@@ -3614,7 +3702,15 @@ export class UserRegistrationWizard {
         _completedSteps: readonly WizardStepId[],
     ): BorradorGuardarRequest {
         const current = this.form();
-        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
+        const assignedProfiles = this.assignedSystemProfiles();
+        const assignedProfile = assignedProfiles[0] ?? null;
+        const draftProfiles = assignedProfiles.map((profile) => ({
+            idSistema: this.resolveAssignedSystemId(profile),
+            idPerfil: this.requireCatalogId(
+                profile.role,
+                'Selecciona un perfil válido.',
+            ),
+        }));
 
         const datos: BorradorDatos = {
             datosPersonales: {
@@ -3650,13 +3746,17 @@ export class UserRegistrationWizard {
             },
             cuenta: {
                 tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
+                // Se conserva el primer perfil para que el backend/GET legado
+                // continúe resolviendo sus campos de catálogo como hasta ahora.
                 sistemaId: assignedProfile
-                    ? (this.toCatalogId(assignedProfile.system) ?? null)
+                    ? this.resolveAssignedSystemId(assignedProfile)
                     : null,
                 perfilId: assignedProfile
                     ? (this.toCatalogId(assignedProfile.role) ?? null)
                     : null,
             },
+            // Fuente completa para recuperar N sistemas/perfiles del borrador.
+            perfiles: draftProfiles,
             comentario: this.toNullableText(current.expressJustification),
         };
 
@@ -3984,36 +4084,65 @@ export class UserRegistrationWizard {
         datos: BorradorDatos,
         catalogos: BorradorCatalogos | null,
     ): AssignedSystemProfile[] {
-        const systemId = datos.cuenta.sistemaId;
-        const profileId = datos.cuenta.perfilId;
+        const sourceProfiles = datos.perfiles.length > 0
+            ? datos.perfiles
+            : datos.cuenta.sistemaId && datos.cuenta.perfilId
+                ? [{
+                    idSistema: datos.cuenta.sistemaId,
+                    idPerfil: datos.cuenta.perfilId,
+                }]
+                : [];
 
-        if (!systemId || !profileId) {
-            return [];
-        }
+        const seen = new Set<string>();
 
-        const systemValue = String(systemId);
-        const roleValue = String(profileId);
+        return sourceProfiles.flatMap((profile, index) => {
+            const systemId = profile.idSistema;
+            const profileId = profile.idPerfil;
 
-        /*
-         * El borrador sólo persiste ids. Las etiquetas se toman, en orden, de:
-         * los catálogos que ya resolvió el backend, el catálogo de perfiles por
-         * estructura (si alcanzó a cargar) y, como último recurso, el id.
-         * `refreshAssignedProfileLabels` vuelve a intentarlo en cuanto los
-         * catálogos terminan de cargar, para que el chip no se quede en "1 · 1".
-         */
-        const systemLabel = this.resolveSystemLabel(systemValue)
-            || this.toText(catalogos?.sistema ?? '')
-            || systemValue;
+            if (!systemId || !profileId) {
+                return [];
+            }
 
-        return [{
-            id: `${systemValue}:${roleValue}`,
-            system: systemValue,
-            systemLabel,
-            role: roleValue,
-            roleLabel: this.resolveRoleLabel(systemValue, roleValue, systemLabel)
-                || this.toText(catalogos?.perfil ?? '')
-                || roleValue,
-        }];
+            const systemValue = String(systemId);
+            const roleValue = String(profileId);
+            const key = `${systemValue}:${roleValue}`;
+
+            if (seen.has(key)) {
+                return [];
+            }
+            seen.add(key);
+
+            /*
+             * El GET actual sólo resuelve las etiquetas del perfil singular de
+             * `cuenta`, que corresponde al primer elemento. Para el resto se
+             * usan los catálogos `sistema_perfiles`; el efecto que llama a
+             * `refreshAssignedProfileLabels` vuelve a resolverlos cuando esos
+             * catálogos terminan de cargar.
+             */
+            const systemLabel = this.resolveSystemLabel(systemValue)
+                || (index === 0 ? this.toText(catalogos?.sistema ?? '') : '')
+                || systemValue;
+
+            const roleDescription = index === 0
+                ? this.toText(catalogos?.perfil ?? '')
+                : '';
+
+            return [{
+                id: `${systemValue}:${roleValue}`,
+                system: systemValue,
+                systemLabel,
+                role: roleValue,
+                roleLabel: this.resolveRoleLabel(
+                    systemValue,
+                    roleValue,
+                    systemLabel,
+                    roleDescription,
+                )
+                    || roleDescription
+                    || roleValue,
+                roleDescription,
+            }];
+        });
     }
 
     private resolveSystemLabel(systemValue: string): string {
@@ -4029,21 +4158,70 @@ export class UserRegistrationWizard {
         systemValue: string,
         roleValue: string,
         systemLabel = '',
+        roleDescription = '',
     ): string {
         const rolesBySystem = this.structureRoleOptionsBySystem();
         const fallback = this.systemProfileFallbackOptions();
         const fallbackKey = this.normalizeText(systemLabel);
-        const candidates = [
-            ...(rolesBySystem[systemValue] ?? []),
+        const fallbackCandidates = [
             ...(fallback[fallbackKey] ?? []),
-            ...Object.values(rolesBySystem).flat(),
             ...Object.values(fallback).flat(),
+        ];
+
+        /*
+         * El GET de borradores devuelve `descripcionPerfil`, mientras que la UI
+         * debe pintar `clavePerfil`. Por eso el catálogo global se intenta
+         * resolver primero por descripción y después por perfilId. El id se
+         * conserva en `role` para que los guardados posteriores sigan enviando
+         * el valor numérico esperado por el backend.
+         */
+        const normalizedDescription = this.normalizeText(roleDescription);
+        const fallbackByDescription = normalizedDescription
+            ? fallbackCandidates.find(
+                (option) => this.normalizeText(option.description) === normalizedDescription,
+            )
+            : undefined;
+
+        if (fallbackByDescription) {
+            return this.toText(fallbackByDescription.label);
+        }
+
+        const fallbackById = fallbackCandidates.find((option) => option.value === roleValue);
+
+        if (fallbackById) {
+            return this.toText(fallbackById.label);
+        }
+
+        const structureCandidates = [
+            ...(rolesBySystem[systemValue] ?? []),
+            ...Object.values(rolesBySystem).flat(),
             ...this.roleOptions(),
         ];
 
         return this.toText(
-            candidates.find((option) => option.value === roleValue)?.label ?? '',
+            structureCandidates.find((option) => option.value === roleValue)?.label ?? '',
         );
+    }
+
+    /**
+     * El mapper genérico de catálogos prioriza la llave `id`, que en
+     * `sistema_perfiles` no siempre es el id del perfil. Se reconstruye el
+     * valor a partir de la metadata para poder empatar contra el `perfilId`
+     * que guarda el borrador.
+     */
+    private resolveProfileOptionValue(option: CatalogoOption): string {
+        const metadata = this.toRecord(option.metadata);
+        const keys = ['perfilId', 'idPerfil', 'sistemaPerfilId', 'perfilSistemaId', 'rolId', 'idRol'];
+
+        for (const key of keys) {
+            const value = Number(metadata[key]);
+
+            if (Number.isFinite(value) && value > 0) {
+                return String(value);
+            }
+        }
+
+        return option.value;
     }
 
     /**
@@ -4067,7 +4245,26 @@ export class UserRegistrationWizard {
                 next: (options) => {
                     this.systemProfileFallbackOptions.update((current) => ({
                         ...current,
-                        [key]: options,
+                        [key]: options.map((option) => {
+                            const metadata = this.toRecord(option.metadata);
+
+                            return {
+                                value: this.resolveProfileOptionValue(option),
+                                // En sistema_perfiles la etiqueta que se debe pintar
+                                // en un borrador restaurado es la clave funcional.
+                                label: this.toText(
+                                    metadata['clavePerfil']
+                                    ?? metadata['perfilClave']
+                                    ?? metadata['rolClave']
+                                    ?? option.label,
+                                ),
+                                description: this.toText(
+                                    metadata['descripcionPerfil']
+                                    ?? metadata['perfilDescripcion']
+                                    ?? option.label,
+                                ),
+                            };
+                        }),
                     }));
                 },
                 error: (error: unknown) => {
@@ -4094,14 +4291,20 @@ export class UserRegistrationWizard {
 
         const next = current.map((profile) => {
             const systemLabel = this.resolveSystemLabel(profile.system) || profile.systemLabel;
-            const roleLabel = this.resolveRoleLabel(profile.system, profile.role, systemLabel)
-                || profile.roleLabel;
+            const fallbackKey = this.normalizeText(systemLabel);
 
-            // Si el rol sigue mostrándose como su id, se pide el catálogo
-            // global de perfiles de ese sistema.
-            if (roleLabel === profile.role) {
+            // El catálogo sistema_perfiles es el que contiene la relación
+            // descripcionPerfil -> clavePerfil solicitada para los borradores.
+            if (fallbackKey && !this.systemProfileFallbackOptions()[fallbackKey]) {
                 this.ensureSystemProfileFallback(systemLabel);
             }
+
+            const roleLabel = this.resolveRoleLabel(
+                profile.system,
+                profile.role,
+                systemLabel,
+                profile.roleDescription ?? '',
+            ) || profile.roleLabel;
 
             if (systemLabel === profile.systemLabel && roleLabel === profile.roleLabel) {
                 return profile;
@@ -4437,18 +4640,20 @@ export class UserRegistrationWizard {
             ]);
             const rawSystemLabel = this.firstText([
                 this.firstValue(record, [
+                    // El nombre visible debe ser la clave/nombre real del sistema
+                    // (p. ej. "SPM"), no su descripcion larga.
+                    'sistema',
                     'sistemaNombre',
                     'nombreSistema',
                     'sistemaClave',
                     'claveSistema',
                     'descripcionSistema',
-                    'sistema',
                 ]),
                 this.firstValue(nestedSystem, [
-                    'nombre',
-                    'descripcion',
-                    'clave',
                     'sistema',
+                    'nombre',
+                    'clave',
+                    'descripcion',
                 ]),
             ]);
 

@@ -115,10 +115,42 @@ export class CatalogosApiRepository implements CatalogosRepository {
                 params: this.toHttpParams(query, CURRENT_QUERY_PARAM_NAMES),
             })
             .pipe(
-                // Este endpoint no usa la envoltura genérica `datos`; cada perfil
-                // ya incluye idSistema/sistema, por lo que con esta colección se
-                // construyen tanto el select de sistemas como el de perfiles.
-                map((response) => response.perfiles ?? []),
+                /*
+                 * `estructura_perfil` devuelve dos colecciones: `sistemas` y
+                 * `perfiles`. Para restaurar borradores necesitamos conservar
+                 * la relación idSistema -> sistema (por ejemplo 9 -> SPM).
+                 * Enriquecemos cada perfil con el nombre proveniente de
+                 * `sistemas` en vez de depender de que el perfil lo repita.
+                 */
+                map((response) => {
+                    const systemsById = new Map<string, CatalogoRecord>();
+
+                    (response.sistemas ?? []).forEach((system) => {
+                        const id = String(
+                            system['idSistema'] ?? system['sistemaId'] ?? system['id'] ?? '',
+                        ).trim();
+
+                        if (id) {
+                            systemsById.set(id, system);
+                        }
+                    });
+
+                    return (response.perfiles ?? []).map((profile) => {
+                        const systemId = String(
+                            profile['idSistema'] ?? profile['sistemaId'] ?? '',
+                        ).trim();
+                        const system = systemsById.get(systemId);
+
+                        return {
+                            ...profile,
+                            sistema: system?.['sistema'] ?? profile['sistema'] ?? null,
+                            descripcionSistema:
+                                profile['descripcionSistema'] ?? system?.['descripcion'] ?? null,
+                            audienciaSistema:
+                                profile['audienciaSistema'] ?? system?.['audiencia'] ?? null,
+                        };
+                    });
+                }),
                 catchError((error: HttpErrorResponse) =>
                     throwError(() => new Error(this.getErrorMessage(error))),
                 ),
