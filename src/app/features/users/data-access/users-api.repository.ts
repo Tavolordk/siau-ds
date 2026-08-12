@@ -28,6 +28,7 @@ import {
 
 const REGISTRO_ROOT_PATH = '/api/v1/registro';
 const USERS_SEARCH_PATH = `${REGISTRO_ROOT_PATH}/usuarios/busqueda-avanzada`;
+const USERS_MANAGEMENT_PATH = `${REGISTRO_ROOT_PATH}/usuarios/gestion`;
 const USERS_DETAIL_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = `${REGISTRO_ROOT_PATH}/registro_admin`;
 const REGISTRO_ESPECIAL_PATH = `${REGISTRO_ROOT_PATH}/registro_especial`;
@@ -101,13 +102,17 @@ export class UsersApiRepository {
     private readonly http = inject(HttpClient);
     private readonly baseUrl = inject(CONSULTAS_API_BASE_URL).replace(/\/$/, '');
 
-    /** Lista inicial de la sección Usuarios. No depende de ejecutar una búsqueda avanzada. */
+    /**
+     * Lista inicial de la sección Usuarios.
+     * GET /api/v1/registro/usuarios/gestion
+     * Para el listado general sólo se envían Pagina y PorPagina.
+     */
     getAllUsers(page = 1, pageSize = 15): Observable<UsersPageResult> {
         return this.http
-            .get<unknown>(`${this.baseUrl}${USERS_DETAIL_PATH}`, {
+            .get<unknown>(`${this.baseUrl}${USERS_MANAGEMENT_PATH}`, {
                 params: {
-                    pagina: String(page),
-                    porPagina: String(pageSize),
+                    Pagina: String(page),
+                    PorPagina: String(pageSize),
                 },
             })
             .pipe(
@@ -495,7 +500,7 @@ export class UsersApiRepository {
     }
 
     /**
-     * Mapeo único de un usuario del listado. El GET de /consultas/usuarios ya
+     * Mapeo único de un usuario del listado. El GET de /registro/usuarios/gestion
      * entrega `nombreCompleto`, `rol`, `rolClave`, `estatusClave`, `rnpsp` y
      * `cConfianza`; la búsqueda avanzada manda los apellidos por separado. Se
      * leen ambos contratos y el nombre se arma sólo cuando no viene resuelto.
