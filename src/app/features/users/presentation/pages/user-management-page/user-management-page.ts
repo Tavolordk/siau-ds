@@ -10,6 +10,7 @@ import { UsersFacade } from '../../../application/users.facade';
 import {
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
+    BorradorItem,
     UserDetailRecord,
     UserPagination,
     UserRecord,
@@ -98,6 +99,16 @@ interface AccountOperationSuccessState {
     readonly userId: number;
 }
 
+/** Elemento del paginador: un número de página o un separador "…". */
+interface PaginationItem {
+    readonly key: string;
+    readonly page: number;
+    readonly isGap: boolean;
+}
+
+/** Páginas visibles a cada lado de la actual antes de cortar con "…". */
+const PAGINATION_SIBLINGS = 1;
+
 const DEFAULT_PAGINATION: UserPagination = {
     totalRegistros: 0,
     totalPaginas: 1,
@@ -168,12 +179,33 @@ export class UserManagementPage {
     protected readonly todayDate = this.toDateInputValue(new Date());
     protected readonly users = signal<readonly UserRecord[]>([]);
     protected readonly pagination = signal<UserPagination>(DEFAULT_PAGINATION);
+
+    /**
+     * Página que el front pidió. Es la fuente de verdad del pie de tabla: si se
+     * dependiera de `pagination().paginaActual`, cualquier respuesta que no
+     * refleje la página solicitada deja el contador congelado en 1.
+     */
+    protected readonly currentPage = signal<number>(1);
     protected readonly isLoading = signal<boolean>(false);
     protected readonly errorMessage = signal<string | null>(null);
     protected readonly informationMessage = signal<string | null>(null);
 
     protected readonly isUserWizardOpen = signal<boolean>(false);
     protected readonly userWizardMode = signal<UserWizardMode>('create');
+
+    /** Menú desplegable del botón "Nuevo Usuario". */
+    protected readonly isNewUserMenuOpen = signal<boolean>(false);
+    protected readonly isDraftsModalOpen = signal<boolean>(false);
+    protected readonly drafts = signal<readonly BorradorItem[]>([]);
+    protected readonly isDraftsLoading = signal<boolean>(false);
+    protected readonly draftsError = signal<string | null>(null);
+
+    /**
+     * Borrador que se abrirá en el asistente. Cuando es `null` y
+     * `autoRestoreDraft` está apagado, el asistente arranca en blanco.
+     */
+    protected readonly draftToOpen = signal<BorradorItem | null>(null);
+    protected readonly autoRestoreDraft = signal<boolean>(false);
     protected readonly selectedUser = signal<UserRecord | null>(null);
     protected readonly selectedUserDetail = signal<UserDetailRecord | null>(null);
     protected readonly isDetailLoading = signal<boolean>(false);
@@ -456,12 +488,61 @@ export class UserManagementPage {
         const pagination = this.pagination();
         const totalRecords = Math.max(0, pagination.totalRegistros);
         const pageSize = Math.max(0, pagination.porPagina);
-        const previousPagesCount = Math.max(0, pagination.paginaActual - 1) * pageSize;
+        const previousPagesCount = Math.max(0, this.currentPage() - 1) * pageSize;
 
         return Math.min(totalRecords, previousPagesCount + this.filteredUsers().length);
     });
-    protected readonly canGoPrevious = computed(() => this.pagination().paginaActual > 1);
-    protected readonly canGoNext = computed(() => this.pagination().paginaActual < this.pagination().totalPaginas);
+    protected readonly canGoPrevious = computed(() => this.currentPage() > 1);
+    protected readonly canGoNext = computed(() => this.currentPage() < this.pagination().totalPaginas);
+
+    /**
+     * Botones numerados del paginador. La primera y la última página siempre
+     * son visibles; el resto se recorta con separadores "…" alrededor de la
+     * actual, para que 1000 páginas no dibujen 1000 botones.
+     *
+     *   1 … 499 [500] 501 … 1000
+     */
+    protected readonly pageItems = computed<readonly PaginationItem[]>(() => {
+        const totalPages = Math.max(1, this.pagination().totalPaginas);
+        const current = Math.min(Math.max(1, this.currentPage()), totalPages);
+
+        // primera + última + actual + hermanos + los dos separadores
+        const maxSlots = PAGINATION_SIBLINGS * 2 + 5;
+
+        if (totalPages <= maxSlots) {
+            return this.toPaginationItems(this.pageRange(1, totalPages));
+        }
+
+        const leftSibling = Math.max(current - PAGINATION_SIBLINGS, 1);
+        const rightSibling = Math.min(current + PAGINATION_SIBLINGS, totalPages);
+        const showLeftGap = leftSibling > 2;
+        const showRightGap = rightSibling < totalPages - 1;
+        const edgeCount = PAGINATION_SIBLINGS * 2 + 3;
+
+        if (!showLeftGap && showRightGap) {
+            return this.toPaginationItems([
+                ...this.pageRange(1, edgeCount),
+                0,
+                totalPages,
+            ]);
+        }
+
+        if (showLeftGap && !showRightGap) {
+            return this.toPaginationItems([
+                1,
+                0,
+                ...this.pageRange(totalPages - edgeCount + 1, totalPages),
+            ]);
+        }
+
+        return this.toPaginationItems([
+            1,
+            0,
+            ...this.pageRange(leftSibling, rightSibling),
+            0,
+            totalPages,
+        ]);
+    });
 
     constructor() {
         this.loadFilterCatalogs();
@@ -470,6 +551,10 @@ export class UserManagementPage {
 
     @HostListener('document:keydown.escape')
     protected handleEscapeKey(): void {
+        if (this.isNewUserMenuOpen()) {
+            this.closeNewUserMenu();
+        }
+
         if (this.isFilterPanelOpen()) {
             this.closeFilterPanel();
         }
@@ -719,7 +804,7 @@ export class UserManagementPage {
     }
 
     protected reloadUsers(): void {
-        this.loadUsers(this.pagination().paginaActual);
+        this.loadUsers(this.currentPage());
     }
 
     protected previousPage(): void {
@@ -727,7 +812,7 @@ export class UserManagementPage {
             return;
         }
 
-        this.loadUsers(this.pagination().paginaActual - 1);
+        this.loadUsers(this.currentPage() - 1);
     }
 
     protected nextPage(): void {
@@ -735,10 +820,159 @@ export class UserManagementPage {
             return;
         }
 
-        this.loadUsers(this.pagination().paginaActual + 1);
+        this.loadUsers(this.currentPage() + 1);
     }
 
-    protected openRegistration(): void {
+    private pageRange(start: number, end: number): readonly number[] {
+        const length = Math.max(0, end - start + 1);
+
+        return Array.from({ length }, (_, index) => start + index);
+    }
+
+    /** El 0 representa un separador; `key` mantiene estable el @for. */
+    private toPaginationItems(pages: readonly number[]): readonly PaginationItem[] {
+        return pages.map((page, index) => ({
+            key: page > 0 ? `page-${page}` : `gap-${index}`,
+            page,
+            isGap: page <= 0,
+        }));
+    }
+
+    protected goToPage(page: number): void {
+        const totalPages = Math.max(1, this.pagination().totalPaginas);
+        const target = Math.min(Math.max(1, page), totalPages);
+
+        if (target === this.currentPage() || this.isLoading()) {
+            return;
+        }
+
+        this.loadUsers(target);
+    }
+
+    protected toggleNewUserMenu(): void {
+        this.isNewUserMenuOpen.update((isOpen) => !isOpen);
+    }
+
+    protected closeNewUserMenu(): void {
+        this.isNewUserMenuOpen.set(false);
+    }
+
+    /** "Nueva solicitud": asistente en blanco y borrador nuevo (borradorId null). */
+    protected startNewRegistration(): void {
+        this.closeNewUserMenu();
+        this.draftToOpen.set(null);
+        this.autoRestoreDraft.set(false);
+        this.openRegistration();
+    }
+
+    /** "Ver borradores": lista los borradores del usuario en sesión. */
+    protected openDraftsModal(): void {
+        this.closeNewUserMenu();
+        this.isDraftsModalOpen.set(true);
+        this.loadDrafts();
+    }
+
+    protected closeDraftsModal(): void {
+        this.isDraftsModalOpen.set(false);
+    }
+
+    protected loadDrafts(): void {
+        this.isDraftsLoading.set(true);
+        this.draftsError.set(null);
+
+        this.usersFacade
+            .getRegistrationDrafts(this.currentSessionUserId())
+            .pipe(
+                timeout(15000),
+                finalize(() => this.isDraftsLoading.set(false)),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe({
+                next: (drafts) => this.drafts.set(drafts),
+                error: (error: unknown) => {
+                    this.drafts.set([]);
+                    this.draftsError.set(this.toFriendlyError(error));
+                },
+            });
+    }
+
+    /** Abre el asistente posicionado en el borrador elegido. */
+    protected openDraft(draft: BorradorItem): void {
+        this.closeDraftsModal();
+        this.draftToOpen.set(draft);
+        this.autoRestoreDraft.set(false);
+        this.openRegistration();
+    }
+
+    protected draftTitle(draft: BorradorItem): string {
+        const personales = draft.datos?.datosPersonales;
+        const nombre = [
+            personales?.nombres,
+            personales?.primerApellido,
+            personales?.segundoApellido,
+        ]
+            .map((part) => (part ?? '').trim())
+            .filter(Boolean)
+            .join(' ');
+
+        if (nombre) {
+            return nombre;
+        }
+
+        const correo = draft.datos?.medioContacto?.correo?.trim();
+
+        return correo || `Borrador ${draft.borradorId ?? 'sin folio'}`;
+    }
+
+    protected draftSubtitle(draft: BorradorItem): string {
+        const estructura = draft.catalogos?.adscripcionEstructura;
+
+        // Se muestra la ruta de adscripción de lo general a lo particular para
+        // distinguir borradores de la misma persona en distintas áreas.
+        const partes = [
+            estructura?.tipoInstitucion,
+            estructura?.institucion ?? draft.catalogos?.adscripcion,
+            estructura?.organo,
+            estructura?.unidad,
+            draft.catalogos?.tipoUsuario,
+        ]
+            .map((part) => (part ?? '').trim())
+            .filter(Boolean);
+
+        return partes.join(' · ') || 'Sin adscripción capturada';
+    }
+
+    protected draftTimestamp(draft: BorradorItem): string {
+        const fecha = draft.fechaActualizacion ?? draft.fechaCreacion;
+
+        if (!fecha) {
+            return 'Sin fecha';
+        }
+
+        const parsed = new Date(fecha);
+
+        if (Number.isNaN(parsed.getTime())) {
+            return fecha;
+        }
+
+        return parsed.toLocaleString('es-MX', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    }
+
+    protected trackDraft(_index: number, draft: BorradorItem): string {
+        return String(draft.borradorId ?? _index);
+    }
+
+    private currentSessionUserId(): number | null {
+        return this.toPositiveNumber(this.authStorage.session()?.user.id) ?? null;
+    }
+
+    private openRegistration(): void {
         this.detailRequestSequence++;
         this.userWizardMode.set('create');
         this.selectedUser.set(null);
@@ -798,6 +1032,8 @@ export class UserManagementPage {
         this.userWizardMode.set('create');
         this.selectedUser.set(null);
         this.selectedUserDetail.set(null);
+        this.draftToOpen.set(null);
+        this.autoRestoreDraft.set(false);
     }
 
     protected openBajaModal(user: UserRecord): void {
@@ -1374,6 +1610,7 @@ export class UserManagementPage {
             porPagina: 15,
         };
 
+        this.currentPage.set(Math.max(1, page));
         this.isLoading.set(true);
         this.errorMessage.set(null);
         this.informationMessage.set(null);
@@ -1393,6 +1630,7 @@ export class UserManagementPage {
                 error: (error: unknown) => {
                     this.users.set([]);
                     this.pagination.set(DEFAULT_PAGINATION);
+                    this.currentPage.set(1);
                     this.errorMessage.set(this.toFriendlyError(error));
                 },
             });

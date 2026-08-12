@@ -12,10 +12,36 @@
 
     <main class="users-page__content">
         <div class="users-page__actions">
-            <button type="button" class="users-page__new-button" (click)="openRegistration()">
-                <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
-                <span>Nuevo Usuario</span>
-            </button>
+            <div class="users-page__new-menu">
+                <button type="button" class="users-page__new-button" [attr.aria-expanded]="isNewUserMenuOpen()"
+                    aria-haspopup="menu" aria-controls="new-user-menu" (click)="toggleNewUserMenu()">
+                    <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
+                    <span>Nuevo Usuario</span>
+                    <siau-lucide-icon name="chevron-down" size="16" strokeWidth="2" aria-hidden="true" />
+                </button>
+
+                @if (isNewUserMenuOpen()) {
+                <div class="users-page__new-menu-backdrop" (click)="closeNewUserMenu()"></div>
+
+                <div class="users-page__new-menu-list" id="new-user-menu" role="menu">
+                    <button type="button" role="menuitem" (click)="startNewRegistration()">
+                        <siau-lucide-icon name="user-plus" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>
+                            <strong>Nueva solicitud</strong>
+                            <small>Captura un registro desde cero</small>
+                        </span>
+                    </button>
+
+                    <button type="button" role="menuitem" (click)="openDraftsModal()">
+                        <siau-lucide-icon name="clipboard-list" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>
+                            <strong>Ver borradores</strong>
+                            <small>Continúa un registro guardado</small>
+                        </span>
+                    </button>
+                </div>
+                }
+            </div>
         </div>
 
         <article class="users-table-card" [class.users-table-card--filters-open]="isFilterPanelOpen()"
@@ -301,18 +327,31 @@
             <footer class="users-table-card__footer">
                 <p>
                     Mostrando {{ shownUsersCount() }} de {{ pagination().totalRegistros }} usuarios · Página
-                    {{ pagination().paginaActual }} de {{ pagination().totalPaginas }}
+                    {{ currentPage() }} de {{ pagination().totalPaginas }}
                 </p>
 
-                <div class="users-table-card__pagination" aria-label="Paginación de usuarios">
+                <nav class="users-table-card__pagination" aria-label="Paginación de usuarios">
                     <button type="button" [disabled]="!canGoPrevious() || isLoading()" (click)="previousPage()">
                         Anterior
                     </button>
 
+                    @for (item of pageItems(); track item.key) {
+                    @if (item.isGap) {
+                    <span class="users-table-card__page-gap" aria-hidden="true">…</span>
+                    } @else {
+                    <button type="button" class="users-table-card__page-number"
+                        [class.is-active]="item.page === currentPage()" [disabled]="isLoading()"
+                        [attr.aria-current]="item.page === currentPage() ? 'page' : null"
+                        [attr.aria-label]="'Ir a la página ' + item.page" (click)="goToPage(item.page)">
+                        {{ item.page }}
+                    </button>
+                    }
+                    }
+
                     <button type="button" [disabled]="!canGoNext() || isLoading()" (click)="nextPage()">
                         Siguiente
                     </button>
-                </div>
+                </nav>
             </footer>
         </article>
     </main>
@@ -320,7 +359,48 @@
 
 <app-user-registration-wizard [open]="isUserWizardOpen()" [mode]="userWizardMode()" [user]="selectedUser()"
     [userDetail]="selectedUserDetail()" [readonlyMode]="selectedUser() !== null && isUserReadOnly(selectedUser()!)"
-    (saved)="handleUserSaved()" (closed)="closeUserWizard()"></app-user-registration-wizard>
+    [draftToOpen]="draftToOpen()" [autoRestoreDraft]="autoRestoreDraft()" (saved)="handleUserSaved()"
+    (closed)="closeUserWizard()"></app-user-registration-wizard>
+
+<siau-modal [open]="isDraftsModalOpen()" title="Borradores guardados"
+    subtitle="Selecciona un borrador para continuar el registro donde lo dejaste" icon="clipboard-list" size="md"
+    headerBadge="Registros en proceso" (close)="closeDraftsModal()">
+    <section class="drafts-modal">
+        @if (isDraftsLoading()) {
+        <p class="drafts-modal__state">Cargando borradores...</p>
+        } @else if (draftsError(); as draftsErrorMessage) {
+        <p class="drafts-modal__state drafts-modal__state--error">{{ draftsErrorMessage }}</p>
+
+        <button type="button" class="drafts-modal__retry" (click)="loadDrafts()">Reintentar</button>
+        } @else if (!drafts().length) {
+        <p class="drafts-modal__state">
+            No tienes borradores guardados. Usa "Nueva solicitud" para iniciar un registro.
+        </p>
+        } @else {
+        <ul class="drafts-modal__list">
+            @for (draft of drafts(); track trackDraft($index, draft)) {
+            <li>
+                <button type="button" class="drafts-modal__item" (click)="openDraft(draft)">
+                    <span class="drafts-modal__item-icon">
+                        <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <span class="drafts-modal__item-copy">
+                        <strong>{{ draftTitle(draft) }}</strong>
+                        <small>{{ draftSubtitle(draft) }}</small>
+                        <small class="drafts-modal__item-date">
+                            Actualizado: {{ draftTimestamp(draft) }}
+                        </small>
+                    </span>
+
+                    <siau-lucide-icon name="chevron-right" size="18" strokeWidth="2" aria-hidden="true" />
+                </button>
+            </li>
+            }
+        </ul>
+        }
+    </section>
+</siau-modal>
 
 <siau-modal [open]="isBajaModalOpen()" title="Dar de baja usuario"
     subtitle="Esta acción dará de baja al usuario seleccionado" icon="trash-2" size="md" headerBadge="Solicitud de baja"

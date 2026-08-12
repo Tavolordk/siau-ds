@@ -46,6 +46,7 @@ import {
 } from '../../../application/draft-structure.resolver';
 import {
     ActualizarAdminRequest,
+    BorradorCatalogos,
     BorradorDatos,
     BorradorGuardarRequest,
     BorradorItem,
@@ -296,6 +297,8 @@ export class UserRegistrationWizard {
     readonly user = input<UserRecord | null>(null);
     readonly userDetail = input<UserDetailRecord | null>(null);
     readonly readonlyMode = input<boolean>(false);
+    readonly draftToOpen = input<BorradorItem | null>(null);
+    readonly autoRestoreDraft = input<boolean>(true);
     readonly closed = output<void>();
     readonly saved = output<void>();
 
@@ -351,6 +354,15 @@ export class UserRegistrationWizard {
     protected readonly structureProfileMessage = signal<string>('');
     private readonly structureRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
     private readonly allSystemOptions = signal<readonly SiauSelectOption[]>([]);
+
+    /**
+     * Perfiles traídos de `sistema_perfiles` (catálogo global por sistema). Es
+     * el respaldo para etiquetar un perfil cuando `estructura_perfil` no lo
+     * devuelve para la estructura del borrador.
+     */
+    private readonly systemProfileFallbackOptions =
+        signal<Record<string, readonly SiauSelectOption[]>>({});
+    private readonly requestedProfileFallbacks = new Set<string>();
 
     protected readonly showPassword = signal<boolean>(false);
     protected readonly showConfirmPassword = signal<boolean>(false);
@@ -862,6 +874,8 @@ export class UserRegistrationWizard {
             const user = this.user();
             const detail = this.userDetail();
             const catalogosReady = this.catalogosReady();
+            const draftToOpen = this.draftToOpen();
+            const autoRestoreDraft = this.autoRestoreDraft();
 
             if (!isOpen) {
                 this.hydrationKey = '';
@@ -870,7 +884,8 @@ export class UserRegistrationWizard {
 
             const userKey = user?.userId ?? user?.username ?? 'sin-usuario';
             const detailKey = detail ? 'con-detalle' : 'sin-detalle';
-            const nextHydrationKey = `${mode}-${userKey}-${detailKey}-${catalogosReady}`;
+            const draftKey = draftToOpen?.borradorId ?? 'sin-borrador';
+            const nextHydrationKey = `${mode}-${userKey}-${detailKey}-${draftKey}-${autoRestoreDraft}-${catalogosReady}`;
 
             if (this.hydrationKey === nextHydrationKey) {
                 return;
@@ -888,10 +903,28 @@ export class UserRegistrationWizard {
                 this.editEnabled.set(true);
                 this.ensureDefaultSiauProfile();
 
-                if (catalogosReady) {
+                if (!catalogosReady) {
+                    return;
+                }
+
+                if (draftToOpen) {
+                    this.restoreProvidedRegistrationDraft(draftToOpen);
+                } else if (autoRestoreDraft) {
                     this.loadRegistrationDraft();
                 }
             });
+        });
+
+        effect(() => {
+            // Dependencias: en cuanto llega cualquiera de los catálogos de
+            // sistemas o perfiles, se resuelven las etiquetas pendientes.
+            this.systemOptions();
+            this.allSystemOptions();
+            this.structureRoleOptionsBySystem();
+            this.roleOptions();
+            this.systemProfileFallbackOptions();
+
+            untracked(() => this.refreshAssignedProfileLabels());
         });
 
         effect(() => {
@@ -2522,17 +2555,22 @@ export class UserRegistrationWizard {
             return of(void 0);
         }
 
-        return this.usersFacade.deleteRegistrationDraft(borradorId).pipe(
-            map(() => {
-                this.draftId.set(null);
-                this.draftMessage.set('');
-                this.draftError.set('');
-            }),
-            catchError((error: unknown) => {
-                console.warn('El usuario fue registrado, pero no fue posible limpiar el borrador.', error);
-                return of(void 0);
-            }),
-        );
+        return this.usersFacade
+            .deleteRegistrationDraft(borradorId, this.resolveCurrentUserId())
+            .pipe(
+                map(() => {
+                    this.draftId.set(null);
+                    this.draftMessage.set('');
+                    this.draftError.set('');
+                }),
+                catchError((error: unknown) => {
+                    console.warn(
+                        'El usuario fue registrado, pero no fue posible limpiar el borrador.',
+                        error,
+                    );
+                    return of(void 0);
+                }),
+            );
     }
 
     private toFailedEmailDelivery(error: unknown): CorreoDeliveryResult {
@@ -3004,8 +3042,8 @@ export class UserRegistrationWizard {
             this.hasText(this.firstValue(commission, ['municipio', 'municipioAlcaldia', 'municipioId'])) ||
             this.hasText(this.firstValue(commission, ['institucion', 'institucionId'])) ||
             this.hasText(this.firstValue(commission, ['dependencia', 'dependenciaId'])) ||
-            this.hasText(this.firstValue(commission, ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
-            this.hasText(this.firstValue(commission, ['unidadAdministrativa', 'administrativeUnit'])) ||
+            this.hasText(this.firstValue(commission, ['organo', 'organoId', 'organoDesconcentrado', 'desconcentrado', 'decentralizedBody'])) ||
+            this.hasText(this.firstValue(commission, ['unidad', 'unidadId', 'unidadAdministrativa', 'administrativeUnit'])) ||
             this.hasText(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])) ||
             this.hasText(this.firstValue(commission, ['estructuraId', 'estructuraOrgId']));
 
@@ -3043,16 +3081,18 @@ export class UserRegistrationWizard {
                 ['institucion', 'institucionNombre', 'estructura'],
                 this.institutionOptions,
             ),
+            // El detalle (`s2Adscripcion`) usa `organoId`/`organo` y
+            // `unidadId`/`unidad`; los alias largos vienen de otros contratos.
             decentralizedBody: this.resolveRecordSelectValue(
                 assignment,
-                ['organoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado'],
-                ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
+                ['organoId', 'organoDesconcentradoId', 'organoAdministrativoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado', 'idOrgano'],
+                ['organo', 'organoDesconcentrado', 'organoAdministrativoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
                 this.decentralizedBodyOptions,
             ),
             administrativeUnit: this.resolveRecordSelectValue(
                 assignment,
-                ['unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa'],
-                ['unidadAdministrativa', 'administrativeUnit'],
+                ['unidadId', 'unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa', 'idUnidad'],
+                ['unidad', 'unidadAdministrativa', 'administrativeUnit'],
                 this.administrativeUnitOptions,
             ),
             position: this.toText(this.firstValue(assignment, ['cargo', 'puesto'])),
@@ -3079,14 +3119,14 @@ export class UserRegistrationWizard {
             ),
             commissionDecentralizedBody: this.resolveRecordSelectValue(
                 commission,
-                ['organoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado'],
-                ['organoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
+                ['organoId', 'organoDesconcentradoId', 'organoAdministrativoDesconcentradoId', 'desconcentradoId', 'idOrganoDesconcentrado', 'idOrgano'],
+                ['organo', 'organoDesconcentrado', 'organoAdministrativoDesconcentrado', 'desconcentrado', 'decentralizedBody'],
                 this.commissionDecentralizedBodyOptions,
             ),
             commissionAdministrativeUnit: this.resolveRecordSelectValue(
                 commission,
-                ['unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa'],
-                ['unidadAdministrativa', 'administrativeUnit'],
+                ['unidadId', 'unidadAdministrativaId', 'administrativeUnitId', 'idUnidadAdministrativa', 'idUnidad'],
+                ['unidad', 'unidadAdministrativa', 'administrativeUnit'],
                 this.commissionAdministrativeUnitOptions,
             ),
             commissionAdmissionDate: this.toDateInputValue(this.firstValue(commission, ['fechaInicio', 'fechaIngreso'])),
@@ -3621,7 +3661,16 @@ export class UserRegistrationWizard {
         };
 
         return {
-            // Para un borrador nuevo el contrato requiere null, no 0.
+            /*
+             * `borradorId: null` le dice al backend que es un borrador NUEVO y
+             * que debe crearlo. En cuanto responde con el id asignado, ese id
+             * queda en `draftId` y los siguientes "Siguiente" de esta misma
+             * solicitud lo reenvían para ACTUALIZAR el mismo borrador, en vez
+             * de sembrar uno por cada paso.
+             *
+             * Al abrir un borrador desde la lista, `draftId` ya viene con su id
+             * desde el primer guardado, así que siempre actualiza.
+             */
             borradorId: this.draftId(),
             datos,
             auditoria: {
@@ -3663,7 +3712,7 @@ export class UserRegistrationWizard {
         this.draftMessage.set('Buscando un borrador pendiente...');
 
         this.usersFacade
-            .getRegistrationDraft()
+            .getRegistrationDraft(this.resolveCurrentUserId())
             .pipe(
                 switchMap((draft) => {
                     if (!draft?.datos) {
@@ -3699,70 +3748,7 @@ export class UserRegistrationWizard {
             )
             .subscribe({
                 next: ({ draft, hierarchies }) => {
-                    if (!draft?.datos) {
-                        this.draftMessage.set('');
-                        return;
-                    }
-
-                    const restoredForm = this.restoreFormFromDraftData(
-                        draft.datos,
-                        hierarchies,
-                    );
-                    const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos);
-
-                    this.draftId.set(draft.borradorId);
-                    this.form.set({
-                        ...restoredForm,
-                        profiles: restoredProfiles.map((profile) => profile.role),
-                    });
-                    this.seedResolvedDraftStructureOptions(hierarchies);
-                    this.assignedSystemProfiles.set(restoredProfiles);
-                    if (!restoredProfiles.length) {
-                        this.ensureDefaultSiauProfile();
-                    }
-
-                    const inferredStep = this.inferDraftStep(draft.datos);
-                    const requestedStep = draft.pasoActual || inferredStep;
-                    const activeStep = this.isWizardStep(requestedStep)
-                        && CREATE_WIZARD_STEPS.includes(requestedStep)
-                        ? requestedStep
-                        : 'personal-data';
-
-                    this.activeStepId.set(activeStep);
-                    this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
-                    this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
-
-                    const unresolvedAssignment = Boolean(
-                        draft.datos.adscripcion.estructuraId && !hierarchies.assignment,
-                    );
-                    const unresolvedCommission = Boolean(
-                        draft.datos.comision?.estructuraId && !hierarchies.commission,
-                    );
-
-                    // El borrador sólo guarda el último `estructuraId`, así que
-                    // la estructura se muestra en el nivel de institución sin su
-                    // ámbito. Se avisa para que el usuario sepa que debe volver
-                    // a elegir la cascada si necesita cambiarla.
-                    const partialAssignment = Boolean(
-                        hierarchies.assignment?.institution
-                        && !hierarchies.assignment.institutionType,
-                    );
-                    const partialCommission = Boolean(
-                        hierarchies.commission?.institution
-                        && !hierarchies.commission.institutionType,
-                    );
-
-                    if (unresolvedAssignment || unresolvedCommission) {
-                        this.draftError.set(
-                            'Se recuperó el borrador, pero no fue posible reconstruir toda la jerarquía de adscripción. Vuelve a seleccionar los catálogos faltantes.',
-                        );
-                    } else if (partialAssignment || partialCommission) {
-                        this.draftMessage.set(
-                            'Borrador recuperado. La estructura guardada se muestra en el primer nivel; si necesitas cambiarla, vuelve a elegir el tipo de institución.',
-                        );
-                    }
-
-                    this.loadHydratedAssignmentCatalogs(this.form());
+                    this.applyRegistrationDraft(draft, hierarchies);
                 },
                 error: (error: unknown) => {
                     this.draftMessage.set('');
@@ -3773,6 +3759,125 @@ export class UserRegistrationWizard {
                     );
                 },
             });
+    }
+
+    private restoreProvidedRegistrationDraft(draft: BorradorItem): void {
+        if (this.isEditMode() || this.isDraftLoading()) {
+            return;
+        }
+
+        // El id se fija de entrada: aunque el contenido no se pueda restaurar,
+        // lo que el usuario capture debe ACTUALIZAR este borrador y no crear
+        // uno nuevo.
+        this.draftId.set(draft.borradorId);
+
+        if (!draft.datos) {
+            this.draftError.set('El borrador seleccionado no contiene información recuperable.');
+            return;
+        }
+
+        this.isDraftLoading.set(true);
+        this.draftError.set('');
+        this.draftMessage.set('Recuperando el borrador seleccionado...');
+
+        this.resolveDraftStructureHierarchies(draft)
+            .pipe(
+                map((hierarchies) => ({ draft, hierarchies })),
+                catchError((error: unknown) => {
+                    console.error(
+                        'No fue posible reconstruir la jerarquía de la estructura del borrador.',
+                        error,
+                    );
+
+                    return of({
+                        draft,
+                        hierarchies: {
+                            assignment: null,
+                            commission: null,
+                        } as DraftStructureHierarchies,
+                    });
+                }),
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isDraftLoading.set(false)),
+            )
+            .subscribe({
+                next: ({ draft: selectedDraft, hierarchies }) => {
+                    this.applyRegistrationDraft(selectedDraft, hierarchies);
+                },
+                error: (error: unknown) => {
+                    this.draftMessage.set('');
+                    this.draftError.set(
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible recuperar el borrador seleccionado.',
+                    );
+                },
+            });
+    }
+
+    private applyRegistrationDraft(
+        draft: BorradorItem | null,
+        hierarchies: DraftStructureHierarchies,
+    ): void {
+        if (!draft?.datos) {
+            this.draftMessage.set('');
+            return;
+        }
+
+        const restoredForm = this.restoreFormFromDraftData(
+            draft.datos,
+            hierarchies,
+        );
+        const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos, draft.catalogos);
+
+        this.draftId.set(draft.borradorId);
+        this.form.set({
+            ...restoredForm,
+            profiles: restoredProfiles.map((profile) => profile.role),
+        });
+        this.seedResolvedDraftStructureOptions(hierarchies);
+        this.assignedSystemProfiles.set(restoredProfiles);
+        if (!restoredProfiles.length) {
+            this.ensureDefaultSiauProfile();
+        }
+
+        const inferredStep = this.inferDraftStep(draft.datos);
+        const requestedStep = draft.pasoActual || inferredStep;
+        const activeStep = this.isWizardStep(requestedStep)
+            && CREATE_WIZARD_STEPS.includes(requestedStep)
+            ? requestedStep
+            : 'personal-data';
+
+        this.activeStepId.set(activeStep);
+        this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
+        this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
+
+        const unresolvedAssignment = Boolean(
+            draft.datos.adscripcion.estructuraId && !hierarchies.assignment,
+        );
+        const unresolvedCommission = Boolean(
+            draft.datos.comision?.estructuraId && !hierarchies.commission,
+        );
+        const partialAssignment = Boolean(
+            hierarchies.assignment?.institution
+            && !hierarchies.assignment.institutionType,
+        );
+        const partialCommission = Boolean(
+            hierarchies.commission?.institution
+            && !hierarchies.commission.institutionType,
+        );
+
+        if (unresolvedAssignment || unresolvedCommission) {
+            this.draftError.set(
+                'Se recuperó el borrador, pero no fue posible reconstruir toda la jerarquía de adscripción. Vuelve a seleccionar los catálogos faltantes.',
+            );
+        } else if (partialAssignment || partialCommission) {
+            this.draftMessage.set(
+                'Borrador recuperado. La estructura guardada se muestra en el primer nivel; si necesitas cambiarla, vuelve a elegir el tipo de institución.',
+            );
+        }
+
+        this.loadHydratedAssignmentCatalogs(this.form());
     }
 
     private restoreFormFromDraftData(
@@ -3875,7 +3980,10 @@ export class UserRegistrationWizard {
         );
     }
 
-    private restoreProfilesFromDraftData(datos: BorradorDatos): AssignedSystemProfile[] {
+    private restoreProfilesFromDraftData(
+        datos: BorradorDatos,
+        catalogos: BorradorCatalogos | null,
+    ): AssignedSystemProfile[] {
         const systemId = datos.cuenta.sistemaId;
         const profileId = datos.cuenta.perfilId;
 
@@ -3885,16 +3993,128 @@ export class UserRegistrationWizard {
 
         const systemValue = String(systemId);
         const roleValue = String(profileId);
-        const systemOption = this.findKnownSystemOption(systemValue);
-        const roleOption = this.roleOptions().find((option) => option.value === roleValue);
+
+        /*
+         * El borrador sólo persiste ids. Las etiquetas se toman, en orden, de:
+         * los catálogos que ya resolvió el backend, el catálogo de perfiles por
+         * estructura (si alcanzó a cargar) y, como último recurso, el id.
+         * `refreshAssignedProfileLabels` vuelve a intentarlo en cuanto los
+         * catálogos terminan de cargar, para que el chip no se quede en "1 · 1".
+         */
+        const systemLabel = this.resolveSystemLabel(systemValue)
+            || this.toText(catalogos?.sistema ?? '')
+            || systemValue;
 
         return [{
             id: `${systemValue}:${roleValue}`,
             system: systemValue,
-            systemLabel: systemOption?.label ?? systemValue,
+            systemLabel,
             role: roleValue,
-            roleLabel: roleOption?.label ?? roleValue,
+            roleLabel: this.resolveRoleLabel(systemValue, roleValue, systemLabel)
+                || this.toText(catalogos?.perfil ?? '')
+                || roleValue,
         }];
+    }
+
+    private resolveSystemLabel(systemValue: string): string {
+        return this.toText(this.findKnownSystemOption(systemValue)?.label ?? '');
+    }
+
+    /**
+     * Los roles viven en `structureRoleOptionsBySystem`, indexados por sistema.
+     * `roleOptions` sólo contiene los del sistema elegido en el formulario de
+     * "Agregar sistema", por eso no sirve para reetiquetar lo ya asignado.
+     */
+    private resolveRoleLabel(
+        systemValue: string,
+        roleValue: string,
+        systemLabel = '',
+    ): string {
+        const rolesBySystem = this.structureRoleOptionsBySystem();
+        const fallback = this.systemProfileFallbackOptions();
+        const fallbackKey = this.normalizeText(systemLabel);
+        const candidates = [
+            ...(rolesBySystem[systemValue] ?? []),
+            ...(fallback[fallbackKey] ?? []),
+            ...Object.values(rolesBySystem).flat(),
+            ...Object.values(fallback).flat(),
+            ...this.roleOptions(),
+        ];
+
+        return this.toText(
+            candidates.find((option) => option.value === roleValue)?.label ?? '',
+        );
+    }
+
+    /**
+     * Consulta una sola vez los perfiles del sistema por su nombre. Al llenar
+     * `systemProfileFallbackOptions` el efecto de reetiquetado vuelve a correr.
+     */
+    private ensureSystemProfileFallback(systemLabel: string): void {
+        const label = this.toText(systemLabel);
+        const key = this.normalizeText(label);
+
+        if (!key || this.requestedProfileFallbacks.has(key)) {
+            return;
+        }
+
+        this.requestedProfileFallbacks.add(key);
+
+        this.catalogosFacade
+            .obtenerSistemaPerfilesOptions(label)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => {
+                    this.systemProfileFallbackOptions.update((current) => ({
+                        ...current,
+                        [key]: options,
+                    }));
+                },
+                error: (error: unknown) => {
+                    console.warn(
+                        `No fue posible consultar los perfiles del sistema ${label}.`,
+                        error,
+                    );
+                },
+            });
+    }
+
+    /**
+     * Reetiqueta los perfiles ya asignados cuando llegan los catálogos. Sólo
+     * escribe si algo cambió, para no reentrar en el efecto que la dispara.
+     */
+    private refreshAssignedProfileLabels(): void {
+        const current = this.assignedSystemProfiles();
+
+        if (!current.length) {
+            return;
+        }
+
+        let changed = false;
+
+        const next = current.map((profile) => {
+            const systemLabel = this.resolveSystemLabel(profile.system) || profile.systemLabel;
+            const roleLabel = this.resolveRoleLabel(profile.system, profile.role, systemLabel)
+                || profile.roleLabel;
+
+            // Si el rol sigue mostrándose como su id, se pide el catálogo
+            // global de perfiles de ese sistema.
+            if (roleLabel === profile.role) {
+                this.ensureSystemProfileFallback(systemLabel);
+            }
+
+            if (systemLabel === profile.systemLabel && roleLabel === profile.roleLabel) {
+                return profile;
+            }
+
+            changed = true;
+
+            return { ...profile, systemLabel, roleLabel };
+        });
+
+        if (changed) {
+            this.assignedSystemProfiles.set(next);
+        }
     }
 
     private inferDraftStep(datos: BorradorDatos): WizardStepId {
@@ -3959,7 +4179,7 @@ export class UserRegistrationWizard {
         this.draftError.set('');
 
         this.usersFacade
-            .deleteRegistrationDraft(borradorId)
+            .deleteRegistrationDraft(borradorId, this.resolveCurrentUserId())
             .pipe(
                 takeUntilDestroyed(this.destroyRef),
                 finalize(() => this.isDraftDeleting.set(false)),
@@ -4401,7 +4621,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    target.set([NO_APLICA_OPTION]);
+                    this.resetDynamicCatalogOptions(target);
                     console.error('Error cargando municipios.', error);
                 },
             });
@@ -4630,7 +4850,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    target.set([NO_APLICA_OPTION]);
+                    this.resetDynamicCatalogOptions(target);
                     console.error('Error cargando estructura organizacional federal.', error);
                 },
             });
@@ -4668,7 +4888,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    target.set([NO_APLICA_OPTION]);
+                    this.resetDynamicCatalogOptions(target);
                     console.error('Error cargando estructura orgánica estatal o municipal.', error);
                 },
             });
@@ -4700,22 +4920,42 @@ export class UserRegistrationWizard {
         options: readonly SiauSelectOption[],
     ): void {
         const cleanOptions = this.deduplicateSelectOptions(options);
+        const preservedSelectedOption = this.preservedSelectedOption(target);
 
+        // Al abrir un detalle, la opción del registro ya viene sembrada con su
+        // etiqueta. Si el catálogo llega vacío (o falla) no debe borrarse, o el
+        // select se queda en blanco aunque el usuario sí tenga órgano/unidad.
         if (cleanOptions.length === 0) {
-            target.set([NO_APLICA_OPTION]);
+            target.set(preservedSelectedOption ? [preservedSelectedOption] : [NO_APLICA_OPTION]);
             return;
         }
-
-        const selectedValue = this.selectedValueForDynamicTarget(target);
-        const preservedSelectedOption = target().find(
-            (option) => option.value === selectedValue && !this.isNoAplicaValue(option.value),
-        );
 
         target.set(
             preservedSelectedOption
                 ? this.deduplicateSelectOptions([preservedSelectedOption, ...cleanOptions])
                 : cleanOptions,
         );
+    }
+
+    private preservedSelectedOption(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): SiauSelectOption | null {
+        const selectedValue = this.selectedValueForDynamicTarget(target);
+
+        if (!selectedValue || this.isNoAplicaValue(selectedValue)) {
+            return null;
+        }
+
+        return target().find((option) => option.value === selectedValue) ?? null;
+    }
+
+    /** Vacía un catálogo dinámico sin perder la opción ya seleccionada. */
+    private resetDynamicCatalogOptions(
+        target: WritableSignal<readonly SiauSelectOption[]>,
+    ): void {
+        const preserved = this.preservedSelectedOption(target);
+
+        target.set(preserved ? [preserved] : [NO_APLICA_OPTION]);
     }
 
     private selectedValueForDynamicTarget(

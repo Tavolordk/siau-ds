@@ -9,7 +9,9 @@ import {
     BorradorItem,
     BorradorOperacionResponse,
     PasswordTemporalResponse,
+    BorradorCatalogos,
     BorradorDatos,
+    BorradorEstructuraCatalogo,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroEspecialRequest,
@@ -158,25 +160,60 @@ export class UsersApiRepository {
             );
     }
 
-    getRegistrationDraft(): Observable<BorradorItem | null> {
+    getRegistrationDraft(usuarioEjecutorId?: number | null): Observable<BorradorItem | null> {
+        return this.getRegistrationDrafts(usuarioEjecutorId).pipe(
+            map((drafts) => drafts[0] ?? null),
+        );
+    }
+
+    /**
+     * GET /api/registro/borradores acepta `borradorId` y `usuarioEjecutorId`
+     * como query params (contrato siau.registro.api 1.0.5). Sin `borradorId`
+     * devuelve todos los borradores del ejecutor.
+     */
+    getRegistrationDrafts(
+        usuarioEjecutorId?: number | null,
+        borradorId?: number | null,
+    ): Observable<readonly BorradorItem[]> {
+        const params: Record<string, string> = {};
+        const ejecutorId = this.toPositiveNumber(usuarioEjecutorId);
+        const draftId = this.toPositiveNumber(borradorId);
+
+        if (ejecutorId) {
+            params['usuarioEjecutorId'] = String(ejecutorId);
+        }
+
+        if (draftId) {
+            params['borradorId'] = String(draftId);
+        }
+
         return this.http
-            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`)
+            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`, { params })
             .pipe(
-                map((response) => this.toDraftItem(response)),
+                map((response) => this.toDraftItems(response)),
                 catchError((error: unknown) => {
                     if (error instanceof HttpErrorResponse && (error.status === 404 || error.status === 204)) {
-                        return of(null);
+                        return of([] as readonly BorradorItem[]);
                     }
 
-                    return this.handleError(error, 'No fue posible recuperar el borrador del registro.');
+                    return this.handleError(error, 'No fue posible recuperar los borradores del registro.');
                 }),
             );
     }
 
-    deleteRegistrationDraft(borradorId: number): Observable<void> {
+    deleteRegistrationDraft(
+        borradorId: number,
+        usuarioEjecutorId?: number | null,
+    ): Observable<void> {
+        const ejecutorId = this.toPositiveNumber(usuarioEjecutorId);
+        const params: Record<string, string> = ejecutorId
+            ? { usuarioEjecutorId: String(ejecutorId) }
+            : {};
+
         return this.http
             .delete<unknown>(
                 `${this.baseUrl}${BORRADORES_PATH}/${encodeURIComponent(String(borradorId))}`,
+                { params },
             )
             .pipe(
                 map(() => void 0),
@@ -365,9 +402,26 @@ export class UsersApiRepository {
         const rawItems = candidates.find((candidate) => Array.isArray(candidate)) as readonly unknown[] | undefined;
         const allUsers = (rawItems ?? []).map((item) => this.toUserRecordFromUnknown(item));
 
-        const metadata = nested ?? root;
+        // Los metadatos pueden venir al ras de la respuesta o dentro de un objeto
+        // `paginacion` anidado (contrato de /consultas/usuarios). Si sólo se mira
+        // el nivel superior, `totalPaginas` se calcula con el tamaño de la página
+        // actual y la lista queda congelada en la primera.
+        const metadata = this.findPaginationMetadata(root, nested);
         const totalRecords = this.readNumber(metadata, ['totalRegistros', 'total', 'totalRecords'], allUsers.length);
-        const currentPage = this.readNumber(metadata, ['paginaActual', 'pagina', 'page'], page);
+        const responsePage = this.readNumber(metadata, ['paginaActual', 'pagina', 'page'], 0);
+
+        // La página solicitada es la fuente de verdad: algunos endpoints
+        // devuelven siempre `paginaActual: 1` y eso dejaba el pie de tabla
+        // congelado en "Página 1 de N" aunque el listado sí avanzara.
+        const currentPage = Math.max(1, page || responsePage || 1);
+
+        if (responsePage > 0 && responsePage !== currentPage) {
+            console.warn(
+                'El backend devolvió una página distinta a la solicitada.',
+                { solicitada: currentPage, devuelta: responsePage },
+            );
+        }
+
         const responsePageSize = this.readNumber(metadata, ['porPagina', 'tamanoPagina', 'pageSize'], pageSize);
         const declaredPages = this.readNumber(metadata, ['totalPaginas', 'pages', 'totalPages'], 0);
 
@@ -395,51 +449,103 @@ export class UsersApiRepository {
         };
     }
 
-    private toUserRecordFromUnknown(value: unknown): UserRecord {
-        const record = this.asRecord(value) ?? {};
-        const dto: AdvancedUserListItemDto = {
-            usuarioId: this.readNumber(record, ['usuarioId', 'idUsuario', 'id'], 0),
-            nombres: this.readText(record, ['nombres', 'nombre', 'name']),
-            primerApellido: this.readText(record, ['primerApellido', 'apellidoPaterno', 'primer_apellido']),
-            segundoApellido: this.readText(record, ['segundoApellido', 'apellidoMaterno', 'segundo_apellido']),
-            correoElectronico: this.readText(record, ['correoElectronico', 'correo', 'email']),
-            numeroTelefonico: this.readText(record, ['numeroTelefonico', 'telefono', 'celular']),
-            nombreUsuario: this.readText(record, ['nombreUsuario', 'usuario', 'cuenta', 'username']),
-            estatus: this.readText(record, ['estatus', 'estadoCuenta', 'estado', 'status']),
-            institucion: this.readText(record, ['institucion', 'nombreInstitucion']),
-            entidad: this.readText(record, ['entidad', 'nombreEntidad']),
-            fechaAlta: this.readText(record, ['fechaAlta', 'fechaRegistro', 'createdAt']),
-            fechaActualizacion: this.readText(record, ['fechaActualizacion', 'updatedAt']),
-        };
+    /**
+     * Busca el bloque de paginación en las formas conocidas del backend:
+     * `{ paginacion: {...} }`, `{ data: { paginacion: {...} } }`, `{ meta: {...} }`
+     * o los campos sueltos en la raíz.
+     */
+    private findPaginationMetadata(
+        root: UnknownRecord | null,
+        nested: UnknownRecord | null,
+    ): UnknownRecord | null {
+        const paginationKeys = [
+            'totalRegistros',
+            'total',
+            'totalRecords',
+            'totalPaginas',
+            'pages',
+            'totalPages',
+            'paginaActual',
+            'pagina',
+            'page',
+            'porPagina',
+            'tamanoPagina',
+            'pageSize',
+        ];
 
-        return this.toUserRecord(dto);
+        const candidates: ReadonlyArray<UnknownRecord | null> = [
+            this.asRecord(nested?.['paginacion']),
+            this.asRecord(root?.['paginacion']),
+            this.asRecord(nested?.['pagination']),
+            this.asRecord(root?.['pagination']),
+            this.asRecord(nested?.['meta']),
+            this.asRecord(root?.['meta']),
+            nested,
+            root,
+        ];
+
+        return (
+            candidates.find(
+                (candidate) =>
+                    candidate
+                    && paginationKeys.some((key) => candidate[key] !== undefined),
+            ) ?? nested ?? root
+        );
     }
 
-    private toUserRecord(user: AdvancedUserListItemDto): UserRecord {
-        const userId = this.toNumber(user.usuarioId, 0);
-        const username = this.normalizeText(user.nombreUsuario) || `usuario-${userId}`;
-        const fullName = [
-            this.normalizeText(user.nombres),
-            this.normalizeText(user.primerApellido),
-            this.normalizeText(user.segundoApellido),
-        ].filter(Boolean).join(' ') || 'Sin nombre';
+    /**
+     * Mapeo único de un usuario del listado. El GET de /consultas/usuarios ya
+     * entrega `nombreCompleto`, `rol`, `rolClave`, `estatusClave`, `rnpsp` y
+     * `cConfianza`; la búsqueda avanzada manda los apellidos por separado. Se
+     * leen ambos contratos y el nombre se arma sólo cuando no viene resuelto.
+     */
+    private toUserRecordFromUnknown(value: unknown): UserRecord {
+        const record = this.asRecord(value) ?? {};
+        const userId = this.readNumber(record, ['usuarioId', 'idUsuario', 'id'], 0);
+        const composedName = [
+            this.readText(record, ['nombres', 'nombre', 'name']),
+            this.readText(record, ['primerApellido', 'apellidoPaterno', 'primer_apellido']),
+            this.readText(record, ['segundoApellido', 'apellidoMaterno', 'segundo_apellido']),
+        ]
+            .map((part) => this.normalizeText(part))
+            .filter(Boolean)
+            .join(' ');
+        const fullName = this.readText(record, [
+            'nombreCompleto',
+            'nombre_completo',
+            'nombreCompletoUsuario',
+            'fullName',
+        ]);
+        const status = this.readText(record, ['estatus', 'estadoCuenta', 'estado', 'status']);
+        const statusKey = this.readText(record, [
+            'estatusClave',
+            'estadoCuentaClave',
+            'claveEstatus',
+            'statusKey',
+        ]);
 
         return {
             userId,
-            username,
-            fullName,
-            email: this.normalizeText(user.correoElectronico) || 'Sin correo',
-            institution: this.normalizeText(user.institucion) || 'Sin institución',
-            entity: this.normalizeText(user.entidad) || 'Sin entidad',
-            role: 'Sin rol',
-            roleKey: '',
-            status: this.normalizeText(user.estatus) || 'Sin estatus',
-            statusKey: this.normalizeText(user.estatus),
-            rnpsp: 'No registrado',
-            trust: 'No capturado',
-            createdAt: user.fechaAlta ?? null,
-            updatedAt: user.fechaActualizacion ?? null,
+            username: this.readText(record, ['nombreUsuario', 'usuario', 'cuenta', 'username'])
+                || `usuario-${userId}`,
+            fullName: fullName || composedName || 'Sin nombre',
+            email: this.readText(record, ['correoElectronico', 'correo', 'email']) || 'Sin correo',
+            institution: this.readText(record, ['institucion', 'nombreInstitucion']) || 'Sin institución',
+            entity: this.readText(record, ['entidad', 'nombreEntidad']) || 'Sin entidad',
+            role: this.readText(record, ['rol', 'tipoUsuario', 'perfil', 'role']) || 'Sin rol',
+            roleKey: this.readText(record, ['rolClave', 'claveRol', 'tipoUsuarioClave', 'roleKey']),
+            status: status || 'Sin estatus',
+            statusKey: statusKey || status,
+            rnpsp: this.readText(record, ['rnpsp', 'registroNacional']) || 'No registrado',
+            trust: this.readText(record, ['cConfianza', 'controlConfianza', 'confianza'])
+                || 'No capturado',
+            createdAt: this.readText(record, ['fechaAlta', 'fechaRegistro', 'createdAt']) || null,
+            updatedAt: this.readText(record, ['fechaActualizacion', 'updatedAt']) || null,
         };
+    }
+
+    private toUserRecord(user: AdvancedUserListItemDto): UserRecord {
+        return this.toUserRecordFromUnknown(user);
     }
 
     private toPagination(
@@ -447,7 +553,9 @@ export class UsersApiRepository {
         query: UsersQuery,
         currentCount: number,
     ): UserPagination {
-        const currentPage = this.toNumber(response.paginaActual, query.pagina ?? 1);
+        // Igual que en el GET general: manda la página pedida, no la que eche
+        // de vuelta el backend.
+        const currentPage = query.pagina ?? this.toNumber(response.paginaActual, 1);
         const pageSize = this.toNumber(response.porPagina, query.porPagina ?? Math.max(1, currentCount));
         const totalRecords = this.toNumber(response.totalRegistros, currentCount);
         const totalPages = this.toNumber(
@@ -470,9 +578,12 @@ export class UsersApiRepository {
         const root = this.asRecord(response);
         const item = this.toDraftItem(response) ?? {
             borradorId: this.toPositiveNumber(request.borradorId) ?? null,
+            usuarioCreadorId: this.toPositiveNumber(request.auditoria.usuarioEjecutorId) ?? null,
             pasoActual: null,
             datos: request.datos,
             catalogos: null,
+            estatus: null,
+            fechaCreacion: null,
             fechaActualizacion: null,
         };
 
@@ -480,6 +591,46 @@ export class UsersApiRepository {
             mensaje: this.readText(root, ['mensaje', 'message']) || 'Borrador guardado.',
             datos: item,
         };
+    }
+
+    private toDraftItems(response: unknown): readonly BorradorItem[] {
+        if (response === null || response === undefined) {
+            return [];
+        }
+
+        if (Array.isArray(response)) {
+            return response
+                .map((item) => this.toDraftItem(item))
+                .filter((item): item is BorradorItem => item !== null);
+        }
+
+        const root = this.asRecord(response);
+        if (!root) {
+            return [];
+        }
+
+        const candidate = root['datos']
+            ?? root['data']
+            ?? root['borradores']
+            ?? root['items']
+            ?? root['results'];
+
+        if (Array.isArray(candidate)) {
+            return candidate
+                .map((item) => this.toDraftItem(item))
+                .filter((item): item is BorradorItem => item !== null);
+        }
+
+        const single = this.toDraftItem(response);
+        if (single) {
+            return [single];
+        }
+
+        // Soporta envolturas como { data: { items: [...] } } o
+        // { datos: { borradores: [...] } } sin perder registros.
+        return candidate && candidate !== response
+            ? this.toDraftItems(candidate)
+            : [];
     }
 
     private toDraftItem(response: unknown): BorradorItem | null {
@@ -514,8 +665,17 @@ export class UsersApiRepository {
             return null;
         }
 
+        /*
+         * El GET nuevo entrega el payload capturado en `datosJson` y, en la
+         * raíz, los mismos bloques pero ya resueltos contra catálogos
+         * (`adscripcion.organo`, `datosPersonales.sexo`, etc.). Hay que leer
+         * `datosJson` primero: si se cae al `record` de la raíz se mapearían
+         * las etiquetas del catálogo como si fueran el formulario y se pierden
+         * `fechaNacimiento`, `numeroEmpleado` y `fechaInicio`.
+         */
         const draftData = this.toDraftData(
-            record['datos']
+            record['datosJson']
+            ?? record['datos']
             ?? record['contenido']
             ?? record['payload']
             ?? record['formulario']
@@ -529,25 +689,95 @@ export class UsersApiRepository {
             return null;
         }
 
-        const catalogos = this.asRecord(record['catalogos']);
+        const catalogos = this.toDraftCatalogos(record);
 
         return {
             borradorId: id > 0 ? id : null,
+            usuarioCreadorId: this.readNullableNumber(record, [
+                'usuarioCreadorId',
+                'idUsuarioCreador',
+                'usuarioEjecutorId',
+                'creadoPorId',
+            ]),
             pasoActual: pasoActual || null,
             datos: draftData,
-            catalogos: catalogos
-                ? {
-                    sexo: this.readNullableText(catalogos, ['sexo']),
-                    estadoCivil: this.readNullableText(catalogos, ['estadoCivil']),
-                    adscripcion: this.readNullableText(catalogos, ['adscripcion']),
-                    comision: this.readNullableText(catalogos, ['comision']),
-                    tipoUsuario: this.readNullableText(catalogos, ['tipoUsuario']),
-                    sistema: this.readNullableText(catalogos, ['sistema']),
-                    perfil: this.readNullableText(catalogos, ['perfil']),
-                }
-                : null,
+            catalogos,
+            estatus: this.readNullableText(record, ['estatus', 'estado', 'status']),
+            fechaCreacion: this.readText(record, ['fechaCreacion', 'creadoEn', 'createdAt']) || null,
             fechaActualizacion: this.readText(record, ['fechaActualizacion', 'actualizadoEn', 'updatedAt']) || null,
         };
+    }
+
+    /**
+     * Arma los catálogos del borrador. Soporta el contrato viejo (un objeto
+     * `catalogos` plano) y el nuevo, donde las etiquetas resueltas viajan en
+     * los bloques de la raíz: `adscripcion`, `comision`, `datosPersonales` y
+     * `cuenta`.
+     */
+    private toDraftCatalogos(record: UnknownRecord): BorradorCatalogos | null {
+        const legacy = this.asRecord(record['catalogos']);
+        const personal = this.asRecord(record['datosPersonales']);
+        const account = this.asRecord(record['cuenta']);
+        const assignment = this.toDraftEstructuraCatalogo(record['adscripcion']);
+        const commission = this.toDraftEstructuraCatalogo(record['comision']);
+
+        const catalogos: BorradorCatalogos = {
+            sexo: this.readNullableText(legacy ?? {}, ['sexo'])
+                ?? this.readNullableText(personal ?? {}, ['sexo']),
+            estadoCivil: this.readNullableText(legacy ?? {}, ['estadoCivil'])
+                ?? this.readNullableText(personal ?? {}, ['estadoCivil']),
+            adscripcion: this.readNullableText(legacy ?? {}, ['adscripcion'])
+                ?? this.toEstructuraLabel(assignment),
+            comision: this.readNullableText(legacy ?? {}, ['comision'])
+                ?? this.toEstructuraLabel(commission),
+            tipoUsuario: this.readNullableText(legacy ?? {}, ['tipoUsuario'])
+                ?? this.readNullableText(account ?? {}, ['tipoUsuario']),
+            sistema: this.readNullableText(legacy ?? {}, ['sistema'])
+                ?? this.readNullableText(account ?? {}, ['sistema']),
+            perfil: this.readNullableText(legacy ?? {}, ['perfil'])
+                ?? this.readNullableText(account ?? {}, ['perfil', 'perfilClave']),
+            adscripcionEstructura: assignment,
+            comisionEstructura: commission,
+        };
+
+        const hasContent = Object.values(catalogos).some((value) => value !== null);
+
+        return hasContent ? catalogos : null;
+    }
+
+    private toDraftEstructuraCatalogo(value: unknown): BorradorEstructuraCatalogo | null {
+        const record = this.asRecord(value);
+
+        if (!record) {
+            return null;
+        }
+
+        const estructura: BorradorEstructuraCatalogo = {
+            estructuraId: this.readNullableNumber(record, ['estructuraId', 'idEstructura']),
+            tipoInstitucionId: this.readNullableNumber(record, ['tipoInstitucionId']),
+            tipoInstitucion: this.readNullableText(record, ['tipoInstitucion']),
+            estadoId: this.readNullableNumber(record, ['estadoId', 'entidadId']),
+            estado: this.readNullableText(record, ['estado', 'entidad']),
+            municipioId: this.readNullableNumber(record, ['municipioId', 'municipioAlcaldiaId']),
+            municipio: this.readNullableText(record, ['municipio', 'municipioAlcaldia']),
+            institucionId: this.readNullableNumber(record, ['institucionId']),
+            institucion: this.readNullableText(record, ['institucion']),
+            organoId: this.readNullableNumber(record, ['organoId', 'organoDesconcentradoId']),
+            organo: this.readNullableText(record, ['organo', 'organoDesconcentrado']),
+            unidadId: this.readNullableNumber(record, ['unidadId', 'unidadAdministrativaId']),
+            unidad: this.readNullableText(record, ['unidad', 'unidadAdministrativa']),
+        };
+
+        return Object.values(estructura).some((field) => field !== null) ? estructura : null;
+    }
+
+    /** Etiqueta del nivel más profundo capturado. */
+    private toEstructuraLabel(estructura: BorradorEstructuraCatalogo | null): string | null {
+        if (!estructura) {
+            return null;
+        }
+
+        return estructura.unidad ?? estructura.organo ?? estructura.institucion;
     }
 
     private looksLikeDraftData(value: unknown): boolean {
@@ -736,11 +966,23 @@ export class UsersApiRepository {
             const value = record[key];
             if (typeof value === 'string' || typeof value === 'number') {
                 const text = String(value).trim();
-                if (text) return text;
+
+                // El backend serializa algunos nulos como la cadena "null"
+                // ("correo": "null", "segundoApellido": "null"). Se descartan
+                // para que no lleguen a la pantalla como texto.
+                if (text && !this.isNullLiteral(text)) {
+                    return text;
+                }
             }
         }
 
         return '';
+    }
+
+    private isNullLiteral(value: string): boolean {
+        const normalized = value.toLowerCase();
+
+        return normalized === 'null' || normalized === 'undefined';
     }
 
     private readNumber(record: UnknownRecord | null, keys: readonly string[], fallback: number): number {
