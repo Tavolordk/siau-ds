@@ -9,7 +9,9 @@ import {
     BorradorItem,
     BorradorOperacionResponse,
     PasswordTemporalResponse,
+    BorradorCatalogos,
     BorradorDatos,
+    BorradorEstructuraCatalogo,
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroEspecialRequest,
@@ -158,25 +160,35 @@ export class UsersApiRepository {
             );
     }
 
-    getRegistrationDraft(): Observable<BorradorItem | null> {
-        return this.getRegistrationDrafts().pipe(
+    getRegistrationDraft(usuarioEjecutorId?: number | null): Observable<BorradorItem | null> {
+        return this.getRegistrationDrafts(usuarioEjecutorId).pipe(
             map((drafts) => drafts[0] ?? null),
         );
     }
 
     /**
-     * Recupera todos los borradores del usuario creador. El backend puede
-     * resolver al creador por el token; cuando se conoce el id también se
-     * envía como query param para mantener explícito el criterio funcional.
+     * GET /api/registro/borradores acepta `borradorId` y `usuarioEjecutorId`
+     * como query params (contrato siau.registro.api 1.0.5). Sin `borradorId`
+     * devuelve todos los borradores del ejecutor.
      */
-    getRegistrationDrafts(usuarioCreadorId?: number | null): Observable<readonly BorradorItem[]> {
-        const creatorId = Number(usuarioCreadorId);
-        const options = Number.isFinite(creatorId) && creatorId > 0
-            ? { params: { usuarioCreadorId: String(creatorId) } }
-            : {};
+    getRegistrationDrafts(
+        usuarioEjecutorId?: number | null,
+        borradorId?: number | null,
+    ): Observable<readonly BorradorItem[]> {
+        const params: Record<string, string> = {};
+        const ejecutorId = this.toPositiveNumber(usuarioEjecutorId);
+        const draftId = this.toPositiveNumber(borradorId);
+
+        if (ejecutorId) {
+            params['usuarioEjecutorId'] = String(ejecutorId);
+        }
+
+        if (draftId) {
+            params['borradorId'] = String(draftId);
+        }
 
         return this.http
-            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`, options)
+            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`, { params })
             .pipe(
                 map((response) => this.toDraftItems(response)),
                 catchError((error: unknown) => {
@@ -189,10 +201,19 @@ export class UsersApiRepository {
             );
     }
 
-    deleteRegistrationDraft(borradorId: number): Observable<void> {
+    deleteRegistrationDraft(
+        borradorId: number,
+        usuarioEjecutorId?: number | null,
+    ): Observable<void> {
+        const ejecutorId = this.toPositiveNumber(usuarioEjecutorId);
+        const params: Record<string, string> = ejecutorId
+            ? { usuarioEjecutorId: String(ejecutorId) }
+            : {};
+
         return this.http
             .delete<unknown>(
                 `${this.baseUrl}${BORRADORES_PATH}/${encodeURIComponent(String(borradorId))}`,
+                { params },
             )
             .pipe(
                 map(() => void 0),
@@ -644,8 +665,17 @@ export class UsersApiRepository {
             return null;
         }
 
+        /*
+         * El GET nuevo entrega el payload capturado en `datosJson` y, en la
+         * raíz, los mismos bloques pero ya resueltos contra catálogos
+         * (`adscripcion.organo`, `datosPersonales.sexo`, etc.). Hay que leer
+         * `datosJson` primero: si se cae al `record` de la raíz se mapearían
+         * las etiquetas del catálogo como si fueran el formulario y se pierden
+         * `fechaNacimiento`, `numeroEmpleado` y `fechaInicio`.
+         */
         const draftData = this.toDraftData(
-            record['datos']
+            record['datosJson']
+            ?? record['datos']
             ?? record['contenido']
             ?? record['payload']
             ?? record['formulario']
@@ -659,7 +689,7 @@ export class UsersApiRepository {
             return null;
         }
 
-        const catalogos = this.asRecord(record['catalogos']);
+        const catalogos = this.toDraftCatalogos(record);
 
         return {
             borradorId: id > 0 ? id : null,
@@ -671,21 +701,83 @@ export class UsersApiRepository {
             ]),
             pasoActual: pasoActual || null,
             datos: draftData,
-            catalogos: catalogos
-                ? {
-                    sexo: this.readNullableText(catalogos, ['sexo']),
-                    estadoCivil: this.readNullableText(catalogos, ['estadoCivil']),
-                    adscripcion: this.readNullableText(catalogos, ['adscripcion']),
-                    comision: this.readNullableText(catalogos, ['comision']),
-                    tipoUsuario: this.readNullableText(catalogos, ['tipoUsuario']),
-                    sistema: this.readNullableText(catalogos, ['sistema']),
-                    perfil: this.readNullableText(catalogos, ['perfil']),
-                }
-                : null,
+            catalogos,
             estatus: this.readNullableText(record, ['estatus', 'estado', 'status']),
             fechaCreacion: this.readText(record, ['fechaCreacion', 'creadoEn', 'createdAt']) || null,
             fechaActualizacion: this.readText(record, ['fechaActualizacion', 'actualizadoEn', 'updatedAt']) || null,
         };
+    }
+
+    /**
+     * Arma los catálogos del borrador. Soporta el contrato viejo (un objeto
+     * `catalogos` plano) y el nuevo, donde las etiquetas resueltas viajan en
+     * los bloques de la raíz: `adscripcion`, `comision`, `datosPersonales` y
+     * `cuenta`.
+     */
+    private toDraftCatalogos(record: UnknownRecord): BorradorCatalogos | null {
+        const legacy = this.asRecord(record['catalogos']);
+        const personal = this.asRecord(record['datosPersonales']);
+        const account = this.asRecord(record['cuenta']);
+        const assignment = this.toDraftEstructuraCatalogo(record['adscripcion']);
+        const commission = this.toDraftEstructuraCatalogo(record['comision']);
+
+        const catalogos: BorradorCatalogos = {
+            sexo: this.readNullableText(legacy ?? {}, ['sexo'])
+                ?? this.readNullableText(personal ?? {}, ['sexo']),
+            estadoCivil: this.readNullableText(legacy ?? {}, ['estadoCivil'])
+                ?? this.readNullableText(personal ?? {}, ['estadoCivil']),
+            adscripcion: this.readNullableText(legacy ?? {}, ['adscripcion'])
+                ?? this.toEstructuraLabel(assignment),
+            comision: this.readNullableText(legacy ?? {}, ['comision'])
+                ?? this.toEstructuraLabel(commission),
+            tipoUsuario: this.readNullableText(legacy ?? {}, ['tipoUsuario'])
+                ?? this.readNullableText(account ?? {}, ['tipoUsuario']),
+            sistema: this.readNullableText(legacy ?? {}, ['sistema'])
+                ?? this.readNullableText(account ?? {}, ['sistema']),
+            perfil: this.readNullableText(legacy ?? {}, ['perfil'])
+                ?? this.readNullableText(account ?? {}, ['perfil', 'perfilClave']),
+            adscripcionEstructura: assignment,
+            comisionEstructura: commission,
+        };
+
+        const hasContent = Object.values(catalogos).some((value) => value !== null);
+
+        return hasContent ? catalogos : null;
+    }
+
+    private toDraftEstructuraCatalogo(value: unknown): BorradorEstructuraCatalogo | null {
+        const record = this.asRecord(value);
+
+        if (!record) {
+            return null;
+        }
+
+        const estructura: BorradorEstructuraCatalogo = {
+            estructuraId: this.readNullableNumber(record, ['estructuraId', 'idEstructura']),
+            tipoInstitucionId: this.readNullableNumber(record, ['tipoInstitucionId']),
+            tipoInstitucion: this.readNullableText(record, ['tipoInstitucion']),
+            estadoId: this.readNullableNumber(record, ['estadoId', 'entidadId']),
+            estado: this.readNullableText(record, ['estado', 'entidad']),
+            municipioId: this.readNullableNumber(record, ['municipioId', 'municipioAlcaldiaId']),
+            municipio: this.readNullableText(record, ['municipio', 'municipioAlcaldia']),
+            institucionId: this.readNullableNumber(record, ['institucionId']),
+            institucion: this.readNullableText(record, ['institucion']),
+            organoId: this.readNullableNumber(record, ['organoId', 'organoDesconcentradoId']),
+            organo: this.readNullableText(record, ['organo', 'organoDesconcentrado']),
+            unidadId: this.readNullableNumber(record, ['unidadId', 'unidadAdministrativaId']),
+            unidad: this.readNullableText(record, ['unidad', 'unidadAdministrativa']),
+        };
+
+        return Object.values(estructura).some((field) => field !== null) ? estructura : null;
+    }
+
+    /** Etiqueta del nivel más profundo capturado. */
+    private toEstructuraLabel(estructura: BorradorEstructuraCatalogo | null): string | null {
+        if (!estructura) {
+            return null;
+        }
+
+        return estructura.unidad ?? estructura.organo ?? estructura.institucion;
     }
 
     private looksLikeDraftData(value: unknown): boolean {
@@ -874,11 +966,23 @@ export class UsersApiRepository {
             const value = record[key];
             if (typeof value === 'string' || typeof value === 'number') {
                 const text = String(value).trim();
-                if (text) return text;
+
+                // El backend serializa algunos nulos como la cadena "null"
+                // ("correo": "null", "segundoApellido": "null"). Se descartan
+                // para que no lleguen a la pantalla como texto.
+                if (text && !this.isNullLiteral(text)) {
+                    return text;
+                }
             }
         }
 
         return '';
+    }
+
+    private isNullLiteral(value: string): boolean {
+        const normalized = value.toLowerCase();
+
+        return normalized === 'null' || normalized === 'undefined';
     }
 
     private readNumber(record: UnknownRecord | null, keys: readonly string[], fallback: number): number {

@@ -27,7 +27,7 @@
                     <button type="button" role="menuitem" (click)="startNewRegistration()">
                         <siau-lucide-icon name="user-plus" size="16" strokeWidth="2" aria-hidden="true" />
                         <span>
-                            <strong>Nuevo borrador</strong>
+                            <strong>Nueva solicitud</strong>
                             <small>Captura un registro desde cero</small>
                         </span>
                     </button>
@@ -374,7 +374,7 @@
         <button type="button" class="drafts-modal__retry" (click)="loadDrafts()">Reintentar</button>
         } @else if (!drafts().length) {
         <p class="drafts-modal__state">
-            No tienes borradores guardados. Usa "Nuevo borrador" para iniciar un registro.
+            No tienes borradores guardados. Usa "Nueva solicitud" para iniciar un registro.
         </p>
         } @else {
         <ul class="drafts-modal__list">

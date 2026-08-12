@@ -117,6 +117,27 @@ export interface BorradorGuardarRequest {
     readonly auditoria: BorradorAuditoria;
 }
 
+/**
+ * Jerarquía ya resuelta por el backend en el GET de borradores. Evita que el
+ * front tenga que reconstruir institución -> OAD -> UA a partir de un solo
+ * `estructuraId`.
+ */
+export interface BorradorEstructuraCatalogo {
+    readonly estructuraId: number | null;
+    readonly tipoInstitucionId: number | null;
+    readonly tipoInstitucion: string | null;
+    readonly estadoId: number | null;
+    readonly estado: string | null;
+    readonly municipioId: number | null;
+    readonly municipio: string | null;
+    readonly institucionId: number | null;
+    readonly institucion: string | null;
+    readonly organoId: number | null;
+    readonly organo: string | null;
+    readonly unidadId: number | null;
+    readonly unidad: string | null;
+}
+
 export interface BorradorCatalogos {
     readonly sexo: string | null;
     readonly estadoCivil: string | null;
@@ -125,6 +146,8 @@ export interface BorradorCatalogos {
     readonly tipoUsuario: string | null;
     readonly sistema: string | null;
     readonly perfil: string | null;
+    readonly adscripcionEstructura: BorradorEstructuraCatalogo | null;
+    readonly comisionEstructura: BorradorEstructuraCatalogo | null;
 }
 
 export interface BorradorItem {

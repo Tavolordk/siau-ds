@@ -39,16 +39,22 @@ export class UsersFacade {
         return this.repository.saveRegistrationDraft(request);
     }
 
-    getRegistrationDraft(): Observable<BorradorItem | null> {
-        return this.repository.getRegistrationDraft();
+    getRegistrationDraft(usuarioEjecutorId?: number | null): Observable<BorradorItem | null> {
+        return this.repository.getRegistrationDraft(usuarioEjecutorId);
     }
 
-    getRegistrationDrafts(usuarioCreadorId?: number | null): Observable<readonly BorradorItem[]> {
-        return this.repository.getRegistrationDrafts(usuarioCreadorId);
+    getRegistrationDrafts(
+        usuarioEjecutorId?: number | null,
+        borradorId?: number | null,
+    ): Observable<readonly BorradorItem[]> {
+        return this.repository.getRegistrationDrafts(usuarioEjecutorId, borradorId);
     }
 
-    deleteRegistrationDraft(borradorId: number): Observable<void> {
-        return this.repository.deleteRegistrationDraft(borradorId);
+    deleteRegistrationDraft(
+        borradorId: number,
+        usuarioEjecutorId?: number | null,
+    ): Observable<void> {
+        return this.repository.deleteRegistrationDraft(borradorId, usuarioEjecutorId);
     }
 
     getTemporaryPassword(account: string): Observable<PasswordTemporalResponse> {

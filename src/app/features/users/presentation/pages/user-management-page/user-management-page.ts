@@ -857,7 +857,7 @@ export class UserManagementPage {
         this.isNewUserMenuOpen.set(false);
     }
 
-    /** "Nuevo borrador": asistente en blanco, sin recuperar nada. */
+    /** "Nueva solicitud": asistente en blanco y borrador nuevo (borradorId null). */
     protected startNewRegistration(): void {
         this.closeNewUserMenu();
         this.draftToOpen.set(null);
@@ -925,8 +925,15 @@ export class UserManagementPage {
     }
 
     protected draftSubtitle(draft: BorradorItem): string {
+        const estructura = draft.catalogos?.adscripcionEstructura;
+
+        // Se muestra la ruta de adscripción de lo general a lo particular para
+        // distinguir borradores de la misma persona en distintas áreas.
         const partes = [
-            draft.catalogos?.adscripcion,
+            estructura?.tipoInstitucion,
+            estructura?.institucion ?? draft.catalogos?.adscripcion,
+            estructura?.organo,
+            estructura?.unidad,
             draft.catalogos?.tipoUsuario,
         ]
             .map((part) => (part ?? '').trim())

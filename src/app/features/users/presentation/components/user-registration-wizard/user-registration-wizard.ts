@@ -46,6 +46,7 @@ import {
 } from '../../../application/draft-structure.resolver';
 import {
     ActualizarAdminRequest,
+    BorradorCatalogos,
     BorradorDatos,
     BorradorGuardarRequest,
     BorradorItem,
@@ -353,6 +354,15 @@ export class UserRegistrationWizard {
     protected readonly structureProfileMessage = signal<string>('');
     private readonly structureRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
     private readonly allSystemOptions = signal<readonly SiauSelectOption[]>([]);
+
+    /**
+     * Perfiles traídos de `sistema_perfiles` (catálogo global por sistema). Es
+     * el respaldo para etiquetar un perfil cuando `estructura_perfil` no lo
+     * devuelve para la estructura del borrador.
+     */
+    private readonly systemProfileFallbackOptions =
+        signal<Record<string, readonly SiauSelectOption[]>>({});
+    private readonly requestedProfileFallbacks = new Set<string>();
 
     protected readonly showPassword = signal<boolean>(false);
     protected readonly showConfirmPassword = signal<boolean>(false);
@@ -903,6 +913,18 @@ export class UserRegistrationWizard {
                     this.loadRegistrationDraft();
                 }
             });
+        });
+
+        effect(() => {
+            // Dependencias: en cuanto llega cualquiera de los catálogos de
+            // sistemas o perfiles, se resuelven las etiquetas pendientes.
+            this.systemOptions();
+            this.allSystemOptions();
+            this.structureRoleOptionsBySystem();
+            this.roleOptions();
+            this.systemProfileFallbackOptions();
+
+            untracked(() => this.refreshAssignedProfileLabels());
         });
 
         effect(() => {
@@ -2533,17 +2555,22 @@ export class UserRegistrationWizard {
             return of(void 0);
         }
 
-        return this.usersFacade.deleteRegistrationDraft(borradorId).pipe(
-            map(() => {
-                this.draftId.set(null);
-                this.draftMessage.set('');
-                this.draftError.set('');
-            }),
-            catchError((error: unknown) => {
-                console.warn('El usuario fue registrado, pero no fue posible limpiar el borrador.', error);
-                return of(void 0);
-            }),
-        );
+        return this.usersFacade
+            .deleteRegistrationDraft(borradorId, this.resolveCurrentUserId())
+            .pipe(
+                map(() => {
+                    this.draftId.set(null);
+                    this.draftMessage.set('');
+                    this.draftError.set('');
+                }),
+                catchError((error: unknown) => {
+                    console.warn(
+                        'El usuario fue registrado, pero no fue posible limpiar el borrador.',
+                        error,
+                    );
+                    return of(void 0);
+                }),
+            );
     }
 
     private toFailedEmailDelivery(error: unknown): CorreoDeliveryResult {
@@ -3634,7 +3661,16 @@ export class UserRegistrationWizard {
         };
 
         return {
-            // Para un borrador nuevo el contrato requiere null, no 0.
+            /*
+             * `borradorId: null` le dice al backend que es un borrador NUEVO y
+             * que debe crearlo. En cuanto responde con el id asignado, ese id
+             * queda en `draftId` y los siguientes "Siguiente" de esta misma
+             * solicitud lo reenvían para ACTUALIZAR el mismo borrador, en vez
+             * de sembrar uno por cada paso.
+             *
+             * Al abrir un borrador desde la lista, `draftId` ya viene con su id
+             * desde el primer guardado, así que siempre actualiza.
+             */
             borradorId: this.draftId(),
             datos,
             auditoria: {
@@ -3676,7 +3712,7 @@ export class UserRegistrationWizard {
         this.draftMessage.set('Buscando un borrador pendiente...');
 
         this.usersFacade
-            .getRegistrationDraft()
+            .getRegistrationDraft(this.resolveCurrentUserId())
             .pipe(
                 switchMap((draft) => {
                     if (!draft?.datos) {
@@ -3729,6 +3765,11 @@ export class UserRegistrationWizard {
         if (this.isEditMode() || this.isDraftLoading()) {
             return;
         }
+
+        // El id se fija de entrada: aunque el contenido no se pueda restaurar,
+        // lo que el usuario capture debe ACTUALIZAR este borrador y no crear
+        // uno nuevo.
+        this.draftId.set(draft.borradorId);
 
         if (!draft.datos) {
             this.draftError.set('El borrador seleccionado no contiene información recuperable.');
@@ -3787,7 +3828,7 @@ export class UserRegistrationWizard {
             draft.datos,
             hierarchies,
         );
-        const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos);
+        const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos, draft.catalogos);
 
         this.draftId.set(draft.borradorId);
         this.form.set({
@@ -3939,7 +3980,10 @@ export class UserRegistrationWizard {
         );
     }
 
-    private restoreProfilesFromDraftData(datos: BorradorDatos): AssignedSystemProfile[] {
+    private restoreProfilesFromDraftData(
+        datos: BorradorDatos,
+        catalogos: BorradorCatalogos | null,
+    ): AssignedSystemProfile[] {
         const systemId = datos.cuenta.sistemaId;
         const profileId = datos.cuenta.perfilId;
 
@@ -3949,16 +3993,128 @@ export class UserRegistrationWizard {
 
         const systemValue = String(systemId);
         const roleValue = String(profileId);
-        const systemOption = this.findKnownSystemOption(systemValue);
-        const roleOption = this.roleOptions().find((option) => option.value === roleValue);
+
+        /*
+         * El borrador sólo persiste ids. Las etiquetas se toman, en orden, de:
+         * los catálogos que ya resolvió el backend, el catálogo de perfiles por
+         * estructura (si alcanzó a cargar) y, como último recurso, el id.
+         * `refreshAssignedProfileLabels` vuelve a intentarlo en cuanto los
+         * catálogos terminan de cargar, para que el chip no se quede en "1 · 1".
+         */
+        const systemLabel = this.resolveSystemLabel(systemValue)
+            || this.toText(catalogos?.sistema ?? '')
+            || systemValue;
 
         return [{
             id: `${systemValue}:${roleValue}`,
             system: systemValue,
-            systemLabel: systemOption?.label ?? systemValue,
+            systemLabel,
             role: roleValue,
-            roleLabel: roleOption?.label ?? roleValue,
+            roleLabel: this.resolveRoleLabel(systemValue, roleValue, systemLabel)
+                || this.toText(catalogos?.perfil ?? '')
+                || roleValue,
         }];
+    }
+
+    private resolveSystemLabel(systemValue: string): string {
+        return this.toText(this.findKnownSystemOption(systemValue)?.label ?? '');
+    }
+
+    /**
+     * Los roles viven en `structureRoleOptionsBySystem`, indexados por sistema.
+     * `roleOptions` sólo contiene los del sistema elegido en el formulario de
+     * "Agregar sistema", por eso no sirve para reetiquetar lo ya asignado.
+     */
+    private resolveRoleLabel(
+        systemValue: string,
+        roleValue: string,
+        systemLabel = '',
+    ): string {
+        const rolesBySystem = this.structureRoleOptionsBySystem();
+        const fallback = this.systemProfileFallbackOptions();
+        const fallbackKey = this.normalizeText(systemLabel);
+        const candidates = [
+            ...(rolesBySystem[systemValue] ?? []),
+            ...(fallback[fallbackKey] ?? []),
+            ...Object.values(rolesBySystem).flat(),
+            ...Object.values(fallback).flat(),
+            ...this.roleOptions(),
+        ];
+
+        return this.toText(
+            candidates.find((option) => option.value === roleValue)?.label ?? '',
+        );
+    }
+
+    /**
+     * Consulta una sola vez los perfiles del sistema por su nombre. Al llenar
+     * `systemProfileFallbackOptions` el efecto de reetiquetado vuelve a correr.
+     */
+    private ensureSystemProfileFallback(systemLabel: string): void {
+        const label = this.toText(systemLabel);
+        const key = this.normalizeText(label);
+
+        if (!key || this.requestedProfileFallbacks.has(key)) {
+            return;
+        }
+
+        this.requestedProfileFallbacks.add(key);
+
+        this.catalogosFacade
+            .obtenerSistemaPerfilesOptions(label)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => {
+                    this.systemProfileFallbackOptions.update((current) => ({
+                        ...current,
+                        [key]: options,
+                    }));
+                },
+                error: (error: unknown) => {
+                    console.warn(
+                        `No fue posible consultar los perfiles del sistema ${label}.`,
+                        error,
+                    );
+                },
+            });
+    }
+
+    /**
+     * Reetiqueta los perfiles ya asignados cuando llegan los catálogos. Sólo
+     * escribe si algo cambió, para no reentrar en el efecto que la dispara.
+     */
+    private refreshAssignedProfileLabels(): void {
+        const current = this.assignedSystemProfiles();
+
+        if (!current.length) {
+            return;
+        }
+
+        let changed = false;
+
+        const next = current.map((profile) => {
+            const systemLabel = this.resolveSystemLabel(profile.system) || profile.systemLabel;
+            const roleLabel = this.resolveRoleLabel(profile.system, profile.role, systemLabel)
+                || profile.roleLabel;
+
+            // Si el rol sigue mostrándose como su id, se pide el catálogo
+            // global de perfiles de ese sistema.
+            if (roleLabel === profile.role) {
+                this.ensureSystemProfileFallback(systemLabel);
+            }
+
+            if (systemLabel === profile.systemLabel && roleLabel === profile.roleLabel) {
+                return profile;
+            }
+
+            changed = true;
+
+            return { ...profile, systemLabel, roleLabel };
+        });
+
+        if (changed) {
+            this.assignedSystemProfiles.set(next);
+        }
     }
 
     private inferDraftStep(datos: BorradorDatos): WizardStepId {
@@ -4023,7 +4179,7 @@ export class UserRegistrationWizard {
         this.draftError.set('');
 
         this.usersFacade
-            .deleteRegistrationDraft(borradorId)
+            .deleteRegistrationDraft(borradorId, this.resolveCurrentUserId())
             .pipe(
                 takeUntilDestroyed(this.destroyRef),
                 finalize(() => this.isDraftDeleting.set(false)),
