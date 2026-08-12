@@ -296,6 +296,8 @@ export class UserRegistrationWizard {
     readonly user = input<UserRecord | null>(null);
     readonly userDetail = input<UserDetailRecord | null>(null);
     readonly readonlyMode = input<boolean>(false);
+    readonly draftToOpen = input<BorradorItem | null>(null);
+    readonly autoRestoreDraft = input<boolean>(true);
     readonly closed = output<void>();
     readonly saved = output<void>();
 
@@ -862,6 +864,8 @@ export class UserRegistrationWizard {
             const user = this.user();
             const detail = this.userDetail();
             const catalogosReady = this.catalogosReady();
+            const draftToOpen = this.draftToOpen();
+            const autoRestoreDraft = this.autoRestoreDraft();
 
             if (!isOpen) {
                 this.hydrationKey = '';
@@ -870,7 +874,8 @@ export class UserRegistrationWizard {
 
             const userKey = user?.userId ?? user?.username ?? 'sin-usuario';
             const detailKey = detail ? 'con-detalle' : 'sin-detalle';
-            const nextHydrationKey = `${mode}-${userKey}-${detailKey}-${catalogosReady}`;
+            const draftKey = draftToOpen?.borradorId ?? 'sin-borrador';
+            const nextHydrationKey = `${mode}-${userKey}-${detailKey}-${draftKey}-${autoRestoreDraft}-${catalogosReady}`;
 
             if (this.hydrationKey === nextHydrationKey) {
                 return;
@@ -888,7 +893,13 @@ export class UserRegistrationWizard {
                 this.editEnabled.set(true);
                 this.ensureDefaultSiauProfile();
 
-                if (catalogosReady) {
+                if (!catalogosReady) {
+                    return;
+                }
+
+                if (draftToOpen) {
+                    this.restoreProvidedRegistrationDraft(draftToOpen);
+                } else if (autoRestoreDraft) {
                     this.loadRegistrationDraft();
                 }
             });
@@ -3701,70 +3712,7 @@ export class UserRegistrationWizard {
             )
             .subscribe({
                 next: ({ draft, hierarchies }) => {
-                    if (!draft?.datos) {
-                        this.draftMessage.set('');
-                        return;
-                    }
-
-                    const restoredForm = this.restoreFormFromDraftData(
-                        draft.datos,
-                        hierarchies,
-                    );
-                    const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos);
-
-                    this.draftId.set(draft.borradorId);
-                    this.form.set({
-                        ...restoredForm,
-                        profiles: restoredProfiles.map((profile) => profile.role),
-                    });
-                    this.seedResolvedDraftStructureOptions(hierarchies);
-                    this.assignedSystemProfiles.set(restoredProfiles);
-                    if (!restoredProfiles.length) {
-                        this.ensureDefaultSiauProfile();
-                    }
-
-                    const inferredStep = this.inferDraftStep(draft.datos);
-                    const requestedStep = draft.pasoActual || inferredStep;
-                    const activeStep = this.isWizardStep(requestedStep)
-                        && CREATE_WIZARD_STEPS.includes(requestedStep)
-                        ? requestedStep
-                        : 'personal-data';
-
-                    this.activeStepId.set(activeStep);
-                    this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
-                    this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
-
-                    const unresolvedAssignment = Boolean(
-                        draft.datos.adscripcion.estructuraId && !hierarchies.assignment,
-                    );
-                    const unresolvedCommission = Boolean(
-                        draft.datos.comision?.estructuraId && !hierarchies.commission,
-                    );
-
-                    // El borrador sólo guarda el último `estructuraId`, así que
-                    // la estructura se muestra en el nivel de institución sin su
-                    // ámbito. Se avisa para que el usuario sepa que debe volver
-                    // a elegir la cascada si necesita cambiarla.
-                    const partialAssignment = Boolean(
-                        hierarchies.assignment?.institution
-                        && !hierarchies.assignment.institutionType,
-                    );
-                    const partialCommission = Boolean(
-                        hierarchies.commission?.institution
-                        && !hierarchies.commission.institutionType,
-                    );
-
-                    if (unresolvedAssignment || unresolvedCommission) {
-                        this.draftError.set(
-                            'Se recuperó el borrador, pero no fue posible reconstruir toda la jerarquía de adscripción. Vuelve a seleccionar los catálogos faltantes.',
-                        );
-                    } else if (partialAssignment || partialCommission) {
-                        this.draftMessage.set(
-                            'Borrador recuperado. La estructura guardada se muestra en el primer nivel; si necesitas cambiarla, vuelve a elegir el tipo de institución.',
-                        );
-                    }
-
-                    this.loadHydratedAssignmentCatalogs(this.form());
+                    this.applyRegistrationDraft(draft, hierarchies);
                 },
                 error: (error: unknown) => {
                     this.draftMessage.set('');
@@ -3775,6 +3723,120 @@ export class UserRegistrationWizard {
                     );
                 },
             });
+    }
+
+    private restoreProvidedRegistrationDraft(draft: BorradorItem): void {
+        if (this.isEditMode() || this.isDraftLoading()) {
+            return;
+        }
+
+        if (!draft.datos) {
+            this.draftError.set('El borrador seleccionado no contiene información recuperable.');
+            return;
+        }
+
+        this.isDraftLoading.set(true);
+        this.draftError.set('');
+        this.draftMessage.set('Recuperando el borrador seleccionado...');
+
+        this.resolveDraftStructureHierarchies(draft)
+            .pipe(
+                map((hierarchies) => ({ draft, hierarchies })),
+                catchError((error: unknown) => {
+                    console.error(
+                        'No fue posible reconstruir la jerarquía de la estructura del borrador.',
+                        error,
+                    );
+
+                    return of({
+                        draft,
+                        hierarchies: {
+                            assignment: null,
+                            commission: null,
+                        } as DraftStructureHierarchies,
+                    });
+                }),
+                takeUntilDestroyed(this.destroyRef),
+                finalize(() => this.isDraftLoading.set(false)),
+            )
+            .subscribe({
+                next: ({ draft: selectedDraft, hierarchies }) => {
+                    this.applyRegistrationDraft(selectedDraft, hierarchies);
+                },
+                error: (error: unknown) => {
+                    this.draftMessage.set('');
+                    this.draftError.set(
+                        error instanceof Error
+                            ? error.message
+                            : 'No fue posible recuperar el borrador seleccionado.',
+                    );
+                },
+            });
+    }
+
+    private applyRegistrationDraft(
+        draft: BorradorItem | null,
+        hierarchies: DraftStructureHierarchies,
+    ): void {
+        if (!draft?.datos) {
+            this.draftMessage.set('');
+            return;
+        }
+
+        const restoredForm = this.restoreFormFromDraftData(
+            draft.datos,
+            hierarchies,
+        );
+        const restoredProfiles = this.restoreProfilesFromDraftData(draft.datos);
+
+        this.draftId.set(draft.borradorId);
+        this.form.set({
+            ...restoredForm,
+            profiles: restoredProfiles.map((profile) => profile.role),
+        });
+        this.seedResolvedDraftStructureOptions(hierarchies);
+        this.assignedSystemProfiles.set(restoredProfiles);
+        if (!restoredProfiles.length) {
+            this.ensureDefaultSiauProfile();
+        }
+
+        const inferredStep = this.inferDraftStep(draft.datos);
+        const requestedStep = draft.pasoActual || inferredStep;
+        const activeStep = this.isWizardStep(requestedStep)
+            && CREATE_WIZARD_STEPS.includes(requestedStep)
+            ? requestedStep
+            : 'personal-data';
+
+        this.activeStepId.set(activeStep);
+        this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
+        this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
+
+        const unresolvedAssignment = Boolean(
+            draft.datos.adscripcion.estructuraId && !hierarchies.assignment,
+        );
+        const unresolvedCommission = Boolean(
+            draft.datos.comision?.estructuraId && !hierarchies.commission,
+        );
+        const partialAssignment = Boolean(
+            hierarchies.assignment?.institution
+            && !hierarchies.assignment.institutionType,
+        );
+        const partialCommission = Boolean(
+            hierarchies.commission?.institution
+            && !hierarchies.commission.institutionType,
+        );
+
+        if (unresolvedAssignment || unresolvedCommission) {
+            this.draftError.set(
+                'Se recuperó el borrador, pero no fue posible reconstruir toda la jerarquía de adscripción. Vuelve a seleccionar los catálogos faltantes.',
+            );
+        } else if (partialAssignment || partialCommission) {
+            this.draftMessage.set(
+                'Borrador recuperado. La estructura guardada se muestra en el primer nivel; si necesitas cambiarla, vuelve a elegir el tipo de institución.',
+            );
+        }
+
+        this.loadHydratedAssignmentCatalogs(this.form());
     }
 
     private restoreFormFromDraftData(

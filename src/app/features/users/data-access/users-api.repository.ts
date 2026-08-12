@@ -159,16 +159,32 @@ export class UsersApiRepository {
     }
 
     getRegistrationDraft(): Observable<BorradorItem | null> {
+        return this.getRegistrationDrafts().pipe(
+            map((drafts) => drafts[0] ?? null),
+        );
+    }
+
+    /**
+     * Recupera todos los borradores del usuario creador. El backend puede
+     * resolver al creador por el token; cuando se conoce el id también se
+     * envía como query param para mantener explícito el criterio funcional.
+     */
+    getRegistrationDrafts(usuarioCreadorId?: number | null): Observable<readonly BorradorItem[]> {
+        const creatorId = Number(usuarioCreadorId);
+        const options = Number.isFinite(creatorId) && creatorId > 0
+            ? { params: { usuarioCreadorId: String(creatorId) } }
+            : {};
+
         return this.http
-            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`)
+            .get<unknown>(`${this.baseUrl}${BORRADORES_PATH}`, options)
             .pipe(
-                map((response) => this.toDraftItem(response)),
+                map((response) => this.toDraftItems(response)),
                 catchError((error: unknown) => {
                     if (error instanceof HttpErrorResponse && (error.status === 404 || error.status === 204)) {
-                        return of(null);
+                        return of([] as readonly BorradorItem[]);
                     }
 
-                    return this.handleError(error, 'No fue posible recuperar el borrador del registro.');
+                    return this.handleError(error, 'No fue posible recuperar los borradores del registro.');
                 }),
             );
     }
@@ -456,51 +472,59 @@ export class UsersApiRepository {
         );
     }
 
+    /**
+     * Mapeo único de un usuario del listado. El GET de /consultas/usuarios ya
+     * entrega `nombreCompleto`, `rol`, `rolClave`, `estatusClave`, `rnpsp` y
+     * `cConfianza`; la búsqueda avanzada manda los apellidos por separado. Se
+     * leen ambos contratos y el nombre se arma sólo cuando no viene resuelto.
+     */
     private toUserRecordFromUnknown(value: unknown): UserRecord {
         const record = this.asRecord(value) ?? {};
-        const dto: AdvancedUserListItemDto = {
-            usuarioId: this.readNumber(record, ['usuarioId', 'idUsuario', 'id'], 0),
-            nombres: this.readText(record, ['nombres', 'nombre', 'name']),
-            primerApellido: this.readText(record, ['primerApellido', 'apellidoPaterno', 'primer_apellido']),
-            segundoApellido: this.readText(record, ['segundoApellido', 'apellidoMaterno', 'segundo_apellido']),
-            correoElectronico: this.readText(record, ['correoElectronico', 'correo', 'email']),
-            numeroTelefonico: this.readText(record, ['numeroTelefonico', 'telefono', 'celular']),
-            nombreUsuario: this.readText(record, ['nombreUsuario', 'usuario', 'cuenta', 'username']),
-            estatus: this.readText(record, ['estatus', 'estadoCuenta', 'estado', 'status']),
-            institucion: this.readText(record, ['institucion', 'nombreInstitucion']),
-            entidad: this.readText(record, ['entidad', 'nombreEntidad']),
-            fechaAlta: this.readText(record, ['fechaAlta', 'fechaRegistro', 'createdAt']),
-            fechaActualizacion: this.readText(record, ['fechaActualizacion', 'updatedAt']),
-        };
-
-        return this.toUserRecord(dto);
-    }
-
-    private toUserRecord(user: AdvancedUserListItemDto): UserRecord {
-        const userId = this.toNumber(user.usuarioId, 0);
-        const username = this.normalizeText(user.nombreUsuario) || `usuario-${userId}`;
-        const fullName = [
-            this.normalizeText(user.nombres),
-            this.normalizeText(user.primerApellido),
-            this.normalizeText(user.segundoApellido),
-        ].filter(Boolean).join(' ') || 'Sin nombre';
+        const userId = this.readNumber(record, ['usuarioId', 'idUsuario', 'id'], 0);
+        const composedName = [
+            this.readText(record, ['nombres', 'nombre', 'name']),
+            this.readText(record, ['primerApellido', 'apellidoPaterno', 'primer_apellido']),
+            this.readText(record, ['segundoApellido', 'apellidoMaterno', 'segundo_apellido']),
+        ]
+            .map((part) => this.normalizeText(part))
+            .filter(Boolean)
+            .join(' ');
+        const fullName = this.readText(record, [
+            'nombreCompleto',
+            'nombre_completo',
+            'nombreCompletoUsuario',
+            'fullName',
+        ]);
+        const status = this.readText(record, ['estatus', 'estadoCuenta', 'estado', 'status']);
+        const statusKey = this.readText(record, [
+            'estatusClave',
+            'estadoCuentaClave',
+            'claveEstatus',
+            'statusKey',
+        ]);
 
         return {
             userId,
-            username,
-            fullName,
-            email: this.normalizeText(user.correoElectronico) || 'Sin correo',
-            institution: this.normalizeText(user.institucion) || 'Sin institución',
-            entity: this.normalizeText(user.entidad) || 'Sin entidad',
-            role: 'Sin rol',
-            roleKey: '',
-            status: this.normalizeText(user.estatus) || 'Sin estatus',
-            statusKey: this.normalizeText(user.estatus),
-            rnpsp: 'No registrado',
-            trust: 'No capturado',
-            createdAt: user.fechaAlta ?? null,
-            updatedAt: user.fechaActualizacion ?? null,
+            username: this.readText(record, ['nombreUsuario', 'usuario', 'cuenta', 'username'])
+                || `usuario-${userId}`,
+            fullName: fullName || composedName || 'Sin nombre',
+            email: this.readText(record, ['correoElectronico', 'correo', 'email']) || 'Sin correo',
+            institution: this.readText(record, ['institucion', 'nombreInstitucion']) || 'Sin institución',
+            entity: this.readText(record, ['entidad', 'nombreEntidad']) || 'Sin entidad',
+            role: this.readText(record, ['rol', 'tipoUsuario', 'perfil', 'role']) || 'Sin rol',
+            roleKey: this.readText(record, ['rolClave', 'claveRol', 'tipoUsuarioClave', 'roleKey']),
+            status: status || 'Sin estatus',
+            statusKey: statusKey || status,
+            rnpsp: this.readText(record, ['rnpsp', 'registroNacional']) || 'No registrado',
+            trust: this.readText(record, ['cConfianza', 'controlConfianza', 'confianza'])
+                || 'No capturado',
+            createdAt: this.readText(record, ['fechaAlta', 'fechaRegistro', 'createdAt']) || null,
+            updatedAt: this.readText(record, ['fechaActualizacion', 'updatedAt']) || null,
         };
+    }
+
+    private toUserRecord(user: AdvancedUserListItemDto): UserRecord {
+        return this.toUserRecordFromUnknown(user);
     }
 
     private toPagination(
@@ -533,9 +557,12 @@ export class UsersApiRepository {
         const root = this.asRecord(response);
         const item = this.toDraftItem(response) ?? {
             borradorId: this.toPositiveNumber(request.borradorId) ?? null,
+            usuarioCreadorId: this.toPositiveNumber(request.auditoria.usuarioEjecutorId) ?? null,
             pasoActual: null,
             datos: request.datos,
             catalogos: null,
+            estatus: null,
+            fechaCreacion: null,
             fechaActualizacion: null,
         };
 
@@ -543,6 +570,46 @@ export class UsersApiRepository {
             mensaje: this.readText(root, ['mensaje', 'message']) || 'Borrador guardado.',
             datos: item,
         };
+    }
+
+    private toDraftItems(response: unknown): readonly BorradorItem[] {
+        if (response === null || response === undefined) {
+            return [];
+        }
+
+        if (Array.isArray(response)) {
+            return response
+                .map((item) => this.toDraftItem(item))
+                .filter((item): item is BorradorItem => item !== null);
+        }
+
+        const root = this.asRecord(response);
+        if (!root) {
+            return [];
+        }
+
+        const candidate = root['datos']
+            ?? root['data']
+            ?? root['borradores']
+            ?? root['items']
+            ?? root['results'];
+
+        if (Array.isArray(candidate)) {
+            return candidate
+                .map((item) => this.toDraftItem(item))
+                .filter((item): item is BorradorItem => item !== null);
+        }
+
+        const single = this.toDraftItem(response);
+        if (single) {
+            return [single];
+        }
+
+        // Soporta envolturas como { data: { items: [...] } } o
+        // { datos: { borradores: [...] } } sin perder registros.
+        return candidate && candidate !== response
+            ? this.toDraftItems(candidate)
+            : [];
     }
 
     private toDraftItem(response: unknown): BorradorItem | null {
@@ -596,6 +663,12 @@ export class UsersApiRepository {
 
         return {
             borradorId: id > 0 ? id : null,
+            usuarioCreadorId: this.readNullableNumber(record, [
+                'usuarioCreadorId',
+                'idUsuarioCreador',
+                'usuarioEjecutorId',
+                'creadoPorId',
+            ]),
             pasoActual: pasoActual || null,
             datos: draftData,
             catalogos: catalogos
@@ -609,6 +682,8 @@ export class UsersApiRepository {
                     perfil: this.readNullableText(catalogos, ['perfil']),
                 }
                 : null,
+            estatus: this.readNullableText(record, ['estatus', 'estado', 'status']),
+            fechaCreacion: this.readText(record, ['fechaCreacion', 'creadoEn', 'createdAt']) || null,
             fechaActualizacion: this.readText(record, ['fechaActualizacion', 'actualizadoEn', 'updatedAt']) || null,
         };
     }

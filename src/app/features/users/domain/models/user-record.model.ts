@@ -129,9 +129,12 @@ export interface BorradorCatalogos {
 
 export interface BorradorItem {
     readonly borradorId: number | null;
+    readonly usuarioCreadorId: number | null;
     readonly pasoActual: string | null;
     readonly datos: BorradorDatos | null;
     readonly catalogos: BorradorCatalogos | null;
+    readonly estatus: string | null;
+    readonly fechaCreacion: string | null;
     readonly fechaActualizacion: string | null;
 }
 

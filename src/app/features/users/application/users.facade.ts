@@ -43,6 +43,10 @@ export class UsersFacade {
         return this.repository.getRegistrationDraft();
     }
 
+    getRegistrationDrafts(usuarioCreadorId?: number | null): Observable<readonly BorradorItem[]> {
+        return this.repository.getRegistrationDrafts(usuarioCreadorId);
+    }
+
     deleteRegistrationDraft(borradorId: number): Observable<void> {
         return this.repository.deleteRegistrationDraft(borradorId);
     }
