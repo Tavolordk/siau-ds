@@ -192,26 +192,6 @@
             </section>
             }
 
-            <div class="registration-wizard__express-card"
-                [class.registration-wizard__express-card--active]="form().expressCreation">
-                <label class="registration-wizard__express-toggle">
-                    <input type="checkbox" [checked]="form().expressCreation"
-                        [disabled]="isFormDisabled() || isSubmitting()"
-                        (change)="toggleExpressCreation($any($event.target).checked)" />
-                    <span class="registration-wizard__express-check" aria-hidden="true">
-                        @if (form().expressCreation) {
-                        <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" />
-                        }
-                    </span>
-                    <span class="registration-wizard__express-copy">
-                        <strong>Creación express</strong>
-                        <small>Nombre(s), primer apellido y sexo son obligatorios. CURP, RFC y fecha de nacimiento
-                            se pueden complementar posteriormente; si se capturan, se validarán. El estado civil es
-                            opcional.</small>
-                    </span>
-                </label>
-            </div>
-
             }
 
             @if (curpValidationSummaryForDisplay(); as curpValidation) {
@@ -284,8 +264,7 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Mínimos express' :
-                            'Campos obligatorios' }}</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
@@ -305,7 +284,7 @@
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
-                            [required]="!form().expressCreation" [maxLength]="18" [alphanumericOnly]="true"
+                            [required]="true" [maxLength]="18" [alphanumericOnly]="true"
                             [value]="form().curp" (valueChange)="updateCurp($event)"
                             [disabled]="isCurpInputDisabled()" />
 
@@ -351,7 +330,7 @@
                         [options]="civilStatusOptions()" [value]="form().civilStatus"
                         (valueChange)="updateForm('civilStatus', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Fecha de Nacimiento" type="date" [required]="!form().expressCreation"
+                    <siau-input label="Fecha de Nacimiento" type="date" [required]="true"
                         [max]="maximumBirthDate()" [value]="form().birthDate"
                         (valueChange)="updateForm('birthDate', $event)" [disabled]="isBirthDateInputDisabled()" />
                 </div>
@@ -459,20 +438,20 @@
                     </div>
                 </div>
 
-                <div class="registration-wizard__express-card"
-                    [class.registration-wizard__express-card--active]="form().commissionEnabled">
-                    <label class="registration-wizard__express-toggle">
+                <div class="registration-wizard__option-card"
+                    [class.registration-wizard__option-card--active]="form().commissionEnabled">
+                    <label class="registration-wizard__option-toggle">
                         <input type="checkbox" [checked]="form().commissionEnabled"
                             [disabled]="isFormDisabled() || isSubmitting() || !canConfigureCommission()"
                             (change)="toggleCommissionSection($any($event.target).checked)" />
 
-                        <span class="registration-wizard__express-check" aria-hidden="true">
+                        <span class="registration-wizard__option-check" aria-hidden="true">
                             @if (form().commissionEnabled) {
                             <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" />
                             }
                         </span>
 
-                        <span class="registration-wizard__express-copy">
+                        <span class="registration-wizard__option-copy">
                             <strong>Agregar comisión</strong>
                             <small>
                                 Activa esta opción únicamente si el usuario tendrá una comisión distinta a su
@@ -669,7 +648,7 @@
 
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">
-                            {{ !isEditMode() && !form().expressCreation ? 'Opcional' : 'Campos obligatorios' }}
+                            {{ !isEditMode() ? 'Opcional' : 'Campos obligatorios' }}
                         </span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder().length }}
@@ -682,30 +661,6 @@
                         }
                     </div>
                 </div>
-
-                @if (form().expressCreation) {
-                <div class="registration-wizard__info-box registration-wizard__info-box--compact">
-                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>Para registro express también debes agregar al menos un sistema y perfil.</span>
-                </div>
-
-                @if (!isEditMode()) {
-                <div class="registration-wizard__field registration-wizard__field--full">
-                    <label class="registration-wizard__field-label" for="express-justification-profiles">
-                        Comentarios <span>*</span>
-                    </label>
-
-                    <textarea id="express-justification-profiles" class="registration-wizard__textarea" rows="4"
-                        placeholder="Justifica por qué se realizará la creación express"
-                        [value]="form().expressJustification" [disabled]="isFormDisabled() || isSubmitting()"
-                        (input)="updateForm('expressJustification', $any($event.target).value)"></textarea>
-
-                    <p class="registration-wizard__field-help">
-                        Este comentario se enviará en el campo <strong>comentario</strong> del contrato de registro.
-                    </p>
-                </div>
-                }
-                }
 
                 @if (!canAssignProfiles()) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact">
@@ -748,7 +703,7 @@
                 <div class="registration-wizard__profiles-panel">
                     <div class="registration-wizard__profiles-field-title">
                         Sistemas y perfiles asignados
-                        @if (isEditMode() || form().expressCreation) { <span>*</span> }
+                        @if (isEditMode()) { <span>*</span> }
                     </div>
 
                     <p class="registration-wizard__profiles-field-help">
@@ -799,14 +754,14 @@
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
-                                [hint]="structureProfileHint()" [required]="isEditMode() || form().expressCreation"
+                                [hint]="structureProfileHint()" [required]="isEditMode()"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="Seleccione rol"
                                 [options]="availableRoleOptions()" [value]="selectedRole()"
                                 (valueChange)="updateSelectedRole($event)"
-                                [required]="isEditMode() || form().expressCreation"
+                                [required]="isEditMode()"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem() || isSelectedSiauProfileBlocked()" />
                             }
 
@@ -839,8 +794,7 @@
                     </div>
 
                     <div class="registration-wizard__section-meta">
-                        <span class="registration-wizard__required-pill">{{ form().expressCreation ? 'Justificación
-                            requerida' : 'Campos obligatorios' }}</span>
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder().length }}
                         </span>
@@ -862,24 +816,24 @@
 
                             <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
                                 [value]="form().username"
-                                [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
                                 (input)="updateForm('username', $any($event.target).value)" />
                         </div>
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Contraseña @if (!form().expressCreation && !isEditMode()) { <span>*</span> }
+                                Contraseña
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
                                 <input [type]="showPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Mínimo 8 caracteres" [value]="form().password"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
                                     (input)="updateForm('password', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
                                     (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
                                     <siau-lucide-icon [name]="showPassword() ? 'eye-off' : 'eye'" size="16"
                                         strokeWidth="2" aria-hidden="true" />
@@ -889,18 +843,18 @@
 
                         <div class="registration-wizard__field">
                             <label class="registration-wizard__field-label">
-                                Confirmar contraseña @if (!form().expressCreation && !isEditMode()) { <span>*</span> }
+                                Confirmar contraseña
                             </label>
 
                             <div class="registration-wizard__password-wrapper">
                                 <input [type]="showConfirmPassword() ? 'text' : 'password'"
                                     class="registration-wizard__text-input registration-wizard__text-input--with-icon"
                                     placeholder="Repite la contraseña" [value]="form().confirmPassword"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
                                     (input)="updateForm('confirmPassword', $any($event.target).value)" />
 
                                 <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode() || form().expressCreation"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
                                     (click)="toggleConfirmPasswordVisibility()"
                                     aria-label="Mostrar u ocultar confirmación de contraseña">
                                     <siau-lucide-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" size="16"
@@ -981,20 +935,14 @@
                     </div>
 
                     <div class="registration-wizard__field registration-wizard__field--full">
-                        <label class="registration-wizard__field-label" for="express-justification">
-                            Comentarios @if (form().expressCreation) { <span>*</span> }
+                        <label class="registration-wizard__field-label" for="comments">
+                            Comentarios
                         </label>
 
-                        <textarea id="express-justification" class="registration-wizard__textarea" rows="4"
-                            placeholder="Justifica por qué se realizará la creación express"
-                            [value]="form().expressJustification" [disabled]="isFormDisabled() || isSubmitting()"
-                            (input)="updateForm('expressJustification', $any($event.target).value)"></textarea>
-
-                        @if (form().expressCreation) {
-                        <p class="registration-wizard__field-help">
-                            Este comentario se enviará en el campo <strong>comentario</strong> del contrato de registro.
-                        </p>
-                        }
+                        <textarea id="comments" class="registration-wizard__textarea" rows="4"
+                            placeholder="Agrega comentarios sobre la cuenta"
+                            [value]="form().comment" [disabled]="isFormDisabled() || isSubmitting()"
+                            (input)="updateForm('comment', $any($event.target).value)"></textarea>
                     </div>
                 </div>
             </section>
@@ -1087,7 +1035,7 @@
 
             <div class="registration-wizard__success-heading">
                 <p class="registration-wizard__success-eyebrow">Registro confirmado</p>
-                <h3>{{ success.isExpress ? 'Creación express completada' : 'Creación de usuario completada' }}</h3>
+                <h3>Creación de usuario completada</h3>
                 <p>{{ success.message }}</p>
             </div>
         </div>

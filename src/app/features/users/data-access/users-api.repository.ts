@@ -15,8 +15,6 @@ import {
     BorradorPerfil,
     RegistroAdminRequest,
     RegistroAdminResponse,
-    RegistroEspecialRequest,
-    RegistroEspecialResponse,
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
     UserDetailRecord,
@@ -31,7 +29,6 @@ const USERS_SEARCH_PATH = `${REGISTRO_ROOT_PATH}/usuarios/busqueda-avanzada`;
 const USERS_MANAGEMENT_PATH = `${REGISTRO_ROOT_PATH}/usuarios/gestion`;
 const USERS_DETAIL_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = `${REGISTRO_ROOT_PATH}/registro_admin`;
-const REGISTRO_ESPECIAL_PATH = `${REGISTRO_ROOT_PATH}/registro_especial`;
 const BORRADORES_PATH = `${REGISTRO_ROOT_PATH}/borradores`;
 const PASSWORD_TEMPORAL_PATH = `${REGISTRO_ROOT_PATH}/usuarios`;
 const ACTUALIZAR_ADMIN_PATH = '/api/v1/solicitudes/actualizar_admin';
@@ -256,22 +253,6 @@ export class UsersApiRepository {
                 map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
                     this.handleError(error, 'No fue posible registrar el usuario.'),
-                ),
-            );
-    }
-
-    createSpecialUser(
-        request: RegistroEspecialRequest,
-    ): Observable<RegistroEspecialResponse> {
-        return this.http
-            .post<RegistroEspecialResponse>(
-                `${this.baseUrl}${REGISTRO_ESPECIAL_PATH}`,
-                request,
-            )
-            .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
-                catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible registrar el usuario express.'),
                 ),
             );
     }

@@ -8,7 +8,6 @@ export interface UserCredentialsEmailTemplateInput {
     readonly phone: string;
     readonly system: string;
     readonly temporaryPassword: string;
-    readonly isExpress: boolean;
 }
 
 export function buildUserCredentialsEmailRequest(
@@ -20,7 +19,7 @@ export function buildUserCredentialsEmailRequest(
     const phone = escapeHtml(formatPhone(input.phone));
     const system = escapeHtml(input.system || 'SIAU');
     const temporaryPassword = escapeHtml(input.temporaryPassword);
-    const accountType = input.isExpress ? 'cuenta express' : 'cuenta de acceso';
+    const accountType = 'cuenta de acceso';
 
     return {
         to: [input.recipient],

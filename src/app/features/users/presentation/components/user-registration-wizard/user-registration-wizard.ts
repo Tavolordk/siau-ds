@@ -54,9 +54,6 @@ import {
     RegistroAdminRequest,
     RegistroAdminResponse,
     RegistroAsignacion,
-    RegistroEspecialCuenta,
-    RegistroEspecialRequest,
-    RegistroEspecialResponse,
     RegistroMedioContacto,
     UserDetailRecord,
     UserRecord,
@@ -118,8 +115,7 @@ interface UserRegistrationForm {
     password: string;
     confirmPassword: string;
     accountStatus: AccountStatus;
-    expressCreation: boolean;
-    expressJustification: string;
+    comment: string;
 }
 
 interface IdentitySnapshot {
@@ -187,7 +183,6 @@ interface SaveSuccessModalState {
     readonly account: string;
     readonly fullName: string;
     readonly system: string;
-    readonly isExpress: boolean;
     readonly hasAccessEmail: boolean;
     readonly accessEmail: string;
     readonly accessPhone: string;
@@ -286,8 +281,7 @@ const INITIAL_FORM: UserRegistrationForm = {
     password: '',
     confirmPassword: '',
     accountStatus: 'active',
-    expressCreation: false,
-    expressJustification: '',
+    comment: '',
 };
 
 @Component({
@@ -681,9 +675,7 @@ export class UserRegistrationWizard {
 
     protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
 
-    protected readonly rfcRequired = computed(() =>
-        !this.isEditMode() && !this.form().expressCreation,
-    );
+    protected readonly rfcRequired = computed(() => !this.isEditMode());
 
     protected readonly rfcHint = computed(() => {
         const prefix = this.rfcPrefix();
@@ -837,9 +829,7 @@ export class UserRegistrationWizard {
 
     protected readonly modalSubtitle = computed(() => {
         if (!this.isEditMode()) {
-            return this.form().expressCreation
-                ? 'Creación express activa: captura los datos mínimos y justifica el alta'
-                : 'Complete todas las secciones requeridas para crear el acceso';
+            return 'Complete todas las secciones requeridas para crear el acceso';
         }
 
         const user = this.user();
@@ -1139,7 +1129,7 @@ export class UserRegistrationWizard {
                 .subscribe({
                     next: (response) => {
                         this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                        this.saveSuccess.set(this.buildSaveSuccessModalState(response, false));
+                        this.saveSuccess.set(this.buildSaveSuccessModalState(response));
                     },
                     error: (error: unknown) => {
                         const message = error instanceof Error
@@ -1156,13 +1146,10 @@ export class UserRegistrationWizard {
             return;
         }
 
-        const isExpress = this.form().expressCreation;
-        let saveRequest$: Observable<RegistroAdminResponse | RegistroEspecialResponse>;
+        let saveRequest$: Observable<RegistroAdminResponse>;
 
         try {
-            saveRequest$ = isExpress
-                ? this.usersFacade.createSpecialUser(this.buildCreateSpecialUserRequest())
-                : this.usersFacade.createAdminUser(this.buildCreateUserRequest());
+            saveRequest$ = this.usersFacade.createAdminUser(this.buildCreateUserRequest());
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Revisa la información capturada.';
 
@@ -1183,7 +1170,6 @@ export class UserRegistrationWizard {
                         switchMap((temporaryPassword) =>
                             this.sendAccessCredentialsEmail(
                                 response,
-                                isExpress,
                                 temporaryPassword,
                             ),
                         ),
@@ -1208,7 +1194,7 @@ export class UserRegistrationWizard {
                 next: ({ response, emailDelivery }) => {
                     this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
                     this.saveSuccess.set(
-                        this.buildSaveSuccessModalState(response, isExpress, emailDelivery),
+                        this.buildSaveSuccessModalState(response, emailDelivery),
                     );
                 },
                 error: (error: unknown) => {
@@ -1373,23 +1359,6 @@ export class UserRegistrationWizard {
         }
 
         this.curpLocked.set(true);
-    }
-
-    protected toggleExpressCreation(checked: boolean): void {
-        if (this.isFormDisabled() || this.isSubmitting() || this.isEditMode()) {
-            return;
-        }
-
-        this.form.update((current) => ({
-            ...current,
-            expressCreation: checked,
-        }));
-
-        if (!this.stepOrder().includes(this.activeStepId())) {
-            this.activeStepId.set('profiles');
-        }
-
-        this.formErrors.set({});
     }
 
     protected toggleCommissionSection(checked: boolean): void {
@@ -2503,8 +2472,7 @@ export class UserRegistrationWizard {
     }
 
     private buildSaveSuccessModalState(
-        response: RegistroAdminResponse | RegistroEspecialResponse,
-        isExpress: boolean,
+        response: RegistroAdminResponse,
         emailDelivery: CorreoDeliveryResult | null = null,
     ): SaveSuccessModalState {
         const data = response.datos;
@@ -2516,7 +2484,6 @@ export class UserRegistrationWizard {
             account: this.toText(data?.cuentaGenerada) || this.toText(data?.cuenta),
             fullName: this.toText(data?.nombreCompleto),
             system: this.toText(data?.sistema),
-            isExpress,
             hasAccessEmail: emailDelivery !== null,
             accessEmail: this.normalizeEmail(current.email),
             accessPhone: this.formatPhoneForDisplay(current.phone),
@@ -2528,8 +2495,7 @@ export class UserRegistrationWizard {
     }
 
     private sendAccessCredentialsEmail(
-        response: RegistroAdminResponse | RegistroEspecialResponse,
-        isExpress: boolean,
+        response: RegistroAdminResponse,
         temporaryPassword: string,
     ): Observable<CorreoDeliveryResult> {
         const current = this.form();
@@ -2579,13 +2545,12 @@ export class UserRegistrationWizard {
                 phone: current.phone,
                 system: this.toText(data?.sistema) || 'SIAU',
                 temporaryPassword,
-                isExpress,
             }),
         );
     }
 
     private requestTemporaryPassword(
-        response: RegistroAdminResponse | RegistroEspecialResponse,
+        response: RegistroAdminResponse,
     ): Observable<string> {
         const account = this.toText(response.datos?.cuentaGenerada)
             || this.toText(response.datos?.cuenta);
@@ -2658,7 +2623,6 @@ export class UserRegistrationWizard {
 
     private buildCreateUserRequest(): RegistroAdminRequest {
         const current = this.form();
-        const isExpress = current.expressCreation;
         const assignedProfiles = this.assignedSystemProfiles();
         const assignedProfile = assignedProfiles[0] ?? null;
 
@@ -2698,12 +2662,7 @@ export class UserRegistrationWizard {
                     ),
                 }))
                 : null,
-            comentario: isExpress
-                ? this.requireText(
-                    current.expressJustification,
-                    'Captura la justificación de la creación express.',
-                )
-                : this.toText(current.expressJustification),
+            comentario: this.toNullableText(current.comment),
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
                 correlationId: `siau-admin-${Date.now()}`,
@@ -2824,43 +2783,6 @@ export class UserRegistrationWizard {
         }
     }
 
-    private buildCreateSpecialUserRequest(): RegistroEspecialRequest {
-        const current = this.form();
-        const assignedProfile = this.assignedSystemProfiles()[0] ?? null;
-
-        if (!assignedProfile) {
-            throw new Error('Selecciona al menos un sistema y perfil.');
-        }
-
-        return {
-            datosPersonales: {
-                nombres: this.requireText(current.firstName, 'Captura el nombre.').toUpperCase(),
-                primerApellido: this.requireText(current.lastName, 'Captura el primer apellido.').toUpperCase(),
-                sexoId: this.requireCatalogId(current.gender, 'Selecciona el sexo.'),
-                cuip: this.toNullableText(current.cuip),
-                curp: this.toNullableText(current.curp)?.toUpperCase() ?? null,
-                rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
-                segundoApellido: this.toNullableText(current.secondLastName)?.toUpperCase() ?? null,
-                fechaNacimiento: this.toNullableText(current.birthDate),
-                estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
-            },
-            adscripcion: {
-                estructuraId: this.resolveAssignmentStructureId(),
-            },
-            comision: this.buildSpecialCommissionRequest(),
-            medioContacto: this.buildContactRequest(),
-            cuenta: this.buildSpecialAccountRequest(assignedProfile),
-            comentario: this.requireText(
-                current.expressJustification,
-                'Captura la justificación de la creación express.',
-            ),
-            auditoria: {
-                usuarioEjecutorId: this.resolveCurrentUserId(),
-                correlationId: `siau-especial-${Date.now()}`,
-            },
-        };
-    }
-
     private buildCommissionRequest(): RegistroAsignacion | null {
         const current = this.form();
 
@@ -2898,22 +2820,6 @@ export class UserRegistrationWizard {
         };
     }
 
-    private buildSpecialAccountRequest(assignedProfile: AssignedSystemProfile | null): RegistroEspecialCuenta {
-        return {
-            tipoUsuarioId: this.resolveDefaultCatalogId(this.userTypeOptions(), 1),
-            sistemaId: assignedProfile
-                ? this.resolveAssignedSystemId(assignedProfile)
-                : DEFAULT_NORMAL_SYSTEM_ID,
-            perfilId: assignedProfile
-                ? this.requireCatalogId(
-                    assignedProfile.role,
-                    'Selecciona un perfil válido.',
-                )
-                : DEFAULT_NORMAL_PROFILE_ID,
-            estadoCuentaId: 1,
-        };
-    }
-
     private buildContactRequest(): RegistroMedioContacto {
         const current = this.form();
         const correo = this.normalizeEmail(current.email);
@@ -2926,18 +2832,6 @@ export class UserRegistrationWizard {
         return {
             correo,
             celular,
-        };
-    }
-
-    private buildSpecialCommissionRequest(): { readonly estructuraId: number } | null {
-        const current = this.form();
-
-        if (!current.commissionEnabled) {
-            return null;
-        }
-
-        return {
-            estructuraId: this.resolveCommissionStructureId(),
         };
     }
 
@@ -3222,8 +3116,7 @@ export class UserRegistrationWizard {
             password: '',
             confirmPassword: '',
             accountStatus: this.toAccountStatus(this.firstText([datos['estatus'], datos['estatusClave'], user?.status])),
-            expressCreation: false,
-            expressJustification: this.toText(datos['comentario']),
+            comment: this.toText(datos['comentario']),
         };
 
         const assignedProfiles = this.toAssignedSystemProfiles(datos['s6Perfiles']);
@@ -3757,7 +3650,7 @@ export class UserRegistrationWizard {
             },
             // Fuente completa para recuperar N sistemas/perfiles del borrador.
             perfiles: draftProfiles,
-            comentario: this.toNullableText(current.expressJustification),
+            comentario: this.toNullableText(current.comment),
         };
 
         return {
@@ -4030,7 +3923,7 @@ export class UserRegistrationWizard {
 
             email: contact.correo ?? '',
             phone: (contact.celular ?? '').replace(/\D/g, '').slice(0, 10),
-            expressJustification: datos.comentario ?? '',
+            comment: datos.comentario ?? '',
             password: '',
             confirmPassword: '',
         };
@@ -5316,7 +5209,6 @@ export class UserRegistrationWizard {
 
     private validateStep(stepId: WizardStepId): boolean {
         const current = this.form();
-        const isExpress = current.expressCreation;
         const nextErrors: Record<string, string> = {};
 
         if (stepId === 'personal-data') {
@@ -5522,15 +5414,8 @@ export class UserRegistrationWizard {
         }
 
         if (stepId === 'profiles') {
-            if (!this.isEditMode() && isExpress && !this.hasText(current.expressJustification)) {
-                nextErrors['expressJustification'] =
-                    'Justifica por qué se realizará la creación express.';
-            }
-
-            const profilesAreRequired = this.isEditMode() || isExpress;
-
             if (
-                profilesAreRequired &&
+                this.isEditMode() &&
                 this.shouldValidateAssignedProfiles() &&
                 this.assignedSystemProfiles().length === 0
             ) {
@@ -5577,14 +5462,13 @@ export class UserRegistrationWizard {
         current: UserRegistrationForm,
         errors: Record<string, string>,
     ): void {
-        const identityDocumentsAreOptional = !this.isEditMode() && current.expressCreation;
         const hasCurp = this.hasText(current.curp);
         const hasRfc = this.hasText(current.rfc);
         const hasBirthDate = this.hasText(current.birthDate);
         let validCurp = false;
         let validRfc = false;
 
-        if (!hasCurp && !identityDocumentsAreOptional) {
+        if (!hasCurp) {
             errors['curp'] = 'La CURP es obligatoria.';
         } else if (!this.isValidCurp(current.curp)) {
             if (hasCurp) {
@@ -5594,7 +5478,7 @@ export class UserRegistrationWizard {
             validCurp = true;
         }
 
-        if (!hasRfc && !identityDocumentsAreOptional && !this.isEditMode()) {
+        if (!hasRfc && !this.isEditMode()) {
             errors['rfc'] = 'El RFC es obligatorio.';
         } else if (hasRfc && !this.isValidRfc(current.rfc)) {
             errors['rfc'] = 'El RFC no tiene un formato válido.';
@@ -5602,7 +5486,7 @@ export class UserRegistrationWizard {
             validRfc = hasRfc;
         }
 
-        if (!hasBirthDate && !identityDocumentsAreOptional) {
+        if (!hasBirthDate) {
             errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
         } else if (hasBirthDate && !this.isValidDateInput(current.birthDate)) {
             errors['birthDate'] = 'La fecha de nacimiento no es válida.';
@@ -6119,7 +6003,6 @@ export class UserRegistrationWizard {
             ],
             profiles: [
                 'profiles',
-                'expressJustification',
             ],
             account: [
                 'password',
@@ -6147,7 +6030,7 @@ export class UserRegistrationWizard {
         key: K,
         value: UserRegistrationForm[K] | string | null,
     ): UserRegistrationForm[K] {
-        if (key === 'expressCreation' || key === 'commissionEnabled') {
+        if (key === 'commissionEnabled') {
             return Boolean(value) as UserRegistrationForm[K];
         }
 
@@ -6205,7 +6088,6 @@ export class UserRegistrationWizard {
             'functions',
             'employeeNumber',
             'username',
-            'expressJustification',
         ].includes(key);
     }
 
