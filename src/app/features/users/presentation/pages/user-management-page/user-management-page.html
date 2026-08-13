@@ -74,6 +74,13 @@
                 </div>
             </div>
 
+            @if (errorMessage(); as error) {
+            <div class="users-table-card__message users-table-card__message--error" role="alert">
+                <siau-lucide-icon name="circle-x" size="17" strokeWidth="2" aria-hidden="true" />
+                <span>{{ error }}</span>
+            </div>
+            }
+
             @if (activeFilterChips().length) {
             <div class="users-active-filters" aria-label="Filtros activos">
                 <div class="users-active-filters__summary">
@@ -113,6 +120,18 @@
                         <siau-lucide-icon name="x" size="18" strokeWidth="2" aria-hidden="true" />
                     </button>
                 </header>
+
+                @if (filterFormError(); as formError) {
+                <div class="users-filter-inline__feedback" role="alert">
+                    <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ formError }}</span>
+                </div>
+                } @else if (hasIncompleteDraftFilters()) {
+                <div class="users-filter-inline__feedback" role="alert">
+                    <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
+                    <span>Corrige los campos marcados antes de buscar.</span>
+                </div>
+                }
 
                 @if (isFilterCatalogLoading()) {
                 <div class="users-filter-inline__status" role="status">
@@ -165,16 +184,8 @@
 
                 <footer class="users-filter-inline__footer">
                     <div class="users-filter-inline__feedback" aria-live="polite">
-                        @if (filterFormError(); as formError) {
-                        <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
-                        <span>{{ formError }}</span>
-                        } @else if (hasIncompleteDraftFilters()) {
-                        <siau-lucide-icon name="triangle-alert" size="15" strokeWidth="2" aria-hidden="true" />
-                        <span>Corrige los campos marcados antes de buscar.</span>
-                        } @else {
                         <span>{{ selectedDraftFilterCount() }} {{ selectedDraftFilterCount() === 1 ? 'criterio
                             capturado' : 'criterios capturados' }}</span>
-                        }
                     </div>
 
                     <div class="users-filter-inline__actions">
@@ -191,13 +202,6 @@
                     </div>
                 </footer>
             </section>
-            }
-
-            @if (errorMessage(); as error) {
-            <div class="users-table-card__message users-table-card__message--error" role="alert">
-                <siau-lucide-icon name="circle-x" size="17" strokeWidth="2" aria-hidden="true" />
-                <span>{{ error }}</span>
-            </div>
             }
 
             @if (informationMessage(); as information) {

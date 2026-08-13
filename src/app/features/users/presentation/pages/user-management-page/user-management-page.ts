@@ -770,6 +770,7 @@ export class UserManagementPage {
 
         this.appliedFilters.set({ ...this.effectiveDraftFilters() });
         this.draftFilterKeys.set(this.getActiveFilterKeys(this.effectiveDraftFilters()));
+        this.closeFilterPanel();
         this.loadUsers(1);
     }
 
