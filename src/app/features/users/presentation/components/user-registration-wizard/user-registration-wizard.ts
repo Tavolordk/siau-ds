@@ -2438,7 +2438,8 @@ export class UserRegistrationWizard {
     ): EcccPersonalLookupRequest | null {
         const curp = this.toText(form.curp).toUpperCase();
         const rfc = this.toText(form.rfc).toUpperCase();
-        const cuip = this.toText(form.cuip).toUpperCase();
+        const cuipValue = this.toText(form.cuip).trim();
+        const cuip = cuipValue ? cuipValue.toUpperCase() : null;
         const nombre = this.toText(form.firstName).toUpperCase();
         const primerApellido = this.toText(form.lastName).toUpperCase();
         const segundoApellido = this.toText(form.secondLastName).toUpperCase();
@@ -3869,6 +3870,13 @@ export class UserRegistrationWizard {
         this.activeStepId.set(activeStep);
         this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
         this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
+
+        // Al abrir/restaurar cualquier borrador se vuelve a consultar la
+        // información integral con los datos personales ya guardados. La
+        // validación se muestra en el sidebar (y en móvil) independientemente
+        // del paso en el que quedó el borrador; no es necesario regresar a
+        // Datos Personales para consultar ni para ver Personal, SAU y ECCC.
+        this.consultEcccAndPersonal();
 
         const unresolvedAssignment = Boolean(
             draft.datos.adscripcion.estructuraId && !hierarchies.assignment,

@@ -725,7 +725,92 @@ export class UserManagementPage {
             return;
         }
 
+        // Si el usuario agrega un filtro dependiente, mostramos también los
+        // padres necesarios para que pueda completar la jerarquía de arriba
+        // hacia abajo, en lugar de dejarle un campo bloqueado sin contexto.
+        this.addHierarchyParentFilters(key);
         this.setDraftFilterSelected(key, true);
+        this.ensureHierarchyParentsForCurrentInstitutionType(key);
+    }
+
+    private addHierarchyParentFilters(key: UserFilterKey): void {
+        const parentsByKey: Partial<Record<UserFilterKey, readonly UserFilterKey[]>> = {
+            // Adscripción
+            entidadId: ['tipoInstitucionId'],
+            municipioId: ['tipoInstitucionId', 'entidadId'],
+            institucionId: ['tipoInstitucionId'],
+            organoAdministrativoDesconcentradoId: ['tipoInstitucionId', 'institucionId'],
+            unidadAdministrativaId: ['tipoInstitucionId', 'institucionId'],
+
+            // Comisión
+            comisionEntidadId: ['comisionTipoInstitucionId'],
+            comisionMunicipioId: ['comisionTipoInstitucionId', 'comisionEntidadId'],
+            comisionInstitucionId: ['comisionTipoInstitucionId'],
+            comisionOrganoAdministrativoDesconcentradoId: [
+                'comisionTipoInstitucionId',
+                'comisionInstitucionId',
+            ],
+            comisionUnidadAdministrativaId: [
+                'comisionTipoInstitucionId',
+                'comisionInstitucionId',
+            ],
+        };
+
+        const parents = parentsByKey[key] ?? [];
+        parents.forEach((parentKey) => this.setDraftFilterSelected(parentKey, true));
+    }
+
+    private ensureHierarchyParentsForCurrentInstitutionType(changedKey: UserFilterKey): void {
+        const selectedKeys = this.draftFilterKeys();
+        const filters = this.draftFilters();
+
+        const adscriptionKeys: readonly UserFilterKey[] = [
+            'entidadId',
+            'municipioId',
+            'institucionId',
+            'organoAdministrativoDesconcentradoId',
+            'unidadAdministrativaId',
+        ];
+        const commissionKeys: readonly UserFilterKey[] = [
+            'comisionEntidadId',
+            'comisionMunicipioId',
+            'comisionInstitucionId',
+            'comisionOrganoAdministrativoDesconcentradoId',
+            'comisionUnidadAdministrativaId',
+        ];
+
+        const isAdscriptionChange = changedKey === 'tipoInstitucionId'
+            || adscriptionKeys.includes(changedKey);
+        const isCommissionChange = changedKey === 'comisionTipoInstitucionId'
+            || commissionKeys.includes(changedKey);
+
+        if (isAdscriptionChange && adscriptionKeys.some((key) => selectedKeys.includes(key))) {
+            this.setDraftFilterSelected('tipoInstitucionId', true);
+
+            if (filters.tipoInstitucionId && this.requiresEntityForInstitution(filters.tipoInstitucionId)) {
+                this.setDraftFilterSelected('entidadId', true);
+            }
+            if (filters.tipoInstitucionId && this.requiresMunicipalityForInstitution(filters.tipoInstitucionId)) {
+                this.setDraftFilterSelected('municipioId', true);
+            }
+        }
+
+        if (isCommissionChange && commissionKeys.some((key) => selectedKeys.includes(key))) {
+            this.setDraftFilterSelected('comisionTipoInstitucionId', true);
+
+            if (
+                filters.comisionTipoInstitucionId
+                && this.requiresEntityForInstitution(filters.comisionTipoInstitucionId)
+            ) {
+                this.setDraftFilterSelected('comisionEntidadId', true);
+            }
+            if (
+                filters.comisionTipoInstitucionId
+                && this.requiresMunicipalityForInstitution(filters.comisionTipoInstitucionId)
+            ) {
+                this.setDraftFilterSelected('comisionMunicipioId', true);
+            }
+        }
     }
 
     protected removeDraftFilter(key: UserFilterKey): void {
@@ -892,6 +977,7 @@ export class UserManagementPage {
 
         if (previousValue !== nextValue) {
             this.handleHierarchyFilterChange(filter.key, nextValue);
+            this.ensureHierarchyParentsForCurrentInstitutionType(filter.key);
         }
     }
 
