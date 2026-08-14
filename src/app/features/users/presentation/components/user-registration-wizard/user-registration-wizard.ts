@@ -317,14 +317,6 @@ export class UserRegistrationWizard {
     private structureProfileLookupSequence = 0;
     private assignmentCatalogGeneration = 0;
     private commissionCatalogGeneration = 0;
-    /**
-     * Cache por body exacto de la consulta integral. Durante el mismo registro,
-     * una combinación de parámetros que ya fue consultada no vuelve a generar
-     * tráfico hacia Personal/SAU/ECCC; simplemente se vuelve a mostrar.
-     */
-    private readonly ecccPersonalLookupCache = new Map<string, CurpValidationSummary>();
-    /** Evita duplicar la misma petición mientras todavía está en curso. */
-    private inFlightEcccPersonalLookupKey = '';
     private loadedProfileStructureId: number | null = null;
     private lastRenapoCurp = '';
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
@@ -2335,23 +2327,10 @@ export class UserRegistrationWizard {
 
         const lookupKey = JSON.stringify(request);
 
-        // Si esta combinación exacta ya fue consultada durante el registro, no
-        // se golpea de nuevo el servicio. Al dar "Siguiente" se vuelve a
-        // mostrar el resultado guardado.
-        const cachedSummary = this.ecccPersonalLookupCache.get(lookupKey);
-        if (cachedSummary) {
-            this.curpValidationSummary.set({ ...cachedSummary });
-            return;
-        }
-
-        // Un doble click/navegación rápida con el mismo body tampoco debe
-        // generar dos peticiones mientras la primera siga en curso.
-        if (lookupKey === this.inFlightEcccPersonalLookupKey) {
-            return;
-        }
-
+        // Cada vez que Datos Personales pasa sus validaciones y "Siguiente"
+        // permite avanzar, se realiza una nueva consulta integral. No se
+        // reutilizan resultados anteriores, incluso si el body es idéntico.
         const requestSequence = ++this.ecccPersonalLookupSequence;
-        this.inFlightEcccPersonalLookupKey = lookupKey;
         this.curpValidationSummary.set({
             personal: 'Consultando...',
             sau: 'Consultando...',
@@ -2420,8 +2399,6 @@ export class UserRegistrationWizard {
                         messageTone: hasAnyResult ? 'success' : 'warning',
                     };
 
-                    this.inFlightEcccPersonalLookupKey = '';
-                    this.ecccPersonalLookupCache.set(lookupKey, summary);
                     this.curpValidationSummary.set(summary);
                 },
                 error: (error: unknown) => {
@@ -2451,8 +2428,6 @@ export class UserRegistrationWizard {
                         messageTone: 'error',
                     };
 
-                    this.inFlightEcccPersonalLookupKey = '';
-                    this.ecccPersonalLookupCache.set(lookupKey, summary);
                     this.curpValidationSummary.set(summary);
                 },
             });
@@ -2470,7 +2445,6 @@ export class UserRegistrationWizard {
         const fechaNacimiento = this.toDateInputValue(form.birthDate);
 
         if (
-            !cuip ||
             !nombre ||
             !primerApellido ||
             !this.isValidCurp(curp) ||
@@ -2504,21 +2478,16 @@ export class UserRegistrationWizard {
 
     /**
      * Oculta un resultado que ya no corresponde a los valores que se están
-     * editando y cancela lógicamente cualquier respuesta en vuelo. NO borra la
-     * cache de peticiones terminadas: así se puede reutilizar si el usuario
-     * vuelve a una combinación ya consultada y pulsa "Siguiente" otra vez.
+     * editando y cancela lógicamente cualquier respuesta anterior en vuelo.
      */
     private clearCurpValidationSummary(): void {
         this.ecccPersonalLookupSequence += 1;
-        this.inFlightEcccPersonalLookupKey = '';
         this.curpValidationSummary.set(null);
     }
 
     /** Limpieza total al iniciar otro registro/usuario. */
     private resetEcccPersonalLookupState(): void {
         this.ecccPersonalLookupSequence += 1;
-        this.inFlightEcccPersonalLookupKey = '';
-        this.ecccPersonalLookupCache.clear();
         this.curpValidationSummary.set(null);
     }
 
