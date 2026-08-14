@@ -18,7 +18,7 @@ export class CatalogosFacade {
     }
 
     obtenerCuentaUsuarioOptions(): Observable<readonly CatalogoOption[]> {
-        return this.repository.obtenerCuentaUsuario().pipe(map(mapCatalogoToOptions));
+        return this.repository.obtenerCuentaUsuario().pipe(map(mapCuentaUsuarioToOptions));
     }
 
     obtenerEstadosOptions(): Observable<readonly CatalogoOption[]> {
@@ -121,6 +121,56 @@ export class CatalogosFacade {
     obtenerTipoUsuarioOptions(): Observable<readonly CatalogoOption[]> {
         return this.repository.obtenerTipoUsuario().pipe(map(mapCatalogoToOptions));
     }
+}
+
+
+
+function mapCuentaUsuarioToOptions(items: readonly CatalogoRecord[]): readonly CatalogoOption[] {
+    return items.reduce<CatalogoOption[]>((options, item) => {
+        const value = toText(
+            item['estadoCuentaId']
+            ?? item['estatusId']
+            ?? item['idEstadoCuenta']
+            ?? item['idEstatus']
+            ?? item['id'],
+        );
+        // En la búsqueda avanzada el catálogo de estatus debe mostrar la
+        // clave funcional (por ejemplo: ACTIVO, SUSPENDIDO, BAJA) y no la
+        // descripción larga del registro. El value conserva el identificador
+        // numérico que se envía en estadoCuentaId.
+        const label = toText(
+            item['clave']
+            ?? item['Clave']
+            ?? item['CLAVE']
+            ?? item['claveEstadoCuenta']
+            ?? item['claveEstatus']
+            ?? item['estadoCuenta']
+            ?? item['estatus']
+            ?? item['nombre']
+            ?? item['descripcionEstadoCuenta']
+            ?? item['descripcionEstatusCuenta']
+            ?? item['descripcionCuentaUsuario']
+            ?? item['descripcionEstatus']
+            ?? item['descripcionEstado']
+            ?? item['descripcion']
+            ?? item['Descripcion']
+            ?? item['DESCRIPCION']
+            ?? item['detalle'],
+        );
+
+        if (!value || !label) {
+            return options;
+        }
+
+        return [
+            ...options,
+            {
+                value,
+                label,
+                metadata: item,
+            },
+        ];
+    }, []);
 }
 
 

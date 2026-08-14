@@ -15,8 +15,6 @@ import {
     BorradorPerfil,
     RegistroAdminRequest,
     RegistroAdminResponse,
-    RegistroEspecialRequest,
-    RegistroEspecialResponse,
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
     UserDetailRecord,
@@ -28,9 +26,9 @@ import {
 
 const REGISTRO_ROOT_PATH = '/api/v1/registro';
 const USERS_SEARCH_PATH = `${REGISTRO_ROOT_PATH}/usuarios/busqueda-avanzada`;
+const USERS_MANAGEMENT_PATH = `${REGISTRO_ROOT_PATH}/usuarios/gestion`;
 const USERS_DETAIL_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = `${REGISTRO_ROOT_PATH}/registro_admin`;
-const REGISTRO_ESPECIAL_PATH = `${REGISTRO_ROOT_PATH}/registro_especial`;
 const BORRADORES_PATH = `${REGISTRO_ROOT_PATH}/borradores`;
 const PASSWORD_TEMPORAL_PATH = `${REGISTRO_ROOT_PATH}/usuarios`;
 const ACTUALIZAR_ADMIN_PATH = '/api/v1/solicitudes/actualizar_admin';
@@ -73,6 +71,10 @@ interface AdvancedUserListItemDto {
     readonly organoAdministrativoDesconcentrado?: string | null;
     readonly unidadAdministrativaId?: number | null;
     readonly unidadAdministrativa?: string | null;
+    readonly comision?: string | null;
+    readonly comisionInstitucion?: string | null;
+    readonly comisionOrganoAdministrativoDesconcentrado?: string | null;
+    readonly comisionUnidadAdministrativa?: string | null;
     readonly nombreUsuario?: string | null;
     readonly estatusId?: number | null;
     readonly estatus?: string | null;
@@ -101,13 +103,17 @@ export class UsersApiRepository {
     private readonly http = inject(HttpClient);
     private readonly baseUrl = inject(CONSULTAS_API_BASE_URL).replace(/\/$/, '');
 
-    /** Lista inicial de la sección Usuarios. No depende de ejecutar una búsqueda avanzada. */
+    /**
+     * Lista inicial de la sección Usuarios.
+     * GET /api/v1/registro/usuarios/gestion
+     * Para el listado general sólo se envían Pagina y PorPagina.
+     */
     getAllUsers(page = 1, pageSize = 15): Observable<UsersPageResult> {
         return this.http
-            .get<unknown>(`${this.baseUrl}${USERS_DETAIL_PATH}`, {
+            .get<unknown>(`${this.baseUrl}${USERS_MANAGEMENT_PATH}`, {
                 params: {
-                    pagina: String(page),
-                    porPagina: String(pageSize),
+                    Pagina: String(page),
+                    PorPagina: String(pageSize),
                 },
             })
             .pipe(
@@ -251,22 +257,6 @@ export class UsersApiRepository {
                 map((response) => response ?? { mensaje: null, datos: null }),
                 catchError((error: unknown) =>
                     this.handleError(error, 'No fue posible registrar el usuario.'),
-                ),
-            );
-    }
-
-    createSpecialUser(
-        request: RegistroEspecialRequest,
-    ): Observable<RegistroEspecialResponse> {
-        return this.http
-            .post<RegistroEspecialResponse>(
-                `${this.baseUrl}${REGISTRO_ESPECIAL_PATH}`,
-                request,
-            )
-            .pipe(
-                map((response) => response ?? { mensaje: null, datos: null }),
-                catchError((error: unknown) =>
-                    this.handleError(error, 'No fue posible registrar el usuario express.'),
                 ),
             );
     }
@@ -495,7 +485,7 @@ export class UsersApiRepository {
     }
 
     /**
-     * Mapeo único de un usuario del listado. El GET de /consultas/usuarios ya
+     * Mapeo único de un usuario del listado. El GET de /registro/usuarios/gestion
      * entrega `nombreCompleto`, `rol`, `rolClave`, `estatusClave`, `rnpsp` y
      * `cConfianza`; la búsqueda avanzada manda los apellidos por separado. Se
      * leen ambos contratos y el nombre se arma sólo cuando no viene resuelto.
@@ -533,6 +523,15 @@ export class UsersApiRepository {
             email: this.readText(record, ['correoElectronico', 'correo', 'email']) || 'Sin correo',
             institution: this.readText(record, ['institucion', 'nombreInstitucion']) || 'Sin institución',
             entity: this.readText(record, ['entidad', 'nombreEntidad']) || 'Sin entidad',
+            commission: this.readText(record, [
+                'comision',
+                'comisionUnidadAdministrativa',
+                'unidadAdministrativaComision',
+                'comisionOrganoAdministrativoDesconcentrado',
+                'organoAdministrativoDesconcentradoComision',
+                'comisionInstitucion',
+                'institucionComision',
+            ]) || 'Sin comisión',
             role: this.readText(record, ['rol', 'tipoUsuario', 'perfil', 'role']) || 'Sin rol',
             roleKey: this.readText(record, ['rolClave', 'claveRol', 'tipoUsuarioClave', 'roleKey']),
             status: status || 'Sin estatus',

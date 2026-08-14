@@ -10,6 +10,7 @@ export interface UserRecord {
     readonly email: string;
     readonly institution: string;
     readonly entity: string;
+    readonly commission: string;
     readonly role: UserRole;
     readonly roleKey: string;
     readonly status: UserStatus;
@@ -41,6 +42,13 @@ export interface UsersQuery {
     readonly institucionId?: number;
     readonly organoId?: number;
     readonly unidadId?: number;
+    readonly municipioId?: number;
+    readonly comisionTipoInstitucionId?: number;
+    readonly comisionEntidadId?: number;
+    readonly comisionMunicipioId?: number;
+    readonly comisionInstitucionId?: number;
+    readonly comisionOrganoId?: number;
+    readonly comisionUnidadId?: number;
     readonly nombreUsuario?: string;
     readonly estadoCuentaId?: number;
     /** Fechas en formato ISO yyyy-MM-dd, como las publica el contrato Swagger. */
@@ -229,13 +237,6 @@ export interface RegistroPerfil {
     readonly idPerfil: number | null;
 }
 
-export interface RegistroEspecialCuenta {
-    readonly tipoUsuarioId: number;
-    readonly sistemaId: number;
-    readonly perfilId: number;
-    readonly estadoCuentaId?: number;
-}
-
 export interface RegistroAuditoria {
     readonly usuarioEjecutorId: number | null;
     readonly correlationId: string;
@@ -270,51 +271,6 @@ export interface RegistroAdminResponse {
     readonly datos: RegistroAdminData | null;
 }
 
-export interface RegistroEspecialDatosPersonales {
-    readonly nombres: string;
-    readonly primerApellido: string;
-    readonly sexoId: number;
-    readonly cuip?: string | null;
-    readonly curp?: string | null;
-    readonly rfc?: string | null;
-    readonly segundoApellido?: string | null;
-    readonly fechaNacimiento?: string | null;
-    readonly estadoCivilId?: number | null;
-}
-
-export interface RegistroEspecialAsignacion {
-    readonly estructuraId: number;
-}
-
-export interface RegistroEspecialRequest {
-    readonly datosPersonales: RegistroEspecialDatosPersonales;
-    readonly adscripcion: RegistroEspecialAsignacion;
-    readonly comision: RegistroEspecialAsignacion | null;
-    readonly medioContacto: RegistroMedioContacto;
-    readonly cuenta: RegistroEspecialCuenta;
-    readonly comentario?: string | null;
-    readonly auditoria: RegistroAuditoria;
-}
-
-export interface RegistroEspecialData {
-    readonly usuarioId: number | null;
-    readonly personaId: number | null;
-    readonly cuenta: string | null;
-    readonly cuentaGenerada: string | null;
-    readonly nombreCompleto: string | null;
-    readonly correo: string | null;
-    readonly tipoUsuario: string | null;
-    readonly tipoInstitucion: string | null;
-    readonly sistema: string | null;
-    readonly curpProvisional: string | null;
-    readonly rfcProvisional: string | null;
-    readonly perfilIncompleto: boolean;
-}
-
-export interface RegistroEspecialResponse {
-    readonly mensaje: string | null;
-    readonly datos: RegistroEspecialData | null;
-}
 export interface SolicitudAuditoria {
     readonly usuarioEjecutorId: number | null;
     readonly correlationId: string;

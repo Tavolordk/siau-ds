@@ -21,7 +21,7 @@ import { SiauLucideIcon } from '../../ui/components/lucide-icon/lucide-icon';
 export class SiauShellHeader {
     private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
 
-    readonly title = input<string>('Sistema Integral de Administración de Usuarios SIAU');
+    readonly title = input<string>('Sistema Integral de Administración de Usuarios');
     readonly brand = input<string>('Seguridad');
     readonly brandSubtitle = input<string>('Secretaría de Seguridad y Protección Ciudadana');
 

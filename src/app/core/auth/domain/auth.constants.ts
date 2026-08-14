@@ -1,6 +1,6 @@
 export const AUTH_SYSTEM = 'SIAU';
 export const ADMIN_PROFILE_KEYWORD = 'ADMINISTRADOR';
-export const DEFAULT_AUTHENTICATED_ROUTE = '/solicitudes';
+export const DEFAULT_AUTHENTICATED_ROUTE = '/usuarios';
 
 // Mantiene rotando access y refresh token mientras exista actividad del usuario.
 export const SESSION_TOKEN_REFRESH_INTERVAL_MS = 2 * 60 * 1000;

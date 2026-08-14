@@ -4,26 +4,19 @@ import { publicGuard } from './core/auth/guards/public.guard';
 import { twoFactorGuard } from './core/auth/guards/two-factor.guard';
 import { SiauShell } from './shared/layout/shell/shell';
 
-const SIAU_SHELL_ENTRY_POINTS = new Set([
-  'usuarios',
-  'solicitudes',
-  'administracion',
-  'reportes',
-  'bitacora',
-  'modals',
-]);
+const SHELL_ENTRY_POINTS = new Set(['usuarios']);
 
 /**
  * Evita que la ruta vacía del shell capture cualquier URL desconocida.
- * Solo deja entrar al layout autenticado cuando la URL apunta a una
- * sección real de SIAU (o a la raíz, que redirige a /usuarios).
+ * Por el momento, el único módulo disponible dentro del layout autenticado
+ * es Usuarios.
  */
-const siauShellCanMatch: CanMatchFn = (_route, segments) => {
+const shellCanMatch: CanMatchFn = (_route, segments) => {
   if (segments.length === 0) {
     return true;
   }
 
-  return SIAU_SHELL_ENTRY_POINTS.has(segments[0].path);
+  return SHELL_ENTRY_POINTS.has(segments[0].path);
 };
 
 export const routes: Routes = [
@@ -52,7 +45,7 @@ export const routes: Routes = [
   {
     path: '',
     component: SiauShell,
-    canMatch: [siauShellCanMatch],
+    canMatch: [shellCanMatch],
     canActivate: [authGuard],
     children: [
       {
@@ -65,48 +58,6 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/users/presentation/pages/user-management-page/user-management-page').then(
             (m) => m.UserManagementPage,
-          ),
-      },
-      {
-        path: 'solicitudes',
-        loadComponent: () =>
-          import('./features/requests/presentation/pages/requests-page/requests-page').then(
-            (m) => m.RequestsPage,
-          ),
-      },
-      {
-        path: 'administracion',
-        loadComponent: () =>
-          import('./features/administration/presentation/pages/administration-page/administration-page').then(
-            (m) => m.AdministrationPage,
-          ),
-      },
-      {
-        path: 'reportes',
-        loadComponent: () =>
-          import('./features/reports/presentation/pages/reports-page/reports-page').then(
-            (m) => m.ReportsPage,
-          ),
-      },
-      {
-        path: 'bitacora',
-        loadComponent: () =>
-          import('./features/audit-log/presentation/pages/audit-log-page/audit-log-page').then(
-            (m) => m.AuditLogPage,
-          ),
-      },
-      {
-        path: 'modals',
-        loadComponent: () =>
-          import('./features/modals/presentation/pages/modals-page/modals-page').then(
-            (m) => m.ModalsPage,
-          ),
-      },
-      {
-        path: '**',
-        loadComponent: () =>
-          import('./features/not-found/presentation/pages/not-found-page/not-found-page').then(
-            (m) => m.NotFoundPage,
           ),
       },
     ],

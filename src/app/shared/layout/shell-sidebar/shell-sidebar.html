@@ -1,11 +1,11 @@
 <aside [class]="hostClasses()" aria-label="Navegación principal">
   <button type="button" class="siau-shell-sidebar__collapse"
-    [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Colapsar menú'" (click)="onCollapseClick()">
+    [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Contraer menú'" (click)="onCollapseClick()">
     <siau-lucide-icon [name]="collapsed() ? 'panel-left-open' : 'panel-left-close'" size="20" strokeWidth="2"
       aria-hidden="true" />
 
     @if (!collapsed()) {
-    <span class="siau-shell-sidebar__collapse-label">Colapsar</span>
+    <span class="siau-shell-sidebar__collapse-label"></span>
     }
   </button>
 
