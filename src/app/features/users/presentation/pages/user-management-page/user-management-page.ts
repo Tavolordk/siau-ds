@@ -478,6 +478,14 @@ export class UserManagementPage {
     protected readonly selectableFilterDefinitions = computed<readonly UserFilterDefinition[]>(() =>
         this.filterDefinitions().filter((filter) => !this.isFilterCheckboxDisabled(filter)),
     );
+    protected readonly selectedFilterDefinitions = computed<readonly UserFilterDefinition[]>(() => {
+        const selectedKeys = this.draftFilterKeys();
+        return this.filterDefinitions().filter((filter) => selectedKeys.includes(filter.key));
+    });
+    protected readonly availableFilterDefinitions = computed<readonly UserFilterDefinition[]>(() => {
+        const selectedKeys = this.draftFilterKeys();
+        return this.filterDefinitions().filter((filter) => !selectedKeys.includes(filter.key));
+    });
     protected readonly effectiveDraftFilters = computed<UserFilterValues>(() => {
         const draft = this.draftFilters();
         const effective = { ...EMPTY_USER_FILTERS } as Record<UserFilterKey, string>;
@@ -682,6 +690,69 @@ export class UserManagementPage {
         this.selectedFilterTab.set(tab);
     }
 
+    protected getFilterGroupLabel(group: UserFilterGroupKey): string {
+        switch (group) {
+            case 'general':
+                return 'Datos personales';
+            case 'adscription':
+                return 'Adscripción';
+            case 'commission':
+                return 'Comisión';
+            case 'account':
+                return 'Cuenta y acceso';
+            default:
+                return 'Otros';
+        }
+    }
+
+    protected addDraftFilterFromPicker(event: Event): void {
+        const select = event.target as HTMLSelectElement | null;
+        const key = String(select?.value ?? '').trim() as UserFilterKey;
+
+        if (select) {
+            select.value = '';
+        }
+
+        if (!key) {
+            return;
+        }
+        this.addDraftFilter(key);
+    }
+
+    protected addDraftFilter(key: UserFilterKey): void {
+        const definition = this.filterDefinitions().find((filter) => filter.key === key);
+        if (!definition || this.isFilterCheckboxDisabled(definition)) {
+            return;
+        }
+
+        this.setDraftFilterSelected(key, true);
+    }
+
+    protected removeDraftFilter(key: UserFilterKey): void {
+        const keysToRemove = DATE_FILTER_KEYS.includes(key) ? DATE_FILTER_KEYS : [key];
+        const definition = this.filterDefinitions().find((filter) => filter.key === key);
+
+        this.draftFilters.update((filters) => {
+            const next = { ...filters } as Record<UserFilterKey, string>;
+            keysToRemove.forEach((candidate) => {
+                next[candidate] = '';
+            });
+            return next as unknown as UserFilterValues;
+        });
+
+        this.draftCatalogLabels.update((labels) => {
+            const next = { ...labels };
+            keysToRemove.forEach((candidate) => delete next[candidate]);
+            return next;
+        });
+
+        this.setDraftFilterSelected(key, false);
+
+        if (definition?.kind === 'catalog') {
+            this.handleHierarchyFilterChange(key, '');
+        }
+    }
+
     protected setDraftFilterSelected(key: UserFilterKey, selected: boolean): void {
         if (!selected) {
             const keysToRemove = DATE_FILTER_KEYS.includes(key) ? DATE_FILTER_KEYS : [key];
@@ -800,7 +871,6 @@ export class UserManagementPage {
             ...filters,
             [key]: normalizedValue,
         }));
-        this.syncDraftFilterKey(key, normalizedValue);
     }
 
     protected updateCatalogDraftFilter(filter: UserFilterDefinition, label: string): void {
@@ -819,7 +889,6 @@ export class UserManagementPage {
             ...filters,
             [filter.key]: nextValue,
         }));
-        this.syncDraftFilterKey(filter.key, nextValue);
 
         if (previousValue !== nextValue) {
             this.handleHierarchyFilterChange(filter.key, nextValue);
