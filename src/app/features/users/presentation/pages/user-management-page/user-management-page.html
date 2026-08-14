@@ -11,6 +11,7 @@
     </header>
 
     <main class="users-page__content">
+        @if (isAdminUser()) {
         <div class="users-page__actions">
             <div class="users-page__new-menu">
                 <button type="button" class="users-page__new-button" [attr.aria-expanded]="isNewUserMenuOpen()"
@@ -43,15 +44,17 @@
                 }
             </div>
         </div>
+        }
 
         <article class="users-table-card" [class.users-table-card--filters-open]="isFilterPanelOpen()"
             [attr.aria-busy]="isLoading() || isDetailLoading()">
             <div class="users-table-card__toolbar">
                 <div class="users-table-card__toolbar-copy">
                     <span>Búsqueda de usuarios</span>
-                    <p>Localiza registros por datos personales, correo, adscripción o información de la cuenta.</p>
+                    <p>Localiza registros por datos personales, adscripción, comisión o información de acceso.</p>
                 </div>
 
+                @if (isAdminUser()) {
                 <div class="users-table-card__toolbar-actions">
                     <button type="button" class="users-table-card__filter-button"
                         [class.users-table-card__filter-button--active]="activeFilterCount() > 0"
@@ -64,14 +67,8 @@
                         <strong>{{ activeFilterCount() }}</strong>
                         }
                     </button>
-
-                    <button type="button" class="users-table-card__reload" title="Recargar resultados"
-                        aria-label="Recargar resultados" [disabled]="isLoading() || isDetailLoading()"
-                        (click)="reloadUsers()">
-                        <siau-lucide-icon name="refresh-cw" size="16" strokeWidth="2" aria-hidden="true" />
-                        <span>Recargar</span>
-                    </button>
                 </div>
+                }
             </div>
 
             @if (errorMessage(); as error) {
@@ -81,7 +78,7 @@
             </div>
             }
 
-            @if (activeFilterChips().length) {
+            @if (isAdminUser() && activeFilterChips().length) {
             <div class="users-active-filters" aria-label="Filtros activos">
                 <div class="users-active-filters__summary">
                     <siau-lucide-icon name="sliders-horizontal" size="15" strokeWidth="2" aria-hidden="true" />
@@ -107,7 +104,7 @@
             </div>
             }
 
-            @if (isFilterPanelOpen()) {
+            @if (isAdminUser() && isFilterPanelOpen()) {
             <section id="users-filter-panel" class="users-filter-inline" aria-labelledby="users-filter-inline-title">
                 <header class="users-filter-inline__header">
                     <div>
@@ -228,14 +225,17 @@
                             <th>Correo electrónico</th>
                             <th>Institución</th>
                             <th>Entidad</th>
+                            <th>Comisión</th>
+                            @if (isAdminUser()) {
                             <th class="users-table__center">Acciones</th>
+                            }
                         </tr>
                     </thead>
 
                     <tbody>
                         @if (isLoading()) {
                         <tr class="users-table__state-row">
-                            <td colspan="7">
+                            <td [attr.colspan]="isAdminUser() ? 8 : 7">
                                 <div class="users-table__state">
                                     <span class="users-table__loader" aria-hidden="true"></span>
                                     <strong>Consultando usuarios...</strong>
@@ -245,11 +245,15 @@
                         </tr>
                         } @else if (!filteredUsers().length) {
                         <tr class="users-table__state-row">
-                            <td colspan="7">
+                            <td [attr.colspan]="isAdminUser() ? 8 : 7">
                                 <div class="users-table__state">
                                     <siau-lucide-icon name="users" size="24" strokeWidth="2" aria-hidden="true" />
                                     <strong>No hay usuarios para mostrar</strong>
+                                    @if (isAdminUser()) {
                                     <small>Intenta con otros criterios de búsqueda.</small>
+                                    } @else {
+                                    <small>No fue posible localizar el perfil asociado a tu sesión.</small>
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -257,7 +261,14 @@
                         @for (user of filteredUsers(); track user.userId) {
                         <tr>
                             <td data-label="Nombre de usuario">
+                                @if (isAdminUser()) {
                                 <span class="users-table__username">{{ user.username }}</span>
+                                } @else {
+                                <button type="button" class="users-table__profile-link" [disabled]="isDetailLoading()"
+                                    (click)="openUserDetail(user)">
+                                    {{ user.username }}
+                                </button>
+                                }
                             </td>
 
                             <td data-label="Nombre completo">
@@ -282,6 +293,11 @@
                                 <span>{{ user.entity }}</span>
                             </td>
 
+                            <td data-label="Comisión">
+                                <span>{{ user.commission }}</span>
+                            </td>
+
+                            @if (isAdminUser()) {
                             <td data-label="Acciones">
                                 <div class="users-table__actions">
                                     <button type="button" class="users-table__action users-table__action--detail"
@@ -295,7 +311,7 @@
                                     <button type="button" [class]="getToggleActionClass(user)"
                                         [attr.title]="getToggleTitle(user)"
                                         [attr.aria-label]="getToggleTitle(user) + ' usuario'"
-                                        [disabled]="isDetailLoading() || isStatusSubmitting()"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting() || isCurrentSessionUser(user)"
                                         (click)="openStatusModal(user)">
                                         <siau-lucide-icon [name]="getToggleIcon(user)" size="16" strokeWidth="2"
                                             aria-hidden="true" />
@@ -305,7 +321,7 @@
                                     @if (shouldShowUnlockButton(user)) {
                                     <button type="button" class="users-table__action users-table__action--unlock"
                                         title="Desbloquear usuario" aria-label="Desbloquear usuario"
-                                        [disabled]="isDetailLoading() || isStatusSubmitting()"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting() || isCurrentSessionUser(user)"
                                         (click)="openUnlockModal(user)">
                                         <siau-lucide-icon name="unlock" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
@@ -314,13 +330,14 @@
                                     @if (shouldShowDeleteButton(user)) {
                                     <button type="button" class="users-table__action users-table__action--delete"
                                         title="Dar de baja" aria-label="Dar de baja usuario"
-                                        [disabled]="isDetailLoading() || isBajaSubmitting()"
+                                        [disabled]="isDetailLoading() || isBajaSubmitting() || isCurrentSessionUser(user)"
                                         (click)="openBajaModal(user)">
                                         <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
                                     }
                                 </div>
                             </td>
+                            }
                         </tr>
                         }
                         }

@@ -10,6 +10,7 @@ export interface UserRecord {
     readonly email: string;
     readonly institution: string;
     readonly entity: string;
+    readonly commission: string;
     readonly role: UserRole;
     readonly roleKey: string;
     readonly status: UserStatus;
@@ -41,6 +42,13 @@ export interface UsersQuery {
     readonly institucionId?: number;
     readonly organoId?: number;
     readonly unidadId?: number;
+    readonly municipioId?: number;
+    readonly comisionTipoInstitucionId?: number;
+    readonly comisionEntidadId?: number;
+    readonly comisionMunicipioId?: number;
+    readonly comisionInstitucionId?: number;
+    readonly comisionOrganoId?: number;
+    readonly comisionUnidadId?: number;
     readonly nombreUsuario?: string;
     readonly estadoCuentaId?: number;
     /** Fechas en formato ISO yyyy-MM-dd, como las publica el contrato Swagger. */

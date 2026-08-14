@@ -231,7 +231,6 @@ const CREATE_WIZARD_STEPS: readonly WizardStepId[] = [
     'personal-data',
     'assignment',
     'commission',
-    'documents',
     'contact',
     'profiles',
 ];
@@ -318,7 +317,14 @@ export class UserRegistrationWizard {
     private structureProfileLookupSequence = 0;
     private assignmentCatalogGeneration = 0;
     private commissionCatalogGeneration = 0;
-    private lastEcccPersonalLookupKey = '';
+    /**
+     * Cache por body exacto de la consulta integral. Durante el mismo registro,
+     * una combinación de parámetros que ya fue consultada no vuelve a generar
+     * tráfico hacia Personal/SAU/ECCC; simplemente se vuelve a mostrar.
+     */
+    private readonly ecccPersonalLookupCache = new Map<string, CurpValidationSummary>();
+    /** Evita duplicar la misma petición mientras todavía está en curso. */
+    private inFlightEcccPersonalLookupKey = '';
     private loadedProfileStructureId: number | null = null;
     private lastRenapoCurp = '';
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
@@ -1232,17 +1238,23 @@ export class UserRegistrationWizard {
         }
 
         const normalizedValue = this.normalizeFormInputValue(key, value);
+        const previousValue = this.form()[key];
 
         this.form.update((current) => ({
             ...current,
             [key]: normalizedValue,
         }));
 
+        // Sólo los campos que forman parte del body de /api/general/consulta
+        // invalidan lo que se está mostrando. El cache de consultas terminadas
+        // se conserva para reutilizar cualquier combinación ya consultada.
         if (
-            key === 'cuip' ||
-            key === 'firstName' ||
-            key === 'lastName' ||
-            key === 'secondLastName'
+            normalizedValue !== previousValue &&
+            (key === 'cuip' ||
+                key === 'firstName' ||
+                key === 'lastName' ||
+                key === 'secondLastName' ||
+                key === 'birthDate')
         ) {
             this.clearCurpValidationSummary();
         }
@@ -1327,6 +1339,11 @@ export class UserRegistrationWizard {
             ...form,
             rfc,
         }));
+
+        if (rfc !== current.rfc) {
+            this.clearCurpValidationSummary();
+        }
+
         this.clearFieldError('rfc');
     }
 
@@ -2318,12 +2335,23 @@ export class UserRegistrationWizard {
 
         const lookupKey = JSON.stringify(request);
 
-        if (lookupKey === this.lastEcccPersonalLookupKey) {
+        // Si esta combinación exacta ya fue consultada durante el registro, no
+        // se golpea de nuevo el servicio. Al dar "Siguiente" se vuelve a
+        // mostrar el resultado guardado.
+        const cachedSummary = this.ecccPersonalLookupCache.get(lookupKey);
+        if (cachedSummary) {
+            this.curpValidationSummary.set({ ...cachedSummary });
+            return;
+        }
+
+        // Un doble click/navegación rápida con el mismo body tampoco debe
+        // generar dos peticiones mientras la primera siga en curso.
+        if (lookupKey === this.inFlightEcccPersonalLookupKey) {
             return;
         }
 
         const requestSequence = ++this.ecccPersonalLookupSequence;
-        this.lastEcccPersonalLookupKey = lookupKey;
+        this.inFlightEcccPersonalLookupKey = lookupKey;
         this.curpValidationSummary.set({
             personal: 'Consultando...',
             sau: 'Consultando...',
@@ -2379,7 +2407,7 @@ export class UserRegistrationWizard {
                         Boolean(response.sau?.usuario) ||
                         Boolean(response.eccc);
 
-                    this.curpValidationSummary.set({
+                    const summary: CurpValidationSummary = {
                         personal: personalStatus,
                         sau: sauStatus,
                         eccc: ecccStatus,
@@ -2390,7 +2418,11 @@ export class UserRegistrationWizard {
                                 ? 'La consulta integral se realizó correctamente.'
                                 : 'La consulta se realizó correctamente, pero no se encontró información.'),
                         messageTone: hasAnyResult ? 'success' : 'warning',
-                    });
+                    };
+
+                    this.inFlightEcccPersonalLookupKey = '';
+                    this.ecccPersonalLookupCache.set(lookupKey, summary);
+                    this.curpValidationSummary.set(summary);
                 },
                 error: (error: unknown) => {
                     const currentRequest = this.buildEcccPersonalLookupRequest(this.form());
@@ -2409,14 +2441,19 @@ export class UserRegistrationWizard {
                             : 'No fue posible consultar la información de Personal, SAU y ECCC.';
 
                     console.error('Error consultando Personal, SAU y ECCC.', error);
-                    this.curpValidationSummary.set({
+
+                    const summary: CurpValidationSummary = {
                         personal: 'No disponible',
                         sau: 'No disponible',
                         eccc: 'No disponible',
                         expirationDate: 'No disponible',
                         message: errorMessage,
                         messageTone: 'error',
-                    });
+                    };
+
+                    this.inFlightEcccPersonalLookupKey = '';
+                    this.ecccPersonalLookupCache.set(lookupKey, summary);
+                    this.curpValidationSummary.set(summary);
                 },
             });
     }
@@ -2465,9 +2502,23 @@ export class UserRegistrationWizard {
         this.clearCurpValidationSummary();
     }
 
+    /**
+     * Oculta un resultado que ya no corresponde a los valores que se están
+     * editando y cancela lógicamente cualquier respuesta en vuelo. NO borra la
+     * cache de peticiones terminadas: así se puede reutilizar si el usuario
+     * vuelve a una combinación ya consultada y pulsa "Siguiente" otra vez.
+     */
     private clearCurpValidationSummary(): void {
         this.ecccPersonalLookupSequence += 1;
-        this.lastEcccPersonalLookupKey = '';
+        this.inFlightEcccPersonalLookupKey = '';
+        this.curpValidationSummary.set(null);
+    }
+
+    /** Limpieza total al iniciar otro registro/usuario. */
+    private resetEcccPersonalLookupState(): void {
+        this.ecccPersonalLookupSequence += 1;
+        this.inFlightEcccPersonalLookupKey = '';
+        this.ecccPersonalLookupCache.clear();
         this.curpValidationSummary.set(null);
     }
 
@@ -2953,6 +3004,7 @@ export class UserRegistrationWizard {
 
     private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
         this.resetRenapoLookupState();
+        this.resetEcccPersonalLookupState();
 
         const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
         const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
@@ -3836,9 +3888,13 @@ export class UserRegistrationWizard {
 
         const inferredStep = this.inferDraftStep(draft.datos);
         const requestedStep = draft.pasoActual || inferredStep;
-        const activeStep = this.isWizardStep(requestedStep)
-            && CREATE_WIZARD_STEPS.includes(requestedStep)
-            ? requestedStep
+        // Compatibilidad con borradores antiguos que todavía guardaron el paso Archivos.
+        const normalizedRequestedStep: WizardStepId | string = requestedStep === 'documents'
+            ? 'contact'
+            : requestedStep;
+        const activeStep = this.isWizardStep(normalizedRequestedStep)
+            && CREATE_WIZARD_STEPS.includes(normalizedRequestedStep)
+            ? normalizedRequestedStep
             : 'personal-data';
 
         this.activeStepId.set(activeStep);
@@ -4223,7 +4279,7 @@ export class UserRegistrationWizard {
         }
 
         if (datos.adscripcion.estructuraId) {
-            return datos.comision ? 'documents' : 'commission';
+            return datos.comision ? 'contact' : 'commission';
         }
 
         if (
@@ -4310,6 +4366,7 @@ export class UserRegistrationWizard {
 
     private resetWizard(): void {
         this.resetRenapoLookupState();
+        this.resetEcccPersonalLookupState();
         this.initialIdentitySnapshot = null;
         this.initialEditFormSnapshot = null;
         this.initialAssignedProfiles = [];
@@ -5429,16 +5486,6 @@ export class UserRegistrationWizard {
             ) {
                 nextErrors['profiles'] =
                     'Registra una adscripción o una comisión válida antes de asignar perfiles.';
-            }
-        }
-
-        if (stepId === 'account' && this.isEditMode()) {
-            if (
-                this.hasText(current.password) &&
-                this.hasText(current.confirmPassword) &&
-                current.password !== current.confirmPassword
-            ) {
-                nextErrors['confirmPassword'] = 'Las contraseñas no coinciden.';
             }
         }
 

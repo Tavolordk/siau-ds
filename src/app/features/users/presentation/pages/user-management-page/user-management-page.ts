@@ -35,11 +35,17 @@ type UserFilterKey =
     | 'institucionId'
     | 'organoAdministrativoDesconcentradoId'
     | 'unidadAdministrativaId'
+    | 'comisionTipoInstitucionId'
+    | 'comisionEntidadId'
+    | 'comisionMunicipioId'
+    | 'comisionInstitucionId'
+    | 'comisionOrganoAdministrativoDesconcentradoId'
+    | 'comisionUnidadAdministrativaId'
     | 'nombreUsuario'
     | 'estadoCuentaId'
     | 'fechaInicio'
     | 'fechaFin';
-type UserFilterGroupKey = 'general' | 'adscription' | 'account';
+type UserFilterGroupKey = 'general' | 'adscription' | 'commission' | 'account';
 type UserFilterTabKey = 'all' | UserFilterGroupKey;
 type UserFilterKind = 'text' | 'catalog' | 'date';
 
@@ -57,6 +63,12 @@ interface UserFilterValues {
     readonly institucionId: string;
     readonly organoAdministrativoDesconcentradoId: string;
     readonly unidadAdministrativaId: string;
+    readonly comisionTipoInstitucionId: string;
+    readonly comisionEntidadId: string;
+    readonly comisionMunicipioId: string;
+    readonly comisionInstitucionId: string;
+    readonly comisionOrganoAdministrativoDesconcentradoId: string;
+    readonly comisionUnidadAdministrativaId: string;
     readonly nombreUsuario: string;
     readonly estadoCuentaId: string;
     readonly fechaInicio: string;
@@ -130,6 +142,12 @@ const EMPTY_USER_FILTERS: UserFilterValues = {
     institucionId: '',
     organoAdministrativoDesconcentradoId: '',
     unidadAdministrativaId: '',
+    comisionTipoInstitucionId: '',
+    comisionEntidadId: '',
+    comisionMunicipioId: '',
+    comisionInstitucionId: '',
+    comisionOrganoAdministrativoDesconcentradoId: '',
+    comisionUnidadAdministrativaId: '',
     nombreUsuario: '',
     estadoCuentaId: '',
     fechaInicio: '',
@@ -173,6 +191,10 @@ export class UserManagementPage {
     protected readonly institutionOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly decentralizedBodyOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly administrativeUnitOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly commissionMunicipalityOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly commissionInstitutionOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly commissionDecentralizedBodyOptions = signal<readonly CatalogoOption[]>([]);
+    protected readonly commissionAdministrativeUnitOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly accountStatusOptions = signal<readonly CatalogoOption[]>([]);
     protected readonly isFilterCatalogLoading = signal<boolean>(true);
     protected readonly filterCatalogMessage = signal<string | null>(null);
@@ -224,11 +246,21 @@ export class UserManagementPage {
 
     protected readonly operationSuccess = signal<AccountOperationSuccessState | null>(null);
 
+    protected readonly isAdminUser = computed(() => {
+        const sessionUser = this.authStorage.session()?.user;
+        const role = this.normalizeForCompare(sessionUser?.role ?? '');
+        const profiles = sessionUser?.profiles ?? [];
+
+        return role.includes('admin')
+            || profiles.some((profile) => this.normalizeForCompare(profile).includes('admin'));
+    });
+
     protected readonly filteredUsers = computed(() => this.users());
     protected readonly filterTabs: readonly UserFilterTab[] = [
         { id: 'all', label: 'Todos' },
         { id: 'general', label: 'Información general' },
         { id: 'adscription', label: 'Adscripción' },
+        { id: 'commission', label: 'Comisión' },
         { id: 'account', label: 'Cuenta y acceso' },
     ];
     protected readonly filterDefinitions = computed<readonly UserFilterDefinition[]>(() => [
@@ -349,6 +381,54 @@ export class UserManagementPage {
             group: 'adscription',
             kind: 'catalog',
             options: this.administrativeUnitOptions(),
+        },
+        {
+            key: 'comisionTipoInstitucionId',
+            label: 'Comisión · Tipo de institución',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'commission',
+            kind: 'catalog',
+            options: this.institutionTypeOptions(),
+        },
+        {
+            key: 'comisionEntidadId',
+            label: 'Comisión · Entidad',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'commission',
+            kind: 'catalog',
+            options: this.stateOptions(),
+        },
+        {
+            key: 'comisionMunicipioId',
+            label: 'Comisión · Municipio/Alcaldía',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'commission',
+            kind: 'catalog',
+            options: this.commissionMunicipalityOptions(),
+        },
+        {
+            key: 'comisionInstitucionId',
+            label: 'Comisión · Institución',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'commission',
+            kind: 'catalog',
+            options: this.commissionInstitutionOptions(),
+        },
+        {
+            key: 'comisionOrganoAdministrativoDesconcentradoId',
+            label: 'Comisión · Órgano Administrativo Desconcentrado',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'commission',
+            kind: 'catalog',
+            options: this.commissionDecentralizedBodyOptions(),
+        },
+        {
+            key: 'comisionUnidadAdministrativaId',
+            label: 'Comisión · Unidad Administrativa',
+            placeholder: 'Escribe para buscar y selecciona',
+            group: 'commission',
+            kind: 'catalog',
+            options: this.commissionAdministrativeUnitOptions(),
         },
         {
             key: 'nombreUsuario',
@@ -545,7 +625,12 @@ export class UserManagementPage {
     });
 
     constructor() {
-        this.loadFilterCatalogs();
+        if (this.isAdminUser()) {
+            this.loadFilterCatalogs();
+        } else {
+            this.isFilterCatalogLoading.set(false);
+        }
+
         this.loadUsers();
     }
 
@@ -561,6 +646,10 @@ export class UserManagementPage {
     }
 
     protected toggleFilterPanel(): void {
+        if (!this.isAdminUser()) {
+            return;
+        }
+
         if (this.isFilterPanelOpen()) {
             this.closeFilterPanel();
             return;
@@ -649,6 +738,17 @@ export class UserManagementPage {
                 return !filters.institucionId || !filter.options.length;
             case 'unidadAdministrativaId':
                 return !filters.institucionId || !filter.options.length;
+            case 'comisionEntidadId':
+                return !this.requiresEntityForInstitution(filters.comisionTipoInstitucionId) || !filter.options.length;
+            case 'comisionMunicipioId':
+                return !this.requiresMunicipalityForInstitution(filters.comisionTipoInstitucionId)
+                    || !filters.comisionEntidadId
+                    || !filter.options.length;
+            case 'comisionInstitucionId':
+                return !this.canSelectCommissionInstitution(filters) || !filter.options.length;
+            case 'comisionOrganoAdministrativoDesconcentradoId':
+            case 'comisionUnidadAdministrativaId':
+                return !filters.comisionInstitucionId || !filter.options.length;
             default:
                 return !filter.options.length;
         }
@@ -673,6 +773,11 @@ export class UserManagementPage {
             || filter.key === 'institucionId'
             || filter.key === 'organoAdministrativoDesconcentradoId'
             || filter.key === 'unidadAdministrativaId'
+            || filter.key === 'comisionEntidadId'
+            || filter.key === 'comisionMunicipioId'
+            || filter.key === 'comisionInstitucionId'
+            || filter.key === 'comisionOrganoAdministrativoDesconcentradoId'
+            || filter.key === 'comisionUnidadAdministrativaId'
         ) {
             return false;
         }
@@ -751,6 +856,15 @@ export class UserManagementPage {
                 return 'Selecciona primero una institución';
             case 'unidadAdministrativaId':
                 return 'Selecciona primero una institución';
+            case 'comisionEntidadId':
+                return 'Selecciona primero un tipo estatal o municipal';
+            case 'comisionMunicipioId':
+                return 'Selecciona primero una entidad y tipo municipal';
+            case 'comisionInstitucionId':
+                return 'Completa primero la ubicación requerida de la comisión';
+            case 'comisionOrganoAdministrativoDesconcentradoId':
+            case 'comisionUnidadAdministrativaId':
+                return 'Selecciona primero una institución de comisión';
             default:
                 return 'Catálogo no disponible';
         }
@@ -1288,7 +1402,6 @@ export class UserManagementPage {
         }
 
         this.operationSuccess.set(null);
-        this.reloadUsers();
     }
 
     private showOperationSuccess(
@@ -1312,6 +1425,9 @@ export class UserManagementPage {
             email: user.email,
             userId: responseUserId ?? this.resolveTargetUserId(user) ?? user.userId,
         });
+
+        // Refresca la información en cuanto el backend confirma cualquier modificación.
+        this.loadUsers(this.currentPage());
     }
 
     private getOperationSuccessConfig(operation: AccountOperationKind): {
@@ -1463,19 +1579,20 @@ export class UserManagementPage {
     }
 
     protected shouldShowStatusButton(user: UserRecord): boolean {
-        return (
-            !this.isCurrentSessionUser(user) &&
-            !this.isUserBaja(user) &&
-            !this.isUserBlocked(user)
-        );
+        // Las acciones pertenecen exclusivamente al perfil Administrador.
+        // Se mantienen visibles incluso en la fila de la cuenta en sesión;
+        // el template las deshabilita ahí para impedir autosuspensión/reactivación.
+        return this.isAdminUser() && !this.isUserBaja(user) && !this.isUserBlocked(user);
     }
 
     protected shouldShowUnlockButton(user: UserRecord): boolean {
-        return this.isUserBlocked(user) && !this.isCurrentSessionUser(user);
+        return this.isAdminUser() && this.isUserBlocked(user);
     }
 
     protected shouldShowDeleteButton(user: UserRecord): boolean {
-        return !this.isCurrentSessionUser(user) && !this.isUserBaja(user);
+        // Un administrador debe conservar visible la acción de baja mientras
+        // la cuenta no se encuentre ya dada de baja.
+        return this.isAdminUser() && !this.isUserBaja(user);
     }
 
     protected statusOperationRequiresComment(): boolean {
@@ -1587,6 +1704,8 @@ export class UserManagementPage {
 
     private loadUsers(page = 1): void {
         const filters = this.appliedFilters();
+        const currentUsername = this.authStorage.session()?.user.username?.trim() ?? '';
+        const isAdmin = this.isAdminUser();
         const query: UsersQuery = {
             primerApellido: this.toOptionalText(filters.primerApellido),
             segundoApellido: this.toOptionalText(filters.segundoApellido),
@@ -1597,12 +1716,20 @@ export class UserManagementPage {
             telefono: this.toOptionalText(filters.numeroTelefonico),
             tipoInstitucionId: this.toOptionalPositiveNumber(filters.tipoInstitucionId),
             entidadId: this.toOptionalPositiveNumber(filters.entidadId),
+            municipioId: this.toOptionalPositiveNumber(filters.municipioId),
             institucionId: this.toOptionalPositiveNumber(filters.institucionId),
-            organoId: this.toOptionalPositiveNumber(
-                filters.organoAdministrativoDesconcentradoId,
-            ),
+            organoId: this.toOptionalPositiveNumber(filters.organoAdministrativoDesconcentradoId),
             unidadId: this.toOptionalPositiveNumber(filters.unidadAdministrativaId),
-            nombreUsuario: this.toOptionalText(filters.nombreUsuario),
+            comisionTipoInstitucionId: this.toOptionalPositiveNumber(filters.comisionTipoInstitucionId),
+            comisionEntidadId: this.toOptionalPositiveNumber(filters.comisionEntidadId),
+            comisionMunicipioId: this.toOptionalPositiveNumber(filters.comisionMunicipioId),
+            comisionInstitucionId: this.toOptionalPositiveNumber(filters.comisionInstitucionId),
+            comisionOrganoId: this.toOptionalPositiveNumber(filters.comisionOrganoAdministrativoDesconcentradoId),
+            comisionUnidadId: this.toOptionalPositiveNumber(filters.comisionUnidadAdministrativaId),
+            // Fuera del perfil Administrador la consulta queda limitada a la cuenta en sesión.
+            nombreUsuario: isAdmin
+                ? this.toOptionalText(filters.nombreUsuario)
+                : this.toOptionalText(currentUsername),
             estadoCuentaId: this.toOptionalPositiveNumber(filters.estadoCuentaId),
             // <input type="date"> ya entrega yyyy-MM-dd, que es el formato del endpoint.
             fechaInicio: this.toOptionalText(filters.fechaInicio),
@@ -1617,7 +1744,7 @@ export class UserManagementPage {
         this.informationMessage.set(null);
 
         const hasAdvancedFilters = Object.entries(filters).some(([, value]) => Boolean(String(value ?? '').trim()));
-        const request$ = hasAdvancedFilters
+        const request$ = !isAdmin || hasAdvancedFilters
             ? this.usersFacade.searchUsers(query)
             : this.usersFacade.getAllUsers(page, 15);
 
@@ -1683,7 +1810,10 @@ export class UserManagementPage {
                     'organoAdministrativoDesconcentradoId',
                     'unidadAdministrativaId',
                 ]);
-                this.resetDynamicCatalogs();
+                this.municipalityOptions.set([]);
+                this.institutionOptions.set([]);
+                this.decentralizedBodyOptions.set([]);
+                this.administrativeUnitOptions.set([]);
                 if (value && !this.requiresEntityForInstitution(value)) {
                     this.loadInstitutions();
                 }
@@ -1735,6 +1865,65 @@ export class UserManagementPage {
                 this.administrativeUnitOptions.set([]);
                 if (this.draftFilters().institucionId) {
                     this.loadAdministrativeUnits();
+                }
+                break;
+            case 'comisionTipoInstitucionId':
+                this.clearDependentFilterValues([
+                    'comisionEntidadId',
+                    'comisionMunicipioId',
+                    'comisionInstitucionId',
+                    'comisionOrganoAdministrativoDesconcentradoId',
+                    'comisionUnidadAdministrativaId',
+                ]);
+                this.resetCommissionDynamicCatalogs();
+                if (value && !this.requiresEntityForInstitution(value)) {
+                    this.loadCommissionInstitutions();
+                }
+                break;
+            case 'comisionEntidadId':
+                this.clearDependentFilterValues([
+                    'comisionMunicipioId',
+                    'comisionInstitucionId',
+                    'comisionOrganoAdministrativoDesconcentradoId',
+                    'comisionUnidadAdministrativaId',
+                ]);
+                this.resetCommissionDynamicCatalogs();
+                if (value && this.requiresMunicipalityForInstitution(this.draftFilters().comisionTipoInstitucionId)) {
+                    this.loadCommissionMunicipalities(value);
+                } else if (value) {
+                    this.loadCommissionInstitutions();
+                }
+                break;
+            case 'comisionMunicipioId':
+                this.clearDependentFilterValues([
+                    'comisionInstitucionId',
+                    'comisionOrganoAdministrativoDesconcentradoId',
+                    'comisionUnidadAdministrativaId',
+                ]);
+                this.commissionInstitutionOptions.set([]);
+                this.commissionDecentralizedBodyOptions.set([]);
+                this.commissionAdministrativeUnitOptions.set([]);
+                if (value) {
+                    this.loadCommissionInstitutions();
+                }
+                break;
+            case 'comisionInstitucionId':
+                this.clearDependentFilterValues([
+                    'comisionOrganoAdministrativoDesconcentradoId',
+                    'comisionUnidadAdministrativaId',
+                ]);
+                this.commissionDecentralizedBodyOptions.set([]);
+                this.commissionAdministrativeUnitOptions.set([]);
+                if (value) {
+                    this.loadCommissionDecentralizedBodies(value);
+                    this.loadCommissionAdministrativeUnits();
+                }
+                break;
+            case 'comisionOrganoAdministrativoDesconcentradoId':
+                this.clearDependentFilterValues(['comisionUnidadAdministrativaId']);
+                this.commissionAdministrativeUnitOptions.set([]);
+                if (this.draftFilters().comisionInstitucionId) {
+                    this.loadCommissionAdministrativeUnits();
                 }
                 break;
         }
@@ -1855,6 +2044,123 @@ export class UserManagementPage {
             });
     }
 
+    private loadCommissionMunicipalities(entityId: string): void {
+        const estadoId = this.toOptionalPositiveNumber(entityId);
+        if (!estadoId) {
+            this.commissionMunicipalityOptions.set([]);
+            return;
+        }
+
+        this.catalogosFacade
+            .obtenerMunicipiosOptions(estadoId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.commissionMunicipalityOptions.set(options),
+                error: () => {
+                    this.commissionMunicipalityOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar los municipios de la comisión.');
+                },
+            });
+    }
+
+    private loadCommissionInstitutions(): void {
+        const filters = this.draftFilters();
+        const tipoInstitucionId = this.toOptionalPositiveNumber(filters.comisionTipoInstitucionId);
+        const estadoId = this.requiresEntityForInstitution(filters.comisionTipoInstitucionId)
+            ? this.toOptionalPositiveNumber(filters.comisionEntidadId)
+            : undefined;
+        const padreId = this.requiresMunicipalityForInstitution(filters.comisionTipoInstitucionId)
+            ? this.toOptionalPositiveNumber(filters.comisionMunicipioId)
+            : undefined;
+
+        if (!tipoInstitucionId || !this.canSelectCommissionInstitution(filters)) {
+            this.commissionInstitutionOptions.set([]);
+            return;
+        }
+
+        this.catalogosFacade
+            .obtenerEstructuraOrgOptions({
+                tipoInstitucionId,
+                estadoId,
+                padreId,
+                soloActivos: 1,
+            })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.commissionInstitutionOptions.set(options),
+                error: () => {
+                    this.commissionInstitutionOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar las instituciones de la comisión.');
+                },
+            });
+    }
+
+    private loadCommissionDecentralizedBodies(institutionId: string): void {
+        const filters = this.draftFilters();
+        const padreId = this.toOptionalPositiveNumber(institutionId);
+        if (!padreId) {
+            this.commissionDecentralizedBodyOptions.set([]);
+            return;
+        }
+
+        const request$ = this.isFederalInstitutionType(filters.comisionTipoInstitucionId)
+            ? this.catalogosFacade.obtenerEstructuraOrganizacionalOptions({
+                tipoEstructuraId: TIPO_ESTRUCTURA_ORGANO_DESCONCENTRADO,
+                padreId,
+                soloActivos: 1,
+            })
+            : this.catalogosFacade.obtenerEstructuraOrgOptions({
+                tipoInstitucionId: this.toOptionalPositiveNumber(filters.comisionTipoInstitucionId),
+                estadoId: this.toOptionalPositiveNumber(filters.comisionEntidadId),
+                padreId,
+                soloActivos: 1,
+            });
+
+        request$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.commissionDecentralizedBodyOptions.set(options),
+                error: () => {
+                    this.commissionDecentralizedBodyOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar los órganos de la comisión.');
+                },
+            });
+    }
+
+    private loadCommissionAdministrativeUnits(): void {
+        const filters = this.draftFilters();
+        const parentValue = filters.comisionOrganoAdministrativoDesconcentradoId
+            || filters.comisionInstitucionId;
+        const padreId = this.toOptionalPositiveNumber(parentValue);
+        if (!padreId) {
+            this.commissionAdministrativeUnitOptions.set([]);
+            return;
+        }
+
+        const request$ = this.isFederalInstitutionType(filters.comisionTipoInstitucionId)
+            ? this.catalogosFacade.obtenerEstructuraOrganizacionalOptions({
+                tipoEstructuraId: TIPO_ESTRUCTURA_UNIDAD_ADMINISTRATIVA,
+                padreId,
+                soloActivos: 1,
+            })
+            : this.catalogosFacade.obtenerEstructuraOrgOptions({
+                tipoInstitucionId: this.toOptionalPositiveNumber(filters.comisionTipoInstitucionId),
+                estadoId: this.toOptionalPositiveNumber(filters.comisionEntidadId),
+                padreId,
+                soloActivos: 1,
+            });
+
+        request$
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (options) => this.commissionAdministrativeUnitOptions.set(options),
+                error: () => {
+                    this.commissionAdministrativeUnitOptions.set([]);
+                    this.showCatalogWarning('No fue posible cargar las unidades administrativas de la comisión.');
+                },
+            });
+    }
+
     private clearDependentFilterValues(keys: readonly UserFilterKey[]): void {
         this.draftFilters.update((filters) => {
             const next = { ...filters } as Record<UserFilterKey, string>;
@@ -1875,6 +2181,14 @@ export class UserManagementPage {
         this.institutionOptions.set([]);
         this.decentralizedBodyOptions.set([]);
         this.administrativeUnitOptions.set([]);
+        this.resetCommissionDynamicCatalogs();
+    }
+
+    private resetCommissionDynamicCatalogs(): void {
+        this.commissionMunicipalityOptions.set([]);
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
     }
 
     private syncDraftCatalogLabels(filters: UserFilterValues): void {
@@ -1898,6 +2212,19 @@ export class UserManagementPage {
             return false;
         }
         if (this.requiresMunicipalityForInstitution(filters.tipoInstitucionId) && !filters.municipioId) {
+            return false;
+        }
+        return true;
+    }
+
+    private canSelectCommissionInstitution(filters: UserFilterValues): boolean {
+        if (!filters.comisionTipoInstitucionId) {
+            return false;
+        }
+        if (this.requiresEntityForInstitution(filters.comisionTipoInstitucionId) && !filters.comisionEntidadId) {
+            return false;
+        }
+        if (this.requiresMunicipalityForInstitution(filters.comisionTipoInstitucionId) && !filters.comisionMunicipioId) {
             return false;
         }
         return true;

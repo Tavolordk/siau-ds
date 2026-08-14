@@ -71,6 +71,10 @@ interface AdvancedUserListItemDto {
     readonly organoAdministrativoDesconcentrado?: string | null;
     readonly unidadAdministrativaId?: number | null;
     readonly unidadAdministrativa?: string | null;
+    readonly comision?: string | null;
+    readonly comisionInstitucion?: string | null;
+    readonly comisionOrganoAdministrativoDesconcentrado?: string | null;
+    readonly comisionUnidadAdministrativa?: string | null;
     readonly nombreUsuario?: string | null;
     readonly estatusId?: number | null;
     readonly estatus?: string | null;
@@ -519,6 +523,15 @@ export class UsersApiRepository {
             email: this.readText(record, ['correoElectronico', 'correo', 'email']) || 'Sin correo',
             institution: this.readText(record, ['institucion', 'nombreInstitucion']) || 'Sin institución',
             entity: this.readText(record, ['entidad', 'nombreEntidad']) || 'Sin entidad',
+            commission: this.readText(record, [
+                'comision',
+                'comisionUnidadAdministrativa',
+                'unidadAdministrativaComision',
+                'comisionOrganoAdministrativoDesconcentrado',
+                'organoAdministrativoDesconcentradoComision',
+                'comisionInstitucion',
+                'institucionComision',
+            ]) || 'Sin comisión',
             role: this.readText(record, ['rol', 'tipoUsuario', 'perfil', 'role']) || 'Sin rol',
             roleKey: this.readText(record, ['rolClave', 'claveRol', 'tipoUsuarioClave', 'roleKey']),
             status: status || 'Sin estatus',

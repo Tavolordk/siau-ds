@@ -820,48 +820,6 @@
                                 (input)="updateForm('username', $any($event.target).value)" />
                         </div>
 
-                        <div class="registration-wizard__field">
-                            <label class="registration-wizard__field-label">
-                                Contraseña
-                            </label>
-
-                            <div class="registration-wizard__password-wrapper">
-                                <input [type]="showPassword() ? 'text' : 'password'"
-                                    class="registration-wizard__text-input registration-wizard__text-input--with-icon"
-                                    placeholder="Mínimo 8 caracteres" [value]="form().password"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
-                                    (input)="updateForm('password', $any($event.target).value)" />
-
-                                <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
-                                    (click)="togglePasswordVisibility()" aria-label="Mostrar u ocultar contraseña">
-                                    <siau-lucide-icon [name]="showPassword() ? 'eye-off' : 'eye'" size="16"
-                                        strokeWidth="2" aria-hidden="true" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="registration-wizard__field">
-                            <label class="registration-wizard__field-label">
-                                Confirmar contraseña
-                            </label>
-
-                            <div class="registration-wizard__password-wrapper">
-                                <input [type]="showConfirmPassword() ? 'text' : 'password'"
-                                    class="registration-wizard__text-input registration-wizard__text-input--with-icon"
-                                    placeholder="Repite la contraseña" [value]="form().confirmPassword"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
-                                    (input)="updateForm('confirmPassword', $any($event.target).value)" />
-
-                                <button type="button" class="registration-wizard__input-icon-button"
-                                    [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
-                                    (click)="toggleConfirmPasswordVisibility()"
-                                    aria-label="Mostrar u ocultar confirmación de contraseña">
-                                    <siau-lucide-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" size="16"
-                                        strokeWidth="2" aria-hidden="true" />
-                                </button>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="registration-wizard__account-status-block">
