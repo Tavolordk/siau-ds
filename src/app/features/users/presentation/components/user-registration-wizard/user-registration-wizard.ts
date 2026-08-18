@@ -79,6 +79,7 @@ type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error'
 type CurpValidationStatus = string;
 type CurpValidationMessageTone = 'loading' | 'success' | 'warning' | 'error';
 type StructureProfileLookupStatus = 'idle' | 'loading' | 'success' | 'error';
+type ProfileOrigin = 'adscripcion' | 'comision';
 
 type WizardStepId =
     | 'personal-data'
@@ -159,8 +160,15 @@ interface AssignedSystemProfile {
     readonly systemLabel: string;
     readonly role: string;
     readonly roleLabel: string;
+    /** Origen funcional que devuelve el detalle: adscripción o comisión. */
+    readonly origin: ProfileOrigin;
     /** Descripción que devuelve el GET de borradores; se usa para resolver clavePerfil. */
     readonly roleDescription?: string;
+}
+
+interface ProfileResetNotice {
+    readonly origin: ProfileOrigin;
+    readonly message: string;
 }
 
 interface SystemProfileFallbackOption extends SiauSelectOption {
@@ -361,7 +369,13 @@ export class UserRegistrationWizard {
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
+    protected readonly selectedProfileOrigin = signal<ProfileOrigin>('adscripcion');
     protected readonly assignedSystemProfiles = signal<AssignedSystemProfile[]>([]);
+    protected readonly assignmentProfileCarouselIndex = signal<number>(0);
+    protected readonly commissionProfileCarouselIndex = signal<number>(0);
+    protected readonly profileResetNotice = signal<ProfileResetNotice | null>(null);
+    /** En actualización sólo se permite modificar un origen por operación. */
+    protected readonly editStructureScope = signal<ProfileOrigin | null>(null);
     protected readonly detailRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
     protected readonly structureProfileLookupStatus = signal<StructureProfileLookupStatus>('idle');
     protected readonly structureProfileMessage = signal<string>('');
@@ -505,35 +519,96 @@ export class UserRegistrationWizard {
         this.hasValidAssignmentForCommission(this.form()),
     );
 
-    /** HU07: la asignación manual de accesos requiere estructura válida. */
+    protected readonly assignmentAssignedProfiles = computed(() =>
+        this.assignedSystemProfiles().filter((profile) => profile.origin === 'adscripcion'),
+    );
+
+    protected readonly commissionAssignedProfiles = computed(() =>
+        this.assignedSystemProfiles().filter((profile) => profile.origin === 'comision'),
+    );
+
+    protected readonly assignmentCarouselProfile = computed(() =>
+        this.profileAtCarouselIndex('adscripcion'),
+    );
+
+    protected readonly commissionCarouselProfile = computed(() =>
+        this.profileAtCarouselIndex('comision'),
+    );
+
+    /**
+     * Creación conserva el flujo original: perfiles del último contexto aplicable.
+     * Si existe comisión, ésta es el origen; de lo contrario se usa adscripción.
+     * En actualización el administrador selecciona explícitamente uno de los dos orígenes.
+     */
+    protected readonly activeProfileOrigin = computed<ProfileOrigin>(() =>
+        this.isEditMode()
+            ? this.selectedProfileOrigin()
+            : this.form().commissionEnabled
+                ? 'comision'
+                : 'adscripcion',
+    );
+
+    protected readonly selectedProfileOriginLabel = computed(() =>
+        this.activeProfileOrigin() === 'comision' ? 'comisión' : 'adscripción',
+    );
+
+    protected readonly assignmentEditLocked = computed(() =>
+        this.isEditMode() && this.editEnabled() && this.editStructureScope() === 'comision',
+    );
+
+    protected readonly commissionEditLocked = computed(() =>
+        this.isEditMode() && this.editEnabled() && this.editStructureScope() === 'adscripcion',
+    );
+
+    protected readonly showAssignmentProfilesChangeWarning = computed(() =>
+        this.isEditMode() &&
+        this.editEnabled() &&
+        !this.assignmentEditLocked() &&
+        (this.assignmentAssignedProfiles().length > 0 || this.form().commissionEnabled),
+    );
+
+    protected readonly showCommissionProfilesChangeWarning = computed(() =>
+        this.isEditMode() &&
+        this.editEnabled() &&
+        !this.commissionEditLocked() &&
+        this.commissionAssignedProfiles().length > 0,
+    );
+
+    /** HU07: la asignación manual de accesos requiere estructura válida del origen activo. */
     protected readonly canAssignProfiles = computed(() =>
-        this.hasProfileAssignmentContext(this.form()),
+        this.hasProfileAssignmentContext(this.form(), this.activeProfileOrigin()),
     );
 
     protected readonly canSelectProfiles = computed(() =>
         this.canAssignProfiles() &&
+        !this.isProfileOriginLocked(this.activeProfileOrigin()) &&
         this.structureProfileLookupStatus() === 'success' &&
         this.systemOptions().length > 0,
     );
 
     protected readonly structureProfileHint = computed(() => {
+        const originLabel = this.selectedProfileOriginLabel();
+
         switch (this.structureProfileLookupStatus()) {
             case 'loading':
-                return 'Consultando los sistemas y perfiles permitidos para la estructura seleccionada...';
+                return `Consultando los sistemas y perfiles permitidos para la ${originLabel} seleccionada...`;
             case 'error':
                 return this.structureProfileMessage() || 'No fue posible consultar los perfiles disponibles.';
             case 'success':
                 return this.systemOptions().length > 0
-                    ? 'Los perfiles disponibles corresponden a la institución seleccionada.'
-                    : 'La institución seleccionada no tiene perfiles configurados.';
+                    ? `Los perfiles disponibles corresponden a la ${originLabel} seleccionada.`
+                    : `La ${originLabel} seleccionada no tiene perfiles configurados.`;
             default:
-                return 'Completa la adscripción o la comisión para consultar los perfiles disponibles.';
+                return this.activeProfileOrigin() === 'comision'
+                    ? 'Completa la comisión para consultar sus perfiles disponibles.'
+                    : 'Completa la adscripción para consultar sus perfiles disponibles.';
         }
     });
 
     protected readonly emailRequired = computed(() => true);
     protected readonly phoneRequired = computed(() => true);
 
+    /** Regla global: un usuario nunca puede tener más de un perfil SIAU. */
     protected readonly hasAssignedSiauProfile = computed(() =>
         this.assignedSystemProfiles().some((profile) =>
             this.isSiauSystem(profile.system, profile.systemLabel),
@@ -808,6 +883,155 @@ export class UserRegistrationWizard {
         this.structureProfileMessage.set('');
     }
 
+
+    protected dismissProfileResetNotice(): void {
+        this.profileResetNotice.set(null);
+    }
+
+    protected selectProfileOrigin(origin: ProfileOrigin): void {
+        if (!this.isEditMode() || this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (origin === 'comision' && !this.form().commissionEnabled) {
+            return;
+        }
+
+        if (this.isProfileOriginLocked(origin) || this.selectedProfileOrigin() === origin) {
+            return;
+        }
+
+        this.selectedProfileOrigin.set(origin);
+        this.resetStructureProfileCatalog();
+    }
+
+    private isProfileOriginLocked(origin: ProfileOrigin): boolean {
+        if (!this.isEditMode()) {
+            return false;
+        }
+
+        const scope = this.editStructureScope();
+        return scope !== null && scope !== origin;
+    }
+
+    /**
+     * La primera modificación de adscripción/comisión fija el origen editable.
+     * El otro origen queda bloqueado hasta cerrar/reabrir el detalle.
+     */
+    private claimEditStructureScope(origin: ProfileOrigin, changed = true): boolean {
+        if (!this.isEditMode() || !changed) {
+            return true;
+        }
+
+        const currentScope = this.editStructureScope();
+        if (currentScope && currentScope !== origin) {
+            return false;
+        }
+
+        if (!currentScope) {
+            this.editStructureScope.set(origin);
+            this.selectedProfileOrigin.set(origin);
+            this.resetStructureProfileCatalog();
+
+            // Regla de actualización: adscripción y comisión son alternativas
+            // excluyentes dentro de una misma operación. Si se decide modificar
+            // adscripción, la comisión existente se elimina completa y queda
+            // bloqueada para que no pueda volver a agregarse hasta cerrar/reabrir.
+            if (origin === 'adscripcion') {
+                this.removeCommissionForAssignmentUpdate();
+            }
+        }
+
+        return true;
+    }
+
+    private removeCommissionForAssignmentUpdate(): void {
+        if (!this.isEditMode()) {
+            return;
+        }
+
+        const hadCommission = this.form().commissionEnabled;
+        const hadCommissionProfiles = this.commissionAssignedProfiles().length > 0;
+        const remainingProfiles = this.assignedSystemProfiles().filter(
+            (profile) => profile.origin !== 'comision',
+        );
+
+        this.bumpCommissionCatalogGeneration();
+        this.commissionMunicipalityOptions.set([]);
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.commissionProfileCarouselIndex.set(0);
+
+        this.assignedSystemProfiles.set(remainingProfiles);
+        this.form.update((current) => ({
+            ...current,
+            commissionEnabled: false,
+            commissionInstitutionType: '',
+            commissionInstitution: '',
+            commissionEntity: '',
+            commissionMunicipality: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+            commissionAdmissionDate: '',
+            profiles: remainingProfiles.map((profile) => profile.role),
+        }));
+        this.normalizeProfileCarouselIndexes();
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+            [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+                'commissionDecentralizedBody',
+                'commissionAdministrativeUnit',
+                'commissionAdmissionDate',
+            ].forEach((key) => delete next[key]);
+            return next;
+        });
+
+        const message = hadCommission || hadCommissionProfiles
+            ? 'Al modificar la adscripción se eliminó la comisión existente junto con sus perfiles. Durante esta actualización no se puede agregar una nueva comisión.'
+            : 'Esta actualización está modificando la adscripción. Durante esta operación no se puede agregar una comisión.';
+
+        this.profileResetNotice.set({ origin: 'adscripcion', message });
+    }
+
+    protected previousProfile(origin: ProfileOrigin): void {
+        const profiles = this.profilesForOrigin(origin);
+        if (profiles.length <= 1) {
+            return;
+        }
+
+        const current = this.getProfileCarouselIndex(origin);
+        this.setProfileCarouselIndex(origin, current <= 0 ? profiles.length - 1 : current - 1);
+    }
+
+    protected nextProfile(origin: ProfileOrigin): void {
+        const profiles = this.profilesForOrigin(origin);
+        if (profiles.length <= 1) {
+            return;
+        }
+
+        const current = this.getProfileCarouselIndex(origin);
+        this.setProfileCarouselIndex(origin, (current + 1) % profiles.length);
+    }
+
+    protected getProfileCarouselIndex(origin: ProfileOrigin): number {
+        const profiles = this.profilesForOrigin(origin);
+        if (profiles.length === 0) {
+            return 0;
+        }
+
+        const rawIndex = origin === 'comision'
+            ? this.commissionProfileCarouselIndex()
+            : this.assignmentProfileCarouselIndex();
+
+        return Math.min(Math.max(rawIndex, 0), profiles.length - 1);
+    }
+
     protected readonly curpValidationSummaryForDisplay = computed(() =>
         this.curpValidationSummary(),
     );
@@ -963,7 +1187,8 @@ export class UserRegistrationWizard {
                 return;
             }
 
-            const structureId = this.resolveProfileStructureId(current);
+            const origin = this.activeProfileOrigin();
+            const structureId = this.resolveProfileStructureId(current, origin);
 
             untracked(() => this.loadStructureProfileOptions(structureId));
         });
@@ -1259,6 +1484,23 @@ export class UserRegistrationWizard {
 
         const normalizedValue = this.normalizeFormInputValue(key, value);
         const previousValue = this.form()[key];
+        const changed = normalizedValue !== previousValue;
+
+        if (
+            changed &&
+            (key === 'position' || key === 'functions' || key === 'admissionDate' || key === 'employeeNumber') &&
+            !this.claimEditStructureScope('adscripcion')
+        ) {
+            return;
+        }
+
+        if (
+            changed &&
+            key === 'commissionAdmissionDate' &&
+            !this.claimEditStructureScope('comision')
+        ) {
+            return;
+        }
 
         this.form.update((current) => ({
             ...current,
@@ -1453,7 +1695,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.bumpCommissionCatalogGeneration();
+        const commissionChanged = this.form().commissionEnabled !== checked;
 
         if (checked && !this.canConfigureCommission()) {
             this.formErrors.update((current) => ({
@@ -1464,12 +1706,31 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.form().commissionEnabled !== checked) {
-            this.clearProfilesAfterStructureContextChange(
-                checked
-                    ? 'Se activó la comisión. Selecciona la institución de comisión para consultar sus perfiles.'
-                    : 'Se eliminó la comisión. Debes volver a seleccionar los perfiles de la adscripción.',
-            );
+        if (!this.claimEditStructureScope('comision', commissionChanged)) {
+            return;
+        }
+
+        this.bumpCommissionCatalogGeneration();
+
+        if (commissionChanged) {
+            if (this.isEditMode()) {
+                if (!checked) {
+                    this.clearProfilesForOrigin(
+                        'comision',
+                        'Se desactivó la comisión. Se eliminaron únicamente los perfiles asociados a la comisión; los perfiles de adscripción se conservaron.',
+                    );
+                    this.selectedProfileOrigin.set('comision');
+                }
+            } else {
+                // Creación: existe un solo contexto de perfiles. Al alternar comisión
+                // se invalida toda la selección y el catálogo pasa al último origen.
+                this.clearAllProfilesAfterCreationContextChange(
+                    checked
+                        ? 'Se activó la comisión. Selecciona su estructura para consultar los perfiles correspondientes.'
+                        : 'Se eliminó la comisión. Debes volver a seleccionar los perfiles correspondientes a la adscripción.',
+                );
+                this.selectedProfileOrigin.set(checked ? 'comision' : 'adscripcion');
+            }
         }
 
         this.form.update((current) => ({
@@ -1518,6 +1779,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const institutionType = value ?? '';
+        if (!this.claimEditStructureScope('adscripcion', this.form().institutionType !== institutionType)) {
+            return;
+        }
         const requiresEntity = this.requiresEntityForInstitution(institutionType);
 
         this.clearProfilesAfterAssignmentInstitutionChange(this.form().institution, '');
@@ -1553,6 +1817,10 @@ export class UserRegistrationWizard {
 
     protected updateAssignmentEntity(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (!this.claimEditStructureScope('adscripcion', this.form().entity !== (value ?? ''))) {
             return;
         }
 
@@ -1597,6 +1865,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.claimEditStructureScope('adscripcion', this.form().municipality !== (value ?? ''))) {
+            return;
+        }
+
         this.bumpAssignmentCatalogGeneration();
 
         if (!this.assignmentRequiresMunicipality()) {
@@ -1628,6 +1900,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const institution = value ?? '';
+        if (!this.claimEditStructureScope('adscripcion', this.form().institution !== institution)) {
+            return;
+        }
         this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().institution,
             institution,
@@ -1659,6 +1934,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const decentralizedBody = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('adscripcion', this.form().decentralizedBody !== decentralizedBody)) {
+            return;
+        }
 
         // El catálogo de perfiles se consulta con el último nivel seleccionado,
         // por lo que cambiar el OAD invalida los perfiles ya elegidos.
@@ -1688,6 +1966,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const administrativeUnit = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('adscripcion', this.form().administrativeUnit !== administrativeUnit)) {
+            return;
+        }
 
         this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().administrativeUnit,
@@ -1709,6 +1990,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionInstitutionType = value ?? '';
+        if (!this.claimEditStructureScope('comision', this.form().commissionInstitutionType !== commissionInstitutionType)) {
+            return;
+        }
         const requiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
 
         this.clearProfilesAfterCommissionInstitutionChange(this.form().commissionInstitution, '');
@@ -1744,6 +2028,10 @@ export class UserRegistrationWizard {
 
     protected updateCommissionEntity(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (!this.claimEditStructureScope('comision', this.form().commissionEntity !== (value ?? ''))) {
             return;
         }
 
@@ -1788,6 +2076,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.claimEditStructureScope('comision', this.form().commissionMunicipality !== (value ?? ''))) {
+            return;
+        }
+
         this.bumpCommissionCatalogGeneration();
 
         if (!this.commissionRequiresMunicipality()) {
@@ -1819,6 +2111,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionInstitution = value ?? '';
+        if (!this.claimEditStructureScope('comision', this.form().commissionInstitution !== commissionInstitution)) {
+            return;
+        }
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionInstitution,
             commissionInstitution,
@@ -1850,6 +2145,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionDecentralizedBody = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('comision', this.form().commissionDecentralizedBody !== commissionDecentralizedBody)) {
+            return;
+        }
 
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionDecentralizedBody,
@@ -1875,6 +2173,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionAdministrativeUnit = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('comision', this.form().commissionAdministrativeUnit !== commissionAdministrativeUnit)) {
+            return;
+        }
 
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionAdministrativeUnit,
@@ -1994,15 +2295,22 @@ export class UserRegistrationWizard {
             return;
         }
 
+        const origin = this.activeProfileOrigin();
+        if (!this.claimEditStructureScope(origin)) {
+            return;
+        }
+
         const newItem: AssignedSystemProfile = {
-            id: `${system}-${role}-${Date.now()}`,
+            id: `${origin}-${system}-${role}-${Date.now()}`,
             system,
             role,
             systemLabel: systemOption.label,
             roleLabel: roleOption.label,
+            origin,
         };
 
         this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.setProfileCarouselIndex(origin, this.profilesForOrigin(origin).length - 1);
         this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
@@ -2024,7 +2332,12 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.claimEditStructureScope(profile.origin)) {
+            return;
+        }
+
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
+        this.normalizeProfileCarouselIndexes();
         this.clearFieldError('profiles');
 
         // También se persiste la eliminación. Si ya no queda ningún perfil,
@@ -2077,26 +2390,36 @@ export class UserRegistrationWizard {
             });
     }
 
-    protected canRemoveAssignedProfile(_profile: AssignedSystemProfile): boolean {
-        // Un perfil SIAU debe poder eliminarse para que el administrador pueda
-        // seleccionar otro. La exclusividad se valida al agregar, no al eliminar.
-        return true;
+    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean {
+        // SIAU puede reemplazarse, pero en actualización sólo dentro del origen
+        // elegido para esta operación.
+        return !this.isProfileOriginLocked(profile.origin);
     }
 
     private clearProfilesAfterAssignmentInstitutionChange(
         previousInstitution: string | null | undefined,
         nextInstitution: string | null | undefined,
     ): void {
-        // Cuando existe comisión, los perfiles provienen de la institución de comisión.
-        // Cambiar adscripción no debe borrar ni alterar ese contexto independiente.
-        if (this.form().commissionEnabled) {
+        const changed = String(previousInstitution ?? '').trim() !== String(nextInstitution ?? '').trim();
+        if (!changed || !this.claimEditStructureScope('adscripcion')) {
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(
-            previousInstitution,
-            nextInstitution,
-            'La estructura de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+        if (!this.isEditMode()) {
+            // Flujo original de creación: si hay comisión, ésa es la fuente de perfiles.
+            if (this.form().commissionEnabled) {
+                return;
+            }
+
+            this.clearAllProfilesAfterCreationContextChange(
+                'La estructura de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            );
+            return;
+        }
+
+        this.clearProfilesForOrigin(
+            'adscripcion',
+            'La estructura de adscripción cambió. Se eliminaron los perfiles de adscripción y la comisión existente junto con sus perfiles. Durante esta actualización no se puede agregar una nueva comisión; se recargarán los sistemas y perfiles de la nueva adscripción.',
         );
     }
 
@@ -2108,50 +2431,74 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(
-            previousInstitution,
-            nextInstitution,
-            'La estructura de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
-        );
-    }
-
-    private clearAssignedProfilesAfterInstitutionChange(
-        previousInstitution: string | null | undefined,
-        nextInstitution: string | null | undefined,
-        message: string,
-    ): void {
-        const previousValue = String(previousInstitution ?? '').trim();
-        const nextValue = String(nextInstitution ?? '').trim();
-
-        if (previousValue === nextValue) {
+        const changed = String(previousInstitution ?? '').trim() !== String(nextInstitution ?? '').trim();
+        if (!changed || !this.claimEditStructureScope('comision')) {
             return;
         }
 
-        this.clearProfilesAfterStructureContextChange(message);
+        if (!this.isEditMode()) {
+            this.clearAllProfilesAfterCreationContextChange(
+                'La estructura de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            );
+            return;
+        }
+
+        this.clearProfilesForOrigin(
+            'comision',
+            'La estructura de comisión cambió. Se eliminaron los perfiles de comisión existentes y se recargarán los sistemas y perfiles con la nueva selección.',
+        );
     }
 
-    private clearProfilesAfterStructureContextChange(message: string): void {
+    private clearAllProfilesAfterCreationContextChange(message: string): void {
         this.resetStructureProfileCatalog();
 
         const hasAssignedProfiles =
             this.assignedSystemProfiles().length > 0 || this.form().profiles.length > 0;
 
         this.assignedSystemProfiles.set([]);
-        this.form.update((current) => ({
-            ...current,
-            profiles: [],
-        }));
+        this.form.update((current) => ({ ...current, profiles: [] }));
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
+        this.assignmentProfileCarouselIndex.set(0);
+        this.commissionProfileCarouselIndex.set(0);
+        this.completedSteps.update((current) => current.filter((stepId) => stepId !== 'profiles'));
+
+        if (!hasAssignedProfiles) {
+            this.clearFieldError('profiles');
+            return;
+        }
+
+        this.formErrors.update((current) => ({ ...current, profiles: message }));
+    }
+
+    private clearProfilesForOrigin(origin: ProfileOrigin, message: string): void {
+        const currentProfiles = this.assignedSystemProfiles();
+        const removedProfiles = currentProfiles.filter((profile) => profile.origin === origin);
+        const remainingProfiles = currentProfiles.filter((profile) => profile.origin !== origin);
+
+        if (this.activeProfileOrigin() === origin) {
+            this.resetStructureProfileCatalog();
+        }
+
+        this.assignedSystemProfiles.set(remainingProfiles);
+        this.form.update((current) => ({
+            ...current,
+            profiles: remainingProfiles.map((profile) => profile.role),
+        }));
+        this.normalizeProfileCarouselIndexes();
 
         this.completedSteps.update((current) =>
             current.filter((stepId) => stepId !== 'profiles'),
         );
 
-        if (!hasAssignedProfiles) {
+        if (removedProfiles.length === 0) {
             this.clearFieldError('profiles');
             return;
+        }
+
+        if (this.isEditMode()) {
+            this.profileResetNotice.set({ origin, message });
         }
 
         this.formErrors.update((current) => ({
@@ -3249,7 +3596,10 @@ export class UserRegistrationWizard {
             comment: this.toText(datos['comentario']),
         };
 
-        const assignedProfiles = this.toAssignedSystemProfiles(datos['s6Perfiles']);
+        const assignedProfiles = this.toAssignedSystemProfiles(
+            datos['s6Perfiles'],
+            nextForm.commissionEnabled ? 'comision' : 'adscripcion',
+        );
 
         this.activeStepId.set('personal-data');
         this.completedSteps.set([...this.stepOrder()]);
@@ -3261,12 +3611,20 @@ export class UserRegistrationWizard {
         this.selectedRole.set('');
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set(assignedProfiles);
+        this.assignmentProfileCarouselIndex.set(0);
+        this.commissionProfileCarouselIndex.set(0);
+        this.selectedProfileOrigin.set('adscripcion');
+        this.profileResetNotice.set(null);
+        this.editStructureScope.set(null);
         this.initialAssignedProfiles = [...assignedProfiles];
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
         this.loadHydratedAssignmentCatalogs(nextForm);
     }
 
-    private toAssignedSystemProfiles(value: unknown): AssignedSystemProfile[] {
+    private toAssignedSystemProfiles(
+        value: unknown,
+        fallbackOrigin: ProfileOrigin = 'adscripcion',
+    ): AssignedSystemProfile[] {
         if (!Array.isArray(value)) {
             return [];
         }
@@ -3299,6 +3657,10 @@ export class UserRegistrationWizard {
                 const rawRoleId = this.toText(
                     this.firstValue(record, ['perfilId', 'rolId', 'idPerfil', 'role']),
                 );
+                const origin = this.toProfileOrigin(
+                    this.firstValue(record, ['origenTipo', 'origen', 'originType', 'origin']),
+                    fallbackOrigin,
+                );
                 const systemOption = this.findKnownSystemOption(rawSystemId, rawSystemLabel) ?? null;
 
                 const systemValue = systemOption?.value || rawSystemId || rawSystemLabel;
@@ -3312,11 +3674,12 @@ export class UserRegistrationWizard {
                 }
 
                 return {
-                    id: `${systemValue}-${roleValue}-${index}`,
+                    id: `${origin}-${systemValue}-${roleValue}-${index}`,
                     system: systemValue,
                     role: roleValue,
                     systemLabel,
                     roleLabel,
+                    origin,
                 } satisfies AssignedSystemProfile;
             })
             .filter((item): item is AssignedSystemProfile => item !== null);
@@ -3465,6 +3828,10 @@ export class UserRegistrationWizard {
         const systemOption = this.findKnownSystemOption(system);
 
         return this.assignedSystemProfiles().some((profile) => {
+            if (profile.origin !== this.activeProfileOrigin()) {
+                return false;
+            }
+
             const sameSystem =
                 profile.system === system ||
                 this.normalizeText(profile.system) === this.normalizeText(system) ||
@@ -4148,6 +4515,7 @@ export class UserRegistrationWizard {
                 : [];
 
         const seen = new Set<string>();
+        const origin: ProfileOrigin = datos.comision ? 'comision' : 'adscripcion';
 
         return sourceProfiles.flatMap((profile, index) => {
             const systemId = profile.idSistema;
@@ -4182,10 +4550,11 @@ export class UserRegistrationWizard {
                 : '';
 
             return [{
-                id: `${systemValue}:${roleValue}`,
+                id: `${origin}-${systemValue}:${roleValue}`,
                 system: systemValue,
                 systemLabel,
                 role: roleValue,
+                origin,
                 roleLabel: this.resolveRoleLabel(
                     systemValue,
                     roleValue,
@@ -4493,6 +4862,11 @@ export class UserRegistrationWizard {
         this.selectedRole.set('');
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set([]);
+        this.assignmentProfileCarouselIndex.set(0);
+        this.commissionProfileCarouselIndex.set(0);
+        this.selectedProfileOrigin.set('adscripcion');
+        this.profileResetNotice.set(null);
+        this.editStructureScope.set(null);
         this.detailRoleOptionsBySystem.set({});
         this.resetStructureProfileCatalog();
         this.showPassword.set(false);
@@ -4597,9 +4971,9 @@ export class UserRegistrationWizard {
         if (!structureId) {
             this.resetStructureProfileCatalog();
             this.structureProfileMessage.set(
-                this.form().commissionEnabled
-                    ? 'Completa la institución de la comisión para consultar sus perfiles.'
-                    : 'Completa la institución de adscripción para consultar sus perfiles.',
+                this.activeProfileOrigin() === 'comision'
+                    ? 'Completa la estructura de comisión para consultar sus perfiles.'
+                    : 'Completa la estructura de adscripción para consultar sus perfiles.',
             );
             return;
         }
@@ -4615,7 +4989,9 @@ export class UserRegistrationWizard {
 
         this.loadedProfileStructureId = structureId;
         this.structureProfileLookupStatus.set('loading');
-        this.structureProfileMessage.set('Consultando perfiles permitidos para la estructura seleccionada...');
+        this.structureProfileMessage.set(
+            `Consultando perfiles permitidos para la ${this.selectedProfileOriginLabel()} seleccionada...`,
+        );
         this.systemOptions.set([]);
         this.structureRoleOptionsBySystem.set({});
         this.selectedSystem.set('');
@@ -4638,8 +5014,8 @@ export class UserRegistrationWizard {
                     this.structureProfileLookupStatus.set('success');
                     this.structureProfileMessage.set(
                         catalog.systems.length > 0
-                            ? 'Perfiles disponibles cargados correctamente.'
-                            : 'La institución seleccionada no tiene sistemas y perfiles configurados.',
+                            ? `Perfiles de ${this.selectedProfileOriginLabel()} cargados correctamente.`
+                            : `La ${this.selectedProfileOriginLabel()} seleccionada no tiene sistemas y perfiles configurados.`,
                     );
                     this.clearFieldError('profiles');
                     this.ensureDefaultSiauProfile();
@@ -5322,13 +5698,51 @@ export class UserRegistrationWizard {
         this.assignedSystemProfiles.update((current) => [
             ...current,
             {
-                id: `${system}-${userRole.value}-default`,
+                id: `${this.activeProfileOrigin()}-${system}-${userRole.value}-default`,
                 system,
                 systemLabel: systemOption.label,
                 role: userRole.value,
                 roleLabel: userRole.label,
+                origin: this.activeProfileOrigin(),
             },
         ]);
+    }
+
+    private profilesForOrigin(origin: ProfileOrigin): readonly AssignedSystemProfile[] {
+        return origin === 'comision'
+            ? this.commissionAssignedProfiles()
+            : this.assignmentAssignedProfiles();
+    }
+
+    private profileAtCarouselIndex(origin: ProfileOrigin): AssignedSystemProfile | null {
+        const profiles = this.profilesForOrigin(origin);
+        return profiles[this.getProfileCarouselIndex(origin)] ?? null;
+    }
+
+    private setProfileCarouselIndex(origin: ProfileOrigin, index: number): void {
+        const nextIndex = Math.max(index, 0);
+        if (origin === 'comision') {
+            this.commissionProfileCarouselIndex.set(nextIndex);
+            return;
+        }
+
+        this.assignmentProfileCarouselIndex.set(nextIndex);
+    }
+
+    private normalizeProfileCarouselIndexes(): void {
+        this.setProfileCarouselIndex(
+            'adscripcion',
+            this.getProfileCarouselIndex('adscripcion'),
+        );
+        this.setProfileCarouselIndex(
+            'comision',
+            this.getProfileCarouselIndex('comision'),
+        );
+    }
+
+    private toProfileOrigin(value: unknown, fallback: ProfileOrigin): ProfileOrigin {
+        const normalized = this.normalizeText(this.toText(value));
+        return normalized === 'comision' ? 'comision' : normalized === 'adscripcion' ? 'adscripcion' : fallback;
     }
 
     private isFederalInstitutionType(value: string | null | undefined): boolean {
@@ -5578,11 +5992,12 @@ export class UserRegistrationWizard {
         if (stepId === 'profiles') {
             if (
                 this.shouldValidateAssignedProfiles() &&
-                this.assignedSystemProfiles().length > 0 &&
-                !this.hasProfileAssignmentContext(current)
+                this.assignedSystemProfiles().some(
+                    (profile) => !this.hasProfileAssignmentContext(current, profile.origin),
+                )
             ) {
                 nextErrors['profiles'] =
-                    'Registra una adscripción o una comisión válida antes de asignar perfiles.';
+                    'Cada perfil debe corresponder a una adscripción o comisión válida.';
             }
         }
 
@@ -6004,18 +6419,22 @@ export class UserRegistrationWizard {
         );
     }
 
-    private hasProfileAssignmentContext(current: UserRegistrationForm): boolean {
-        return current.commissionEnabled
-            ? this.hasValidCommissionContext(current)
+    private hasProfileAssignmentContext(
+        current: UserRegistrationForm,
+        origin: ProfileOrigin = this.activeProfileOrigin(),
+    ): boolean {
+        return origin === 'comision'
+            ? current.commissionEnabled && this.hasValidCommissionContext(current)
             : this.hasValidAssignmentForCommission(current);
     }
 
-    private resolveProfileStructureId(current: UserRegistrationForm): number | undefined {
-        // El parámetro estructuraId es el id del ÚLTIMO nivel filtrado por el usuario:
-        // unidad administrativa > órgano desconcentrado > institución.
-        // Si solo llegó hasta institución, se manda la institución; si llegó hasta
-        // unidad administrativa, se manda la unidad administrativa.
-        const selection = current.commissionEnabled
+    private resolveProfileStructureId(
+        current: UserRegistrationForm,
+        origin: ProfileOrigin = this.activeProfileOrigin(),
+    ): number | undefined {
+        // El catálogo se consulta por origen. Ambos pueden coexistir en el detalle:
+        // adscripción y comisión mantienen sus perfiles de forma independiente.
+        const selection = origin === 'comision'
             ? this.resolveDeepestStructureSelection([
                 {
                     field: 'commissionAdministrativeUnit',
@@ -6120,7 +6539,7 @@ export class UserRegistrationWizard {
         profiles: readonly AssignedSystemProfile[],
     ): string {
         return profiles
-            .map((profile) => `${profile.system}|${profile.role}`)
+            .map((profile) => `${profile.origin}|${profile.system}|${profile.role}`)
             .sort()
             .join('||');
     }
