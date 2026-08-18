@@ -5,6 +5,13 @@ import { catchError, finalize, forkJoin, of, timeout } from 'rxjs';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import { CatalogoOption, CatalogosFacade } from '../../../../../core/catalogos';
 import { SiauModal } from '../../../../../shared/ui';
+import {
+    CONTACT_EMAIL_MAX_LENGTH,
+    RESTRICTED_TEXT_LIMITS,
+    getContactEmailError,
+    getRestrictedTextError,
+    sanitizeRestrictedText,
+} from '../../../../../shared/validation/field-validators';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
 import {
@@ -321,7 +328,7 @@ export class UserManagementPage {
             group: 'general',
             kind: 'text',
             options: [],
-            maxLength: 254,
+            maxLength: CONTACT_EMAIL_MAX_LENGTH,
             inputMode: 'email',
         },
         {
@@ -1341,7 +1348,7 @@ export class UserManagementPage {
     }
 
     protected updateBajaComment(value: string): void {
-        const normalizedValue = String(value ?? '').toUpperCase();
+        const normalizedValue = this.normalizeOperationCommentInput(value);
 
         this.bajaComment.set(normalizedValue);
 
@@ -1464,7 +1471,7 @@ export class UserManagementPage {
     }
 
     protected updateStatusComment(value: string): void {
-        const normalizedValue = String(value ?? '').toUpperCase();
+        const normalizedValue = this.normalizeOperationCommentInput(value);
 
         this.statusComment.set(normalizedValue);
 
@@ -2426,10 +2433,8 @@ export class UserManagementPage {
                     ? null
                     : 'El RFC debe tener 13 caracteres y cumplir el formato establecido.';
             case 'correo':
-                return value.length <= 254
-                    && /^[A-Za-z][A-Za-z0-9._%+-]*@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(value)
-                    ? null
-                    : 'Captura un correo válido de máximo 254 caracteres.';
+                // Misma regla VC02 que usa el login y el alta de usuario.
+                return getContactEmailError(value);
             case 'numeroTelefonico':
                 return /^\d{10}$/.test(value)
                     ? null
@@ -2449,15 +2454,20 @@ export class UserManagementPage {
     }
 
     private validateOperationComment(value: string): string | null {
-        if (value.length < 5) {
-            return 'El comentario debe contener al menos 5 caracteres.';
+        if (!value.trim()) {
+            return 'El comentario es obligatorio.';
         }
-        if (value.length > 1000) {
-            return 'El comentario no puede exceder 1,000 caracteres.';
-        }
-        return /^[A-Z0-9 .,!#$%&/()=?¿¡+@:;_"-]+$/.test(value)
-            ? null
-            : 'El comentario contiene caracteres no permitidos.';
+
+        return getRestrictedTextError(
+            value,
+            RESTRICTED_TEXT_LIMITS.comment.min,
+            RESTRICTED_TEXT_LIMITS.comment.max,
+            'El comentario',
+        );
+    }
+
+    private normalizeOperationCommentInput(value: unknown): string {
+        return sanitizeRestrictedText(value, RESTRICTED_TEXT_LIMITS.comment.max, true);
     }
 
     private toOptionalText(value: unknown): string | undefined {

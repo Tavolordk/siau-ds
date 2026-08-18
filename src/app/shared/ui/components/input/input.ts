@@ -1,4 +1,9 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import {
+  clampDateInput,
+  sanitizeContactEmailInput,
+  sanitizeRestrictedText,
+} from '../../../validation/field-validators';
 
 export type SiauInputType =
   | 'text'
@@ -31,9 +36,36 @@ export class SiauInput {
   readonly alphabeticOnly = input<boolean>(false);
   readonly numericOnly = input<boolean>(false);
   readonly employeeNumberOnly = input<boolean>(false);
+  readonly safeTextOnly = input<boolean>(false);
+  readonly emailOnly = input<boolean>(false);
+  /**
+   * Al salir del campo ajusta el valor al rango [min]/[max]. El input nativo
+   * de tipo date sólo respeta el rango en el calendario, no al teclear.
+   */
+  readonly clampOnBlur = input<boolean>(false);
   readonly hint = input<string | null>(null);
+  /** Mensaje de error del campo. Cuando llega, sustituye a la pista. */
+  readonly error = input<string | null>(null);
 
   readonly valueChange = output<string>();
+
+  protected handleBlur(event: Event): void {
+    if (!this.clampOnBlur() || this.type() !== 'date') {
+      return;
+    }
+
+    const inputElement = event.target as HTMLInputElement;
+    const clampedValue = clampDateInput(
+      inputElement.value,
+      this.min() ?? '',
+      this.max() ?? '',
+    );
+
+    if (clampedValue !== inputElement.value) {
+      inputElement.value = clampedValue;
+      this.valueChange.emit(clampedValue);
+    }
+  }
 
   protected handleInput(event: Event): void {
     const inputElement = event.target as HTMLInputElement;
@@ -104,6 +136,30 @@ export class SiauInput {
           ? normalizedValue
           : normalizedValue.slice(0, maxLength);
       };
+
+      this.emitNormalizedValueKeepingSelection(inputElement, normalize);
+      return;
+    }
+
+    if (this.emailOnly()) {
+      const maxLength = this.maxLength();
+      const normalize = (value: string): string => {
+        const normalizedValue = sanitizeContactEmailInput(value);
+
+        return maxLength === null
+          ? normalizedValue
+          : normalizedValue.slice(0, maxLength);
+      };
+
+      this.emitNormalizedValueKeepingSelection(inputElement, normalize);
+      return;
+    }
+
+    if (this.safeTextOnly()) {
+      const maxLength = this.maxLength();
+      // Catálogo VC07/VC08, centralizado en shared/validation.
+      const normalize = (value: string): string =>
+        sanitizeRestrictedText(value, maxLength ?? value.length, true);
 
       this.emitNormalizedValueKeepingSelection(inputElement, normalize);
       return;

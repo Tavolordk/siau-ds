@@ -9,6 +9,8 @@
 
   <select
     class="siau-select__control"
+    [class.siau-select__control--invalid]="!!error()"
+    [attr.aria-invalid]="error() ? 'true' : null"
     [value]="value()"
     [required]="required()"
     [disabled]="disabled()"
@@ -21,7 +23,9 @@
     }
   </select>
 
-  @if (hint()) {
+  @if (error()) {
+    <span class="siau-select__error" role="alert">{{ error() }}</span>
+  } @else if (hint()) {
     <span class="siau-select__hint">{{ hint() }}</span>
   }
 </label>

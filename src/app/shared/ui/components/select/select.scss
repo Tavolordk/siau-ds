@@ -50,3 +50,13 @@
   color: var(--siau-color-primary-400);
   font-size: var(--siau-text-xs);
 }
+.siau-select__control--invalid {
+  border-color: var(--siau-color-danger-fg);
+  background: var(--siau-color-danger-bg);
+}
+
+.siau-select__error {
+  color: var(--siau-color-danger-fg);
+  font-size: var(--siau-text-xs);
+  font-weight: var(--siau-font-weight-semibold);
+}

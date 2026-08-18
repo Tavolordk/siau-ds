@@ -2513,3 +2513,10 @@
         width: 100%;
     }
 }
+
+.registration-wizard__field-error {
+    color: var(--siau-color-danger-fg);
+    font-size: var(--siau-text-xs);
+    font-weight: var(--siau-font-weight-semibold);
+    margin: 0;
+}

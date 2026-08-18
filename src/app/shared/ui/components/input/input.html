@@ -7,11 +7,14 @@
     }
   </span>
 
-  <input class="siau-input__control" [type]="type()" [value]="value()" [placeholder]="placeholder()"
-    [required]="required()" [disabled]="disabled()" [attr.maxlength]="maxLength()" [attr.min]="min()" [attr.max]="max()"
-    (input)="handleInput($event)" />
+  <input class="siau-input__control" [class.siau-input__control--invalid]="!!error()" [type]="type()"
+    [value]="value()" [placeholder]="placeholder()" [required]="required()" [disabled]="disabled()"
+    [attr.maxlength]="maxLength()" [attr.min]="min()" [attr.max]="max()"
+    [attr.aria-invalid]="error() ? 'true' : null" (input)="handleInput($event)" (blur)="handleBlur($event)" />
 
-  @if (hint()) {
+  @if (error()) {
+  <span class="siau-input__error" role="alert">{{ error() }}</span>
+  } @else if (hint()) {
   <span class="siau-input__hint">{{ hint() }}</span>
   }
 </label>

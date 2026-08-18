@@ -74,16 +74,8 @@
                                     class="w-full rounded-xl border border-white/30 bg-[#99A8BE] py-3 pl-11 pr-4 text-[#1B1F4A] shadow-inner transition-all placeholder:text-[#E7F1F3] focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60" />
                             </label>
 
-                            @if (form.controls.contact.touched && form.controls.contact.invalid) {
-                            <p class="px-1 text-xs text-red-100/90">
-                                @if (form.controls.contact.hasError('phoneLength')) {
-                                Ingresa un número válido de 10 dígitos.
-                                } @else if (form.controls.contact.hasError('email')) {
-                                Ingresa un correo electrónico válido.
-                                } @else {
-                                Ingresa un correo electrónico o número telefónico.
-                                }
-                            </p>
+                            @if (contactErrorMessage(); as contactError) {
+                            <p class="px-1 text-xs text-red-100/90" role="alert">{{ contactError }}</p>
                             }
                         </div>
 

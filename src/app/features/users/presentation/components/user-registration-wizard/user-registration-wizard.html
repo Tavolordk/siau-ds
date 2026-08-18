@@ -280,13 +280,14 @@
                 <div class="registration-wizard__grid">
                     <siau-input label="CUIP" placeholder="Ej. GARC910515H094569875" [value]="form().cuip"
                         [maxLength]="20" [alphanumericOnly]="true" hint="Formato: 4 letras, 6 números, H/M y 9 números"
-                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()" />
+                        (valueChange)="updateForm('cuip', $event)" [disabled]="isFormDisabled()"
+                        [error]="fieldError('cuip')" />
 
                     <div class="registration-wizard__curp-field">
                         <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
                             [required]="true" [maxLength]="18" [alphanumericOnly]="true"
                             [value]="form().curp" (valueChange)="updateCurp($event)"
-                            [disabled]="isCurpInputDisabled()" />
+                            [disabled]="isCurpInputDisabled()" [error]="fieldError('curp')" />
 
                         @if (showCurpUnlock()) {
                         <label class="registration-wizard__curp-unlock">
@@ -307,31 +308,35 @@
 
                     <siau-input label="RFC" placeholder="Ej. UPL010923SK0" [required]="rfcRequired()" [maxLength]="13"
                         [alphanumericOnly]="true" [hint]="rfcHint()" [value]="form().rfc"
-                        (valueChange)="updateRfc($event)" [disabled]="isFormDisabled()" />
+                        (valueChange)="updateRfc($event)" [disabled]="isFormDisabled()" [error]="fieldError('rfc')" />
 
                     <siau-input label="Nombre(s)" placeholder="Se llenará automáticamente" [required]="true"
                         [maxLength]="100" [alphabeticOnly]="true" [value]="form().firstName"
-                        (valueChange)="updateForm('firstName', $event)" [disabled]="isRenapoPersonalDataDisabled()" />
+                        (valueChange)="updateForm('firstName', $event)" [disabled]="isRenapoPersonalDataDisabled()"
+                        [error]="fieldError('firstName')" />
 
                     <siau-input label="Primer Apellido" placeholder="Se llenará automáticamente" [required]="true"
                         [maxLength]="100" [alphabeticOnly]="true" [value]="form().lastName"
-                        (valueChange)="updateForm('lastName', $event)" [disabled]="isRenapoPersonalDataDisabled()" />
+                        (valueChange)="updateForm('lastName', $event)" [disabled]="isRenapoPersonalDataDisabled()"
+                        [error]="fieldError('lastName')" />
 
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100"
                         [alphabeticOnly]="true" [value]="form().secondLastName"
                         (valueChange)="updateForm('secondLastName', $event)"
-                        [disabled]="isRenapoPersonalDataDisabled()" />
+                        [disabled]="isRenapoPersonalDataDisabled()" [error]="fieldError('secondLastName')" />
 
                     <siau-select label="Sexo" placeholder="Seleccione sexo" [required]="true"
                         [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isFormDisabled()" [error]="fieldError('gender')" />
 
                     <siau-select label="Estado civil" placeholder="Selecciona el estado civil (opcional)"
                         [options]="civilStatusOptions()" [value]="form().civilStatus"
                         (valueChange)="updateForm('civilStatus', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Fecha de Nacimiento" type="date" [required]="true"
-                        [max]="maximumBirthDate()" [value]="form().birthDate"
+                        [min]="minimumBirthDate()" [max]="maximumBirthDate()" [value]="form().birthDate"
+                        [clampOnBlur]="true" [error]="fieldError('birthDate')"
+                        hint="Fecha permitida: desde 01/01/1900 hasta cumplir 18 años a la fecha actual."
                         (valueChange)="updateForm('birthDate', $event)" [disabled]="isBirthDateInputDisabled()" />
                 </div>
 
@@ -397,20 +402,25 @@
                         [disabled]="isFormDisabled() || !assignmentAdministrativeUnitEnabled()"
                         (valueChange)="updateAssignmentAdministrativeUnit($event)" />
 
-                    <siau-input label="Cargo" placeholder="Ej. Analista" [value]="form().position"
-                        (valueChange)="updateForm('position', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="Cargo" placeholder="Ej. Analista" [maxLength]="150" [safeTextOnly]="true"
+                        hint="De 2 a 150 caracteres. Letras, números, espacios y signos autorizados."
+                        [value]="form().position" (valueChange)="updateForm('position', $event)"
+                        [disabled]="isFormDisabled()" [error]="fieldError('position')" />
 
-                    <siau-input label="Funciones" placeholder="Descripción de funciones" [value]="form().functions"
-                        (valueChange)="updateForm('functions', $event)" [disabled]="isFormDisabled()" />
+                    <siau-input label="Funciones" placeholder="Descripción de funciones" [maxLength]="500"
+                        [safeTextOnly]="true"
+                        hint="De 5 a 500 caracteres. Letras, números, espacios y signos autorizados."
+                        [value]="form().functions" (valueChange)="updateForm('functions', $event)"
+                        [disabled]="isFormDisabled()" [error]="fieldError('functions')" />
 
                     <siau-input label="Fecha de Ingreso" type="date" [required]="true" [max]="maximumTodayDate()"
-                        [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)" [clampOnBlur]="true"
+                        [disabled]="isFormDisabled()" [error]="fieldError('admissionDate')" />
 
                     <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
                         [employeeNumberOnly]="true" hint="De 3 a 20 caracteres: letras, números, espacios y guion"
                         [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)"
-                        [disabled]="isFormDisabled()" />
+                        [disabled]="isFormDisabled()" [error]="fieldError('employeeNumber')" />
                 </div>
             </section>
             }
@@ -454,9 +464,8 @@
                         <span class="registration-wizard__option-copy">
                             <strong>Agregar comisión</strong>
                             <small>
-                                Activa esta opción únicamente si el usuario tendrá una comisión distinta a su
-                                adscripción.
-                                Si no se activa, la comisión se enviará como null.
+                                Actívala únicamente si el usuario tendrá una comisión distinta a su adscripción.
+                                Si la dejas apagada, el usuario se registra sin comisión.
                             </small>
                         </span>
                     </label>
@@ -624,10 +633,12 @@
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
                         [required]="emailRequired()" [maxLength]="254" [value]="form().email"
+                        [emailOnly]="true" [error]="fieldError('email')"
                         (valueChange)="updateForm('email', $event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
                         [maxLength]="10" [numericOnly]="true" [value]="form().phone"
+                        [error]="fieldError('phone')"
                         (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
 
                 </div>
@@ -897,10 +908,17 @@
                             Comentarios
                         </label>
 
-                        <textarea id="comments" class="registration-wizard__textarea" rows="4"
+                        <textarea id="comments" class="registration-wizard__textarea" rows="4" maxlength="1000"
                             placeholder="Agrega comentarios sobre la cuenta"
                             [value]="form().comment" [disabled]="isFormDisabled() || isSubmitting()"
                             (input)="updateForm('comment', $any($event.target).value)"></textarea>
+                        @if (fieldError('comment'); as commentError) {
+                        <p class="registration-wizard__field-error" role="alert">{{ commentError }}</p>
+                        } @else {
+                        <p class="registration-wizard__field-help">
+                            Opcional. Si capturas un comentario, debe tener de 5 a 1,000 caracteres válidos.
+                        </p>
+                        }
                     </div>
                 </div>
             </section>

@@ -46,6 +46,7 @@ import {
 } from '../../../application/draft-structure.resolver';
 import {
     ActualizarAdminRequest,
+    ActualizarAdminResponse,
     BorradorCatalogos,
     BorradorDatos,
     BorradorGuardarRequest,
@@ -58,6 +59,19 @@ import {
     UserDetailRecord,
     UserRecord,
 } from '../../../domain/models/user-record.model';
+import {
+    MINIMUM_BIRTH_DATE,
+    RESTRICTED_TEXT_LIMITS,
+    getAdultCutoffDate,
+    getAdultCutoffDateInput,
+    getBirthDateError,
+    getRestrictedTextError,
+    isValidContactEmail,
+    sanitizeContactEmailInput,
+    sanitizeRestrictedText,
+} from '../../../../../shared/validation/field-validators';
+
+
 
 type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
@@ -1127,7 +1141,7 @@ export class UserRegistrationWizard {
                 .subscribe({
                     next: (response) => {
                         this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                        this.saveSuccess.set(this.buildSaveSuccessModalState(response));
+                        this.saveSuccess.set(this.buildUpdateSuccessModalState(response));
                     },
                     error: (error: unknown) => {
                         const message = error instanceof Error
@@ -1258,6 +1272,56 @@ export class UserRegistrationWizard {
         }
 
         this.clearFieldError(String(key));
+        this.applyLiveFieldValidation(key, normalizedValue);
+    }
+
+    /**
+     * Los pasos sólo se validaban al presionar "Siguiente", así que el usuario
+     * no sabía qué campo estaba mal. Cargo, Funciones y Fecha de nacimiento se
+     * revisan ahora en cada tecla y el mensaje se pinta bajo el propio campo.
+     */
+    private applyLiveFieldValidation<K extends keyof UserRegistrationForm>(
+        key: K,
+        value: UserRegistrationForm[K],
+    ): void {
+        const text = this.toText(value);
+        let message: string | null = null;
+
+        if (key === 'position' && text) {
+            message = getRestrictedTextError(
+                text,
+                RESTRICTED_TEXT_LIMITS.position.min,
+                RESTRICTED_TEXT_LIMITS.position.max,
+                'El cargo',
+            );
+        } else if (key === 'functions' && text) {
+            message = getRestrictedTextError(
+                text,
+                RESTRICTED_TEXT_LIMITS.functions.min,
+                RESTRICTED_TEXT_LIMITS.functions.max,
+                'Las funciones',
+            );
+        } else if (key === 'comment' && text) {
+            message = getRestrictedTextError(
+                text,
+                RESTRICTED_TEXT_LIMITS.comment.min,
+                RESTRICTED_TEXT_LIMITS.comment.max,
+                'El comentario',
+            );
+        } else if (key === 'birthDate' && text) {
+            // Cubre el caso de escribir el año a mano: el <input type="date">
+            // nativo respeta [min]/[max] sólo desde el calendario.
+            message = getBirthDateError(text);
+        }
+
+        if (!message) {
+            return;
+        }
+
+        this.formErrors.update((current) => ({
+            ...current,
+            [String(key)]: message,
+        }));
     }
 
     protected updateCurp(value: string): void {
@@ -2247,6 +2311,11 @@ export class UserRegistrationWizard {
 
             return next;
         });
+
+        // Si RENAPO devuelve a una persona menor de edad (o una fecha que no se
+        // pudo interpretar) se marca de inmediato en vez de dejar avanzar el
+        // wizard y fallar hasta el guardado.
+        this.applyLiveFieldValidation('birthDate', this.form().birthDate);
     }
 
     private clearRenapoPersonalData(): void {
@@ -2490,6 +2559,41 @@ export class UserRegistrationWizard {
     private resetEcccPersonalLookupState(): void {
         this.ecccPersonalLookupSequence += 1;
         this.curpValidationSummary.set(null);
+    }
+
+    private buildUpdateSuccessModalState(
+        response: ActualizarAdminResponse,
+    ): SaveSuccessModalState {
+        const current = this.form();
+        const fullName = [
+            current.firstName,
+            current.lastName,
+            current.secondLastName,
+        ]
+            .map((value) => this.toText(value))
+            .filter(Boolean)
+            .join(' ');
+
+        return {
+            message:
+                this.toText(response.mensaje)
+                || 'El usuario se actualizó correctamente.',
+            userNumber: this.toText(
+                response.datos?.usuarioId
+                ?? this.user()?.userId
+                ?? this.userDetail()?.userId,
+            ),
+            account: this.toText(this.user()?.username),
+            fullName,
+            system: '',
+            hasAccessEmail: false,
+            accessEmail: this.normalizeEmail(current.email),
+            accessPhone: this.formatPhoneForDisplay(current.phone),
+            emailAccepted: false,
+            emailStatus: '',
+            emailMessage: '',
+            emailReference: '',
+        };
     }
 
     private buildSaveSuccessModalState(
@@ -2781,8 +2885,6 @@ export class UserRegistrationWizard {
                     'Selecciona un perfil válido.',
                 ),
             })),
-
-            nuevaCuenta: null,
 
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
@@ -3528,6 +3630,26 @@ export class UserRegistrationWizard {
 
         if (!textValue) {
             return '';
+        }
+
+        // Algunos orígenes legacy entregan fechas como serial de Excel/OLE
+        // (por ejemplo, 45100 = 2023-06-23). Se convierte antes de intentar
+        // interpretar formatos de texto para evitar mostrar el serial en el input.
+        if (/^\d{4,6}(?:\.\d+)?$/.test(textValue)) {
+            const serial = Number(textValue);
+
+            if (Number.isFinite(serial) && serial >= 1 && serial <= 100000) {
+                const excelEpochUtc = Date.UTC(1899, 11, 30);
+                const date = new Date(excelEpochUtc + Math.floor(serial) * 86_400_000);
+
+                if (!Number.isNaN(date.getTime())) {
+                    const year = date.getUTCFullYear();
+                    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                    const day = String(date.getUTCDate()).padStart(2, '0');
+
+                    return `${year}-${month}-${day}`;
+                }
+            }
         }
 
         const isoMatch = /^(\d{4}-\d{2}-\d{2})/.exec(textValue);
@@ -5466,6 +5588,23 @@ export class UserRegistrationWizard {
             }
         }
 
+        if (stepId === 'account') {
+            const shouldValidateComment = this.shouldValidateEditFields(current, ['comment']);
+
+            if (shouldValidateComment && this.hasText(current.comment)) {
+                const commentError = this.getRestrictedTextValidationError(
+                    current.comment,
+                    5,
+                    1000,
+                    'El comentario',
+                );
+
+                if (commentError) {
+                    nextErrors['comment'] = commentError;
+                }
+            }
+        }
+
         this.formErrors.update((currentErrors) => {
             const cleanErrors = { ...currentErrors };
 
@@ -5510,38 +5649,53 @@ export class UserRegistrationWizard {
             validRfc = hasRfc;
         }
 
-        if (!hasBirthDate) {
-            errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
-        } else if (hasBirthDate && !this.isValidDateInput(current.birthDate)) {
-            errors['birthDate'] = 'La fecha de nacimiento no es válida.';
-        } else if (hasBirthDate && !this.isDateOnOrBeforeToday(current.birthDate)) {
-            errors['birthDate'] = 'La fecha de nacimiento no puede ser posterior a la fecha actual.';
-        } else if (hasBirthDate && !this.isAdult(current.birthDate)) {
-            errors['birthDate'] = 'El usuario debe ser mayor de edad.';
+        const birthDateError = getBirthDateError(current.birthDate);
+
+        if (birthDateError) {
+            errors['birthDate'] = birthDateError;
         }
 
         if (validCurp && validRfc && !this.rfcMatchesCurp(current.rfc, current.curp)) {
-            errors['rfc'] = 'Los primeros 10 caracteres del RFC deben coincidir con la CURP.';
+            errors['rfc'] = 'Los primeros 10 caracteres del RFC deben coincidir con los datos de la CURP.';
         }
 
-        if (validRfc && hasBirthDate && !this.rfcBirthDateMatchesDate(current.rfc, current.birthDate)) {
-            errors['rfc'] = 'La fecha contenida en el RFC debe coincidir con la fecha de nacimiento.';
+        const hasValidBirthDate = hasBirthDate && this.isValidDateInput(current.birthDate);
+        const rfcBirthDateMatches =
+            validRfc &&
+            hasValidBirthDate &&
+            this.rfcBirthDateMatchesDate(current.rfc, current.birthDate);
+
+        if (validRfc && hasValidBirthDate && !rfcBirthDateMatches) {
+            errors['rfc'] = 'La fecha contenida en el RFC debe coincidir con la fecha de nacimiento capturada.';
         }
 
         const curpBirthDate = validCurp ? this.getBirthDateFromCurp(current.curp) : null;
+        const curpBirthDateMatches =
+            Boolean(curpBirthDate) &&
+            hasValidBirthDate &&
+            this.areSameCalendarDates(current.birthDate, curpBirthDate ?? '');
 
-        if (curpBirthDate && !this.isAdult(curpBirthDate)) {
+        if (curpBirthDate && !this.isBirthDateOnOrAfterMinimum(curpBirthDate)) {
+            errors['curp'] = 'La fecha contenida en la CURP no puede ser anterior al 01/01/1900.';
+        } else if (curpBirthDate && !this.isAdult(curpBirthDate)) {
             errors['curp'] =
-                'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de edad.';
+                'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de 18 años.';
         }
 
-        if (
-            curpBirthDate &&
-            hasBirthDate &&
-            !this.areSameCalendarDates(current.birthDate, curpBirthDate)
-        ) {
-            errors['birthDate'] =
-                'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
+        if (hasValidBirthDate) {
+            const curpMismatch = Boolean(curpBirthDate) && !curpBirthDateMatches;
+            const rfcMismatch = validRfc && !rfcBirthDateMatches;
+
+            if (curpMismatch && rfcMismatch) {
+                errors['birthDate'] =
+                    'La fecha de nacimiento debe coincidir con las fechas contenidas en la CURP y el RFC.';
+            } else if (curpMismatch) {
+                errors['birthDate'] =
+                    'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
+            } else if (rfcMismatch) {
+                errors['birthDate'] =
+                    'La fecha de nacimiento debe coincidir con la fecha contenida en el RFC.';
+            }
         }
     }
 
@@ -5609,18 +5763,34 @@ export class UserRegistrationWizard {
     ): void {
         if (
             this.shouldValidateEditFields(current, ['position']) &&
-            this.hasText(current.position) &&
-            !this.isValidTextWithinRange(current.position, 2, 150)
+            this.hasText(current.position)
         ) {
-            errors['position'] = 'El cargo debe tener entre 2 y 150 caracteres válidos.';
+            const positionError = this.getRestrictedTextValidationError(
+                current.position,
+                2,
+                150,
+                'El cargo',
+            );
+
+            if (positionError) {
+                errors['position'] = positionError;
+            }
         }
 
         if (
             this.shouldValidateEditFields(current, ['functions']) &&
-            this.hasText(current.functions) &&
-            !this.isValidTextWithinRange(current.functions, 5, 500)
+            this.hasText(current.functions)
         ) {
-            errors['functions'] = 'Las funciones deben tener entre 5 y 500 caracteres válidos.';
+            const functionsError = this.getRestrictedTextValidationError(
+                current.functions,
+                5,
+                500,
+                'Las funciones',
+            );
+
+            if (functionsError) {
+                errors['functions'] = functionsError;
+            }
         }
 
         if (
@@ -6031,6 +6201,7 @@ export class UserRegistrationWizard {
             account: [
                 'password',
                 'confirmPassword',
+                'comment',
             ],
         };
 
@@ -6076,6 +6247,18 @@ export class UserRegistrationWizard {
             return this.normalizeNameInput(textValue) as UserRegistrationForm[K];
         }
 
+        if (key === 'position') {
+            return this.normalizeRestrictedTextInput(textValue, 150, true) as UserRegistrationForm[K];
+        }
+
+        if (key === 'functions') {
+            return this.normalizeRestrictedTextInput(textValue, 500, true) as UserRegistrationForm[K];
+        }
+
+        if (key === 'comment') {
+            return this.normalizeRestrictedTextInput(textValue, 1000, false) as UserRegistrationForm[K];
+        }
+
         if (this.shouldUppercaseField(key)) {
             return textValue.toUpperCase() as UserRegistrationForm[K];
         }
@@ -6089,7 +6272,10 @@ export class UserRegistrationWizard {
             key === 'admissionDate' ||
             key === 'commissionAdmissionDate'
         ) {
-            return (this.toDateInputValue(textValue) || textValue) as UserRegistrationForm[K];
+            // Sin fallback al texto original: si el origen manda un serial o una
+            // cadena que no se puede interpretar, el campo queda vacío en lugar
+            // de mostrar basura como "45100" y saltarse las validaciones.
+            return this.toDateInputValue(textValue) as UserRegistrationForm[K];
         }
 
         if (key === 'email') {
@@ -6108,8 +6294,6 @@ export class UserRegistrationWizard {
             'firstName',
             'lastName',
             'secondLastName',
-            'position',
-            'functions',
             'employeeNumber',
             'username',
         ].includes(key);
@@ -6278,16 +6462,11 @@ export class UserRegistrationWizard {
     }
 
     private isValidEmail(value: string): boolean {
-        const email = this.normalizeEmail(value);
-
-        return email.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(email);
+        return isValidContactEmail(this.toText(value));
     }
 
     private normalizeEmail(value: unknown): string {
-        return this.toText(value)
-            .normalize('NFKC')
-            .replace(/[\u0000-\u001F\u007F-\u009F\u00A0\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, '')
-            .trim();
+        return sanitizeContactEmailInput(value);
     }
 
     private formatPhoneForDisplay(value: unknown): string {
@@ -6300,8 +6479,17 @@ export class UserRegistrationWizard {
         return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`;
     }
 
+    protected minimumBirthDate(): string {
+        return MINIMUM_BIRTH_DATE;
+    }
+
     protected maximumBirthDate(): string {
-        return this.formatDateInputValue(this.getAdultCutoffDate());
+        return getAdultCutoffDateInput();
+    }
+
+    /** Error vivo del campo, para pintarlo bajo el input mientras se escribe. */
+    protected fieldError(key: string): string | null {
+        return this.formErrors()[key] ?? null;
     }
 
     protected maximumTodayDate(): string {
@@ -6343,14 +6531,31 @@ export class UserRegistrationWizard {
         return admissionDate !== null && commissionDate.getTime() >= admissionDate.getTime();
     }
 
-    private isValidTextWithinRange(value: string, minimum: number, maximum: number): boolean {
-        const text = this.toText(value);
+    private getRestrictedTextValidationError(
+        value: string,
+        minimum: number,
+        maximum: number,
+        label: string,
+    ): string | null {
+        return getRestrictedTextError(this.toText(value), minimum, maximum, label);
+    }
 
-        return (
-            text.length >= minimum &&
-            text.length <= maximum &&
-            /^[A-Z0-9ÁÉÍÓÚÜÑ\s\-.,!#$%&/()=?¿¡+@:;_"]+$/i.test(text)
-        );
+    private normalizeRestrictedTextInput(
+        value: unknown,
+        maximum: number,
+        uppercase: boolean,
+    ): string {
+        return sanitizeRestrictedText(value, maximum, uppercase);
+    }
+
+    private isBirthDateOnOrAfterMinimum(dateValue: string): boolean {
+        const birthDate = this.parseDateInput(dateValue);
+
+        if (!birthDate) {
+            return false;
+        }
+
+        return birthDate.getTime() >= this.getMinimumBirthDate().getTime();
     }
 
     private isAdult(dateValue: string): boolean {
@@ -6363,13 +6568,12 @@ export class UserRegistrationWizard {
         return birthDate.getTime() <= this.getAdultCutoffDate().getTime();
     }
 
+    private getMinimumBirthDate(): Date {
+        return this.parseDateInput(MINIMUM_BIRTH_DATE) as Date;
+    }
+
     private getAdultCutoffDate(): Date {
-        const cutoffDate = new Date();
-
-        cutoffDate.setHours(0, 0, 0, 0);
-        cutoffDate.setFullYear(cutoffDate.getFullYear() - 18);
-
-        return cutoffDate;
+        return getAdultCutoffDate();
     }
 
     private isValidDateInput(value: string): boolean {

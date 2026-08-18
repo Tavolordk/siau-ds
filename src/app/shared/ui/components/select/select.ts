@@ -20,6 +20,7 @@ export class SiauSelect {
   readonly required = input<boolean>(false);
   readonly disabled = input<boolean>(false);
   readonly hint = input<string | null>(null);
+  readonly error = input<string | null>(null);
 
   readonly valueChange = output<string>();
 
