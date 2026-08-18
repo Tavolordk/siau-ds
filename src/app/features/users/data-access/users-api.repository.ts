@@ -514,6 +514,30 @@ export class UsersApiRepository {
             'claveEstatus',
             'statusKey',
         ]);
+        const commissionInstitutionId = this.readPositiveNumber(record, [
+            'institucionComisionId',
+            'comisionInstitucionId',
+        ]);
+        const commissionInstitution = this.readText(record, [
+            'institucionComision',
+            'comisionInstitucion',
+        ]);
+        const commissionInstitutionTypeId = this.readPositiveNumber(record, [
+            'tipoInstitucionComisionId',
+            'comisionTipoInstitucionId',
+        ]);
+        const commissionInstitutionType = this.readText(record, [
+            'tipoInstitucionComision',
+            'comisionTipoInstitucion',
+        ]);
+        const commissionEntityId = this.readPositiveNumber(record, [
+            'entidadComisionId',
+            'comisionEntidadId',
+        ]);
+        const commissionEntity = this.readText(record, [
+            'entidadComision',
+            'comisionEntidad',
+        ]);
 
         return {
             userId,
@@ -521,17 +545,32 @@ export class UsersApiRepository {
                 || `usuario-${userId}`,
             fullName: fullName || composedName || 'Sin nombre',
             email: this.readText(record, ['correoElectronico', 'correo', 'email']) || 'Sin correo',
-            institution: this.readText(record, ['institucion', 'nombreInstitucion']) || 'Sin institución',
-            entity: this.readText(record, ['entidad', 'nombreEntidad']) || 'Sin entidad',
-            commission: this.readText(record, [
+            // El contrato 1.0.8 ya distingue la adscripción de la comisión.
+            // Para las columnas generales se prefiere la adscripción explícita
+            // y se conserva el contrato anterior como fallback.
+            institution: this.readText(record, [
+                'institucionAdscripcion',
+                'institucion',
+                'nombreInstitucion',
+            ]) || 'Sin institución',
+            entity: this.readText(record, [
+                'entidadAdscripcion',
+                'entidad',
+                'nombreEntidad',
+            ]) || 'Sin entidad',
+            commission: commissionInstitution || this.readText(record, [
                 'comision',
                 'comisionUnidadAdministrativa',
                 'unidadAdministrativaComision',
                 'comisionOrganoAdministrativoDesconcentrado',
                 'organoAdministrativoDesconcentradoComision',
-                'comisionInstitucion',
-                'institucionComision',
             ]) || 'Sin comisión',
+            commissionInstitutionId,
+            commissionInstitution: commissionInstitution || 'Sin comisión',
+            commissionInstitutionTypeId,
+            commissionInstitutionType,
+            commissionEntityId,
+            commissionEntity,
             role: this.readText(record, ['rol', 'tipoUsuario', 'perfil', 'role']) || 'Sin rol',
             roleKey: this.readText(record, ['rolClave', 'claveRol', 'tipoUsuarioClave', 'roleKey']),
             status: status || 'Sin estatus',
@@ -1042,6 +1081,23 @@ export class UsersApiRepository {
         const normalized = value.toLowerCase();
 
         return normalized === 'null' || normalized === 'undefined';
+    }
+
+    private readPositiveNumber(
+        record: UnknownRecord | null,
+        keys: readonly string[],
+    ): number | null {
+        if (!record) return null;
+
+        for (const key of keys) {
+            const value = this.toPositiveNumber(record[key]);
+
+            if (value !== null) {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private readNumber(record: UnknownRecord | null, keys: readonly string[], fallback: number): number {

@@ -904,7 +904,15 @@ export class UserRegistrationWizard {
 
             untracked(() => {
                 if (mode === 'edit') {
-                    this.hydrateEditForm(detail?.datos ?? {}, user);
+                    // El modal se abre antes de que termine GET /consultas/usuarios.
+                    // No hidratamos con un detalle vacío ni antes de tener los
+                    // catálogos padre, porque eso deja seleccionados por etiqueta
+                    // pero sin IDs válidos para consultar sus hijos.
+                    if (!catalogosReady || !detail) {
+                        return;
+                    }
+
+                    this.hydrateEditForm(detail.datos, user);
                     return;
                 }
 
@@ -967,6 +975,12 @@ export class UserRegistrationWizard {
         }
 
         this.editEnabled.set(true);
+
+        // Los catálogos ya se precargan al hidratar el detalle. Esta segunda
+        // llamada es idempotente a nivel de estado y funciona como recuperación
+        // si alguna petición de catálogo falló o fue invalidada mientras el
+        // detalle todavía estaba abriendo.
+        this.loadHydratedAssignmentCatalogs(this.form());
     }
 
     protected goToStep(stepId: string): void {
@@ -3075,6 +3089,11 @@ export class UserRegistrationWizard {
     }
 
     private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
+        // Invalida respuestas que pudieran pertenecer al usuario/modal anterior.
+        // Así ningún catálogo tardío puede sobrescribir la jerarquía del detalle
+        // que se está abriendo ahora.
+        this.bumpAssignmentCatalogGeneration();
+        this.bumpCommissionCatalogGeneration();
         this.resetRenapoLookupState();
         this.resetEcccPersonalLookupState();
 
@@ -3102,37 +3121,25 @@ export class UserRegistrationWizard {
                 this.stateOptions,
             );
 
-        const commissionInstitutionTypeId = this.toText(commission['tipoInstitucionId']);
-        const commissionInstitutionTypeLabel = this.toText(commission['tipoInstitucion']);
-        const commissionInstitutionType =
-            commissionInstitutionTypeId || commissionInstitutionTypeLabel;
-
-        if (commissionInstitutionType) {
-            this.institutionTypeOptions.set(this.mergeSelectOptions(
-                [{
-                    value: commissionInstitutionType,
-                    label: commissionInstitutionTypeLabel || commissionInstitutionType,
-                }],
-                this.institutionTypeOptions(),
-            ));
-        }
+        // Comisión debe resolverse exactamente igual que adscripción: primero
+        // por ID y después por etiqueta. El detalle puede publicar estado/entidad
+        // según la versión del servicio; ambos contratos se aceptan.
+        const commissionInstitutionType = this.resolveRecordSelectValue(
+            commission,
+            ['tipoInstitucionId', 'idTipoInstitucion'],
+            ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
+            this.institutionTypeOptions,
+        );
 
         const commissionRequiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
-        const commissionEntityId = this.toText(commission['estadoId']);
-        const commissionEntityLabel = this.toText(commission['estado']);
         const commissionEntity = !commissionRequiresEntity
             ? ''
-            : commissionEntityId || commissionEntityLabel;
-
-        if (commissionEntity) {
-            this.stateOptions.set(this.mergeSelectOptions(
-                [{
-                    value: commissionEntity,
-                    label: commissionEntityLabel || commissionEntity,
-                }],
-                this.stateOptions(),
-            ));
-        }
+            : this.resolveRecordSelectValue(
+                commission,
+                ['estadoId', 'entidadId', 'idEstado', 'idEntidad'],
+                ['estado', 'entidad', 'estadoNombre', 'entidadNombre'],
+                this.stateOptions,
+            );
 
         const hasCommissionData =
             this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||

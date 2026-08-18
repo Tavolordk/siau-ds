@@ -10,7 +10,14 @@ export interface UserRecord {
     readonly email: string;
     readonly institution: string;
     readonly entity: string;
+    /** Comisión resuelta por GET /usuarios/gestion (contrato 1.0.8). */
     readonly commission: string;
+    readonly commissionInstitutionId: number | null;
+    readonly commissionInstitution: string;
+    readonly commissionInstitutionTypeId: number | null;
+    readonly commissionInstitutionType: string;
+    readonly commissionEntityId: number | null;
+    readonly commissionEntity: string;
     readonly role: UserRole;
     readonly roleKey: string;
     readonly status: UserStatus;
