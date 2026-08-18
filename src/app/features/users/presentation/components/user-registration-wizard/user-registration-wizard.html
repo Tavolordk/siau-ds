@@ -659,7 +659,7 @@
 
                     <div class="registration-wizard__section-meta">
                         <span class="registration-wizard__required-pill">
-                            {{ !isEditMode() ? 'Opcional' : 'Campos obligatorios' }}
+                            Opcional
                         </span>
                         <span class="registration-wizard__section-count">
                             {{ activeStepNumber() }} / {{ stepOrder().length }}
@@ -714,7 +714,6 @@
                 <div class="registration-wizard__profiles-panel">
                     <div class="registration-wizard__profiles-field-title">
                         Sistemas y perfiles asignados
-                        @if (isEditMode()) { <span>*</span> }
                     </div>
 
                     <p class="registration-wizard__profiles-field-help">
@@ -765,14 +764,13 @@
                         <div class="registration-wizard__profiles-add-grid">
                             <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
                                 [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
-                                [hint]="structureProfileHint()" [required]="isEditMode()"
+                                [hint]="structureProfileHint()"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles()" />
 
                             @if (shouldShowRoleSelect()) {
                             <siau-select label="Perfil / Rol" placeholder="Seleccione rol"
                                 [options]="availableRoleOptions()" [value]="selectedRole()"
                                 (valueChange)="updateSelectedRole($event)"
-                                [required]="isEditMode()"
                                 [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem() || isSelectedSiauProfileBlocked()" />
                             }
 

@@ -2823,12 +2823,6 @@ export class UserRegistrationWizard {
             );
         }
 
-        if (assignedProfiles.length === 0) {
-            throw new Error(
-                'Selecciona al menos un sistema y perfil.',
-            );
-        }
-
         return {
             usuarioId: userId,
 
@@ -2891,14 +2885,19 @@ export class UserRegistrationWizard {
 
             contacto: this.buildContactRequest(),
 
-            perfiles: assignedProfiles.map((profile) => ({
-                idSistema: this.resolveAssignedSystemId(profile),
+            perfiles: assignedProfiles.length > 0
+                ? assignedProfiles.map((profile) => ({
+                    idSistema: this.resolveAssignedSystemId(profile),
 
-                idPerfil: this.requireCatalogId(
-                    profile.role,
-                    'Selecciona un perfil válido.',
-                ),
-            })),
+                    idPerfil: this.requireCatalogId(
+                        profile.role,
+                        'Selecciona un perfil válido.',
+                    ),
+                }))
+                : [{
+                    idSistema: DEFAULT_NORMAL_SYSTEM_ID,
+                    idPerfil: DEFAULT_NORMAL_PROFILE_ID,
+                }],
 
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
@@ -5577,14 +5576,6 @@ export class UserRegistrationWizard {
         }
 
         if (stepId === 'profiles') {
-            if (
-                this.isEditMode() &&
-                this.shouldValidateAssignedProfiles() &&
-                this.assignedSystemProfiles().length === 0
-            ) {
-                nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
-            }
-
             if (
                 this.shouldValidateAssignedProfiles() &&
                 this.assignedSystemProfiles().length > 0 &&
