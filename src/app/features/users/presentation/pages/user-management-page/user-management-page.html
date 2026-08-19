@@ -290,7 +290,6 @@
                             <th>Correo electrónico</th>
                             <th>Institución</th>
                             <th>Entidad</th>
-                            <th>Comisión</th>
                             @if (isAdminUser()) {
                             <th class="users-table__center">Acciones</th>
                             }
@@ -300,7 +299,7 @@
                     <tbody>
                         @if (isLoading()) {
                         <tr class="users-table__state-row">
-                            <td [attr.colspan]="isAdminUser() ? 8 : 7">
+                            <td [attr.colspan]="isAdminUser() ? 7 : 6">
                                 <div class="users-table__state">
                                     <span class="users-table__loader" aria-hidden="true"></span>
                                     <strong>Consultando usuarios...</strong>
@@ -310,7 +309,7 @@
                         </tr>
                         } @else if (!filteredUsers().length) {
                         <tr class="users-table__state-row">
-                            <td [attr.colspan]="isAdminUser() ? 8 : 7">
+                            <td [attr.colspan]="isAdminUser() ? 7 : 6">
                                 <div class="users-table__state">
                                     <siau-lucide-icon name="users" size="24" strokeWidth="2" aria-hidden="true" />
                                     <strong>No hay usuarios para mostrar</strong>
@@ -356,10 +355,6 @@
 
                             <td data-label="Entidad">
                                 <span>{{ user.entity }}</span>
-                            </td>
-
-                            <td data-label="Comisión">
-                                <span>{{ user.commission }}</span>
                             </td>
 
                             @if (isAdminUser()) {

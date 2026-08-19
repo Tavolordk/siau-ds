@@ -402,42 +402,37 @@
 
 .users-table th:nth-child(1),
 .users-table td:nth-child(1) {
-  width: 11.5%;
+  width: 12.5%;
 }
 
 .users-table th:nth-child(2),
 .users-table td:nth-child(2) {
-  width: 17%;
+  width: 18.5%;
 }
 
 .users-table th:nth-child(3),
 .users-table td:nth-child(3) {
-  width: 9.5%;
+  width: 10.5%;
 }
 
 .users-table th:nth-child(4),
 .users-table td:nth-child(4) {
-  width: 18%;
+  width: 19.5%;
 }
 
 .users-table th:nth-child(5),
 .users-table td:nth-child(5) {
-  width: 15.5%;
+  width: 17%;
 }
 
 .users-table th:nth-child(6),
 .users-table td:nth-child(6) {
-  width: 9.5%;
+  width: 10.5%;
 }
 
 .users-table th:nth-child(7),
 .users-table td:nth-child(7) {
-  width: 8.5%;
-}
-
-.users-table th:nth-child(8),
-.users-table td:nth-child(8) {
-  width: 10.5%;
+  width: 11.5%;
 }
 
 .users-table thead tr {
@@ -479,7 +474,7 @@
   white-space: nowrap;
 }
 
-.users-table td:nth-child(8) {
+.users-table td:nth-child(7) {
   white-space: nowrap;
   overflow: visible;
 }
