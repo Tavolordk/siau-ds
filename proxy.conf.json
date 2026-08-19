@@ -54,7 +54,7 @@
         }
     },
     "/correo-api": {
-        "target": "http://10.237.3.44:3208/",
+        "target": "https://desarrollo.sspcpm.gob.mx",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",

@@ -1601,6 +1601,23 @@ export class UserRegistrationWizard {
             }));
             this.clearFieldError('curp');
             this.clearFieldError('rfc');
+            this.clearFieldError('birthDate');
+
+            // Edición debe validar la nueva CURP contra RENAPO igual que creación.
+            // Sólo se consulta cuando la CURP está completa y tiene formato válido.
+            if (curp.length !== 18) {
+                return;
+            }
+
+            if (!this.isValidCurp(curp)) {
+                this.formErrors.update((current) => ({
+                    ...current,
+                    curp: 'La CURP no tiene un formato válido.',
+                }));
+                return;
+            }
+
+            this.consultRenapo(curp);
             return;
         }
 
@@ -1750,6 +1767,16 @@ export class UserRegistrationWizard {
             this.commissionInstitutionOptions.set([]);
             this.commissionDecentralizedBodyOptions.set([]);
             this.commissionAdministrativeUnitOptions.set([]);
+
+            if (this.isEditMode() && commissionChanged) {
+                // Si durante edición se eligió comisión y después se retira,
+                // adscripción debe quedar habilitada nuevamente. El origen se
+                // libera para que la siguiente modificación pueda fijar
+                // adscripción como el único alcance editable de la operación.
+                this.editStructureScope.set(null);
+                this.selectedProfileOrigin.set('adscripcion');
+                this.resetStructureProfileCatalog();
+            }
         }
 
         this.formErrors.update((current) => {
