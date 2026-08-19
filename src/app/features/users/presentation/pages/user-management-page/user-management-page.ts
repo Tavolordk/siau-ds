@@ -9,8 +9,6 @@ import {
     CONTACT_EMAIL_MAX_LENGTH,
     RESTRICTED_TEXT_LIMITS,
     getContactEmailError,
-    getRestrictedTextError,
-    sanitizeRestrictedText,
 } from '../../../../../shared/validation/field-validators';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
@@ -2406,20 +2404,28 @@ export class UserManagementPage {
     }
 
     private validateOperationComment(value: string): string | null {
-        if (!value.trim()) {
+        const text = String(value ?? '').trim();
+        const { min, max } = RESTRICTED_TEXT_LIMITS.comment;
+
+        if (!text) {
             return 'El comentario es obligatorio.';
         }
 
-        return getRestrictedTextError(
-            value,
-            RESTRICTED_TEXT_LIMITS.comment.min,
-            RESTRICTED_TEXT_LIMITS.comment.max,
-            'El comentario',
-        );
+        if (text.length < min) {
+            return `El comentario debe tener al menos ${min} caracteres (llevas ${text.length}).`;
+        }
+
+        if (text.length > max) {
+            return `El comentario no puede exceder ${max} caracteres (llevas ${text.length}).`;
+        }
+
+        return null;
     }
 
     private normalizeOperationCommentInput(value: unknown): string {
-        return sanitizeRestrictedText(value, RESTRICTED_TEXT_LIMITS.comment.max, true);
+        // Los comentarios de operaciones aceptan cualquier carácter.
+        // Sólo se limita la longitud; no se eliminan acentos, ñ, emojis ni símbolos.
+        return String(value ?? '').slice(0, RESTRICTED_TEXT_LIMITS.comment.max);
     }
 
     private toOptionalText(value: unknown): string | undefined {

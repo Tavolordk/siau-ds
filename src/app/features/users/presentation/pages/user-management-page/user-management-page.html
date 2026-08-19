@@ -517,12 +517,12 @@
                 Comentario de baja <span>*</span>
             </label>
 
-            <textarea id="baja-comment" rows="5" maxlength="1000" class="user-action-modal__textarea"
+            <textarea id="baja-comment" rows="5" minlength="5" maxlength="1000" class="user-action-modal__textarea"
                 placeholder="ESCRIBE EL MOTIVO DE LA BAJA" [value]="bajaComment()" [disabled]="isBajaSubmitting()"
                 (input)="updateBajaComment($any($event.target).value)"></textarea>
 
             <small>
-                De 5 a 1,000 caracteres. Se permiten letras A-Z, números, espacios y signos autorizados.
+                De 5 a 1,000 caracteres. Se acepta cualquier carácter.
             </small>
         </div>
 
@@ -577,12 +577,12 @@
                 Comentario <span>*</span>
             </label>
 
-            <textarea id="status-comment" rows="5" maxlength="1000" class="user-action-modal__textarea"
+            <textarea id="status-comment" rows="5" minlength="5" maxlength="1000" class="user-action-modal__textarea"
                 [placeholder]="getStatusCommentPlaceholder()" [value]="statusComment()"
                 [disabled]="isStatusSubmitting()" (input)="updateStatusComment($any($event.target).value)"></textarea>
 
             <small>
-                De 5 a 1,000 caracteres. El comentario se enviará en mayúsculas.
+                De 5 a 1,000 caracteres. Se acepta cualquier carácter.
             </small>
         </div>
         } @else {
