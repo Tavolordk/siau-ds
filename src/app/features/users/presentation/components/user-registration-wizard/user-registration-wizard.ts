@@ -40,11 +40,17 @@ import {
 } from '../../../data-access/eccc-personal-api.repository';
 import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
+    buildUserStructureUpdateEmailRequest,
+    UserStructureEmailChange,
+    UserStructureEmailProfile,
+} from '../../../application/user-structure-update-email.template';
+import {
     DraftStructureHierarchies,
     DraftStructureResolver,
     ResolvedDraftStructureHierarchy,
 } from '../../../application/draft-structure.resolver';
 import {
+    ActualizarAdminPerfil,
     ActualizarAdminRequest,
     ActualizarAdminResponse,
     BorradorCatalogos,
@@ -169,6 +175,13 @@ interface AssignedSystemProfile {
 interface ProfileResetNotice {
     readonly origin: ProfileOrigin;
     readonly message: string;
+}
+
+interface StructureEmailSnapshot {
+    readonly adscriptionSignature: string;
+    readonly adscriptionDescription: string;
+    readonly commissionSignature: string;
+    readonly commissionDescription: string;
 }
 
 interface SystemProfileFallbackOption extends SiauSelectOption {
@@ -344,6 +357,7 @@ export class UserRegistrationWizard {
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
     private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
+    private initialStructureEmailSnapshot: StructureEmailSnapshot | null = null;
     private readonly catalogosReady = signal<boolean>(false);
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
@@ -374,6 +388,13 @@ export class UserRegistrationWizard {
     protected readonly assignmentProfileCarouselIndex = signal<number>(0);
     protected readonly commissionProfileCarouselIndex = signal<number>(0);
     protected readonly profileResetNotice = signal<ProfileResetNotice | null>(null);
+    /**
+     * Verdadero cuando el detalle ("ver información") ya traía al menos un
+     * perfil SIAU. El bloqueo es histórico: aunque el usuario elimine de la
+     * lista los perfiles SIAU que venían del detalle, el registro en base ya
+     * existe y no se permite agregar otro perfil SIAU en esta actualización.
+     */
+    protected readonly hadInitialSiauProfile = signal<boolean>(false);
     /** En actualización sólo se permite modificar un origen por operación. */
     protected readonly editStructureScope = signal<ProfileOrigin | null>(null);
     protected readonly detailRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
@@ -615,10 +636,33 @@ export class UserRegistrationWizard {
         ),
     );
 
+    /**
+     * Bloqueo real para agregar SIAU. Además del perfil que esté en la lista,
+     * contempla los perfiles SIAU que ya existían en el detalle del usuario:
+     * eliminarlos de la pantalla no borra el registro previo, así que tampoco
+     * habilita dar de alta uno nuevo.
+     */
+    protected readonly isSiauProfileLocked = computed(
+        () => this.hadInitialSiauProfile() || this.hasAssignedSiauProfile(),
+    );
+
+    /** Mensaje del aviso de SIAU, según el motivo del bloqueo. */
+    protected readonly siauProfileLockMessage = computed(() => {
+        if (this.hasAssignedSiauProfile()) {
+            return 'El usuario ya tiene un perfil SIAU asignado. No se permite más de un perfil SIAU, sin importar si proviene de adscripción o comisión.';
+        }
+
+        if (this.hadInitialSiauProfile()) {
+            return 'El usuario ya cuenta con un registro previo de perfil SIAU. Aunque lo elimines de esta lista, no es posible agregar un nuevo perfil SIAU.';
+        }
+
+        return '';
+    });
+
     protected readonly isSelectedSiauProfileBlocked = computed(() => {
         const system = this.selectedSystem();
 
-        return Boolean(system) && this.isSiauSystem(system) && this.hasAssignedSiauProfile();
+        return Boolean(system) && this.isSiauSystem(system) && this.isSiauProfileLocked();
     });
 
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
@@ -1374,6 +1418,18 @@ export class UserRegistrationWizard {
             this.isSubmitting.set(true);
             this.usersFacade.updateAdminUser(updateRequest)
                 .pipe(
+                    switchMap((response) =>
+                        this.sendStructureUpdateNotificationEmail().pipe(
+                            catchError((error: unknown) => {
+                                console.warn(
+                                    'El usuario se actualizó, pero no fue posible enviar el correo de cambio de adscripción/comisión.',
+                                    error,
+                                );
+                                return of(null);
+                            }),
+                            map(() => response),
+                        ),
+                    ),
                     takeUntilDestroyed(this.destroyRef),
                     finalize(() => this.isSubmitting.set(false)),
                 )
@@ -2309,11 +2365,12 @@ export class UserRegistrationWizard {
 
         const isSiau = this.isSiauSystem(system, systemOption.label);
 
-        if (isSiau && this.hasAssignedSiauProfile()) {
+        if (isSiau && this.isSiauProfileLocked()) {
             this.formErrors.update((current) => ({
                 ...current,
-                profiles:
-                    'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.',
+                profiles: this.hasAssignedSiauProfile()
+                    ? 'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.'
+                    : 'El usuario ya tiene un registro previo con perfil SIAU. No es posible agregar otro perfil de SIAU.',
             }));
             return;
         }
@@ -3007,6 +3064,184 @@ export class UserRegistrationWizard {
         };
     }
 
+    private sendStructureUpdateNotificationEmail(): Observable<CorreoDeliveryResult | null> {
+        const initial = this.initialStructureEmailSnapshot;
+
+        if (!initial) {
+            return of(null);
+        }
+
+        const currentForm = this.form();
+        const current = this.toStructureEmailSnapshot(currentForm);
+        const changes: UserStructureEmailChange[] = [];
+        const changedOrigins: ProfileOrigin[] = [];
+
+        if (initial.adscriptionSignature !== current.adscriptionSignature) {
+            changes.push({
+                type: 'adscripcion',
+                previousValue: initial.adscriptionDescription,
+                newValue: current.adscriptionDescription,
+            });
+            changedOrigins.push('adscripcion');
+        }
+
+        if (initial.commissionSignature !== current.commissionSignature) {
+            changes.push({
+                type: 'comision',
+                previousValue: initial.commissionDescription,
+                newValue: current.commissionDescription,
+            });
+            changedOrigins.push('comision');
+        }
+
+        if (changes.length === 0) {
+            return of(null);
+        }
+
+        const recipient = this.normalizeEmail(currentForm.email);
+
+        if (!this.isValidEmail(recipient)) {
+            console.warn(
+                'El usuario se actualizó, pero no tiene un correo válido para notificar el cambio de adscripción/comisión.',
+            );
+            return of(null);
+        }
+
+        const changedOriginSet = new Set<ProfileOrigin>(changedOrigins);
+        const initialProfileKeys = new Set(
+            this.initialAssignedProfiles.map((profile) => this.buildAssignedProfileKey(profile)),
+        );
+        const addedProfiles: UserStructureEmailProfile[] = this.assignedSystemProfiles()
+            .filter((profile) => changedOriginSet.has(profile.origin))
+            // El correo sólo debe informar perfiles realmente agregados en esta actualización.
+            // Los perfiles que el usuario ya tenía antes de editar no se vuelven a notificar.
+            .filter((profile) => !initialProfileKeys.has(this.buildAssignedProfileKey(profile)))
+            .map((profile) => ({
+                origin: profile.origin,
+                system: this.toText(profile.systemLabel) || this.resolveSystemLabel(profile.system) || profile.system,
+                profile: this.toText(profile.roleLabel)
+                    || this.resolveRoleLabel(profile.system, profile.role, profile.systemLabel, profile.roleDescription)
+                    || profile.role,
+            }));
+
+        const fullName = [
+            currentForm.firstName,
+            currentForm.lastName,
+            currentForm.secondLastName,
+        ]
+            .map((value) => this.toText(value))
+            .filter(Boolean)
+            .join(' ');
+
+        return this.correoFacade.send(
+            buildUserStructureUpdateEmailRequest({
+                recipient,
+                fullName,
+                account: this.toText(this.user()?.username) || this.toText(currentForm.username),
+                changes,
+                addedProfiles,
+            }),
+        );
+    }
+
+    private toStructureEmailSnapshot(form: UserRegistrationForm): StructureEmailSnapshot {
+        return {
+            adscriptionSignature: this.buildStructureEmailSignature(form, 'adscripcion'),
+            adscriptionDescription: this.buildStructureEmailDescription(form, 'adscripcion'),
+            commissionSignature: this.buildStructureEmailSignature(form, 'comision'),
+            commissionDescription: this.buildStructureEmailDescription(form, 'comision'),
+        };
+    }
+
+    private buildStructureEmailSignature(
+        form: UserRegistrationForm,
+        origin: ProfileOrigin,
+    ): string {
+        if (origin === 'comision' && !form.commissionEnabled) {
+            return 'SIN_COMISION';
+        }
+
+        const values = origin === 'comision'
+            ? [
+                form.commissionInstitutionType,
+                form.commissionEntity,
+                form.commissionMunicipality,
+                form.commissionInstitution,
+                form.commissionDecentralizedBody,
+                form.commissionAdministrativeUnit,
+            ]
+            : [
+                form.institutionType,
+                form.entity,
+                form.municipality,
+                form.institution,
+                form.decentralizedBody,
+                form.administrativeUnit,
+            ];
+
+        return values
+            .map((value) => this.toText(value))
+            .join('|');
+    }
+
+    private buildStructureEmailDescription(
+        form: UserRegistrationForm,
+        origin: ProfileOrigin,
+    ): string {
+        if (origin === 'comision' && !form.commissionEnabled) {
+            return 'Sin comisión';
+        }
+
+        const fields = origin === 'comision'
+            ? [
+                ['Tipo', form.commissionInstitutionType, this.institutionTypeOptions()] as const,
+                ['Entidad', form.commissionEntity, this.stateOptions()] as const,
+                ['Municipio', form.commissionMunicipality, this.commissionMunicipalityOptions()] as const,
+                ['Institución', form.commissionInstitution, this.commissionInstitutionOptions()] as const,
+                ['Órgano', form.commissionDecentralizedBody, this.commissionDecentralizedBodyOptions()] as const,
+                ['Unidad administrativa', form.commissionAdministrativeUnit, this.commissionAdministrativeUnitOptions()] as const,
+            ]
+            : [
+                ['Tipo', form.institutionType, this.institutionTypeOptions()] as const,
+                ['Entidad', form.entity, this.stateOptions()] as const,
+                ['Municipio', form.municipality, this.municipalityOptions()] as const,
+                ['Institución', form.institution, this.institutionOptions()] as const,
+                ['Órgano', form.decentralizedBody, this.decentralizedBodyOptions()] as const,
+                ['Unidad administrativa', form.administrativeUnit, this.administrativeUnitOptions()] as const,
+            ];
+
+        const description = fields
+            .map(([label, value, options]) => {
+                const resolved = this.resolveStructureEmailOptionLabel(value, options);
+                return resolved ? `${label}: ${resolved}` : '';
+            })
+            .filter(Boolean)
+            .join(' · ');
+
+        return description || (origin === 'comision' ? 'Comisión sin detalle' : 'Adscripción sin detalle');
+    }
+
+    private resolveStructureEmailOptionLabel(
+        value: string | null | undefined,
+        options: readonly SiauSelectOption[],
+    ): string {
+        const cleanValue = this.toText(value);
+
+        if (!cleanValue || cleanValue === NO_APLICA_VALUE || cleanValue === CLEAR_SELECTION_VALUE) {
+            return '';
+        }
+
+        const normalized = this.normalizeText(cleanValue);
+        const option = options.find(
+            (item) =>
+                item.value === cleanValue
+                || this.normalizeText(item.value) === normalized
+                || this.normalizeText(item.label) === normalized,
+        );
+
+        return this.toText(option?.label) || cleanValue;
+    }
+
     private sendAccessCredentialsEmail(
         response: RegistroAdminResponse,
         temporaryPassword: string,
@@ -3189,7 +3424,6 @@ export class UserRegistrationWizard {
             this.userDetail()?.userId;
 
         const current = this.form();
-        const assignedProfiles = this.assignedSystemProfiles();
 
         if (!userId || userId <= 0) {
             throw new Error(
@@ -3259,25 +3493,65 @@ export class UserRegistrationWizard {
 
             contacto: this.buildContactRequest(),
 
-            perfiles: assignedProfiles.length > 0
-                ? assignedProfiles.map((profile) => ({
-                    idSistema: this.resolveAssignedSystemId(profile),
-
-                    idPerfil: this.requireCatalogId(
-                        profile.role,
-                        'Selecciona un perfil válido.',
-                    ),
-                }))
-                : [{
-                    idSistema: DEFAULT_NORMAL_SYSTEM_ID,
-                    idPerfil: DEFAULT_NORMAL_PROFILE_ID,
-                }],
+            // Sólo viajan los perfiles agregados durante esta edición. Los que
+            // el usuario ya tenía en el detalle no se reenvían aunque cambie la
+            // adscripción o la comisión, para no duplicarlos en base.
+            perfiles: this.buildNewAssignedProfilesRequest(),
 
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
                 correlationId: 'SIAU-FRONT',
             },
         };
+    }
+
+    /**
+     * Perfiles que se agregaron en esta edición, es decir, los que no venían en
+     * el detalle del usuario. Se compara por origen + sistema + perfil con la
+     * misma llave que usa el correo de cambio de estructura.
+     */
+    private getNewlyAssignedProfiles(): readonly AssignedSystemProfile[] {
+        // Se compara por `id` y no por sistema/perfil: si el usuario elimina un
+        // perfil por el cambio de estructura y vuelve a elegir el mismo, sigue
+        // siendo un alta nueva sobre la adscripción/comisión actual.
+        const initialIds = new Set(
+            this.initialAssignedProfiles.map((profile) => profile.id),
+        );
+
+        return this.assignedSystemProfiles().filter(
+            (profile) => !initialIds.has(profile.id),
+        );
+    }
+
+    /**
+     * `perfiles` del PATCH `actualizar_admin`. Devuelve `null` cuando no hay
+     * altas nuevas para que el backend no vuelva a insertar lo que ya existe.
+     * El perfil NORMAL por defecto sólo se manda si el usuario se quedaría
+     * literalmente sin ningún perfil.
+     */
+    private buildNewAssignedProfilesRequest(): readonly ActualizarAdminPerfil[] | null {
+        const newProfiles = this.getNewlyAssignedProfiles();
+
+        if (newProfiles.length > 0) {
+            return newProfiles.map((profile) => ({
+                idSistema: this.resolveAssignedSystemId(profile),
+                idPerfil: this.requireCatalogId(
+                    profile.role,
+                    'Selecciona un perfil válido.',
+                ),
+            }));
+        }
+
+        const hasAnyProfile =
+            this.assignedSystemProfiles().length > 0 ||
+            this.initialAssignedProfiles.length > 0;
+
+        return hasAnyProfile
+            ? null
+            : [{
+                idSistema: DEFAULT_NORMAL_SYSTEM_ID,
+                idPerfil: DEFAULT_NORMAL_PROFILE_ID,
+            }];
     }
 
     private resolveAccountStatusId(status: AccountStatus): number {
@@ -3634,6 +3908,7 @@ export class UserRegistrationWizard {
         this.form.set(nextForm);
         this.initialIdentitySnapshot = this.toIdentitySnapshot(nextForm);
         this.initialEditFormSnapshot = this.toEditFormSnapshot(nextForm);
+        this.initialStructureEmailSnapshot = this.toStructureEmailSnapshot(nextForm);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
@@ -3644,6 +3919,13 @@ export class UserRegistrationWizard {
         this.profileResetNotice.set(null);
         this.editStructureScope.set(null);
         this.initialAssignedProfiles = [...assignedProfiles];
+        // Se congela aquí porque el detalle es la única fuente que confirma que
+        // el usuario YA tiene registros SIAU en base de datos.
+        this.hadInitialSiauProfile.set(
+            assignedProfiles.some((profile) =>
+                this.isSiauSystem(profile.system, profile.systemLabel),
+            ),
+        );
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
         this.loadHydratedAssignmentCatalogs(nextForm);
     }
@@ -4871,6 +5153,8 @@ export class UserRegistrationWizard {
         this.initialIdentitySnapshot = null;
         this.initialEditFormSnapshot = null;
         this.initialAssignedProfiles = [];
+        this.hadInitialSiauProfile.set(false);
+        this.initialStructureEmailSnapshot = null;
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
         this.editEnabled.set(true);
@@ -6566,9 +6850,15 @@ export class UserRegistrationWizard {
         profiles: readonly AssignedSystemProfile[],
     ): string {
         return profiles
-            .map((profile) => `${profile.origin}|${profile.system}|${profile.role}`)
+            .map((profile) => this.buildAssignedProfileKey(profile))
             .sort()
             .join('||');
+    }
+
+    private buildAssignedProfileKey(profile: AssignedSystemProfile): string {
+        return [profile.origin, profile.system, profile.role]
+            .map((value) => this.toText(value).trim().toUpperCase())
+            .join('|');
     }
 
     private validateChangedIdentityFields(): boolean {

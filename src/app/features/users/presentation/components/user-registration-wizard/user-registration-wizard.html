@@ -172,15 +172,17 @@
 
             @if (!isEditMode()) {
             @if (isDraftLoading() || draftMessage() || draftError() || hasBackendDraft()) {
-            <section class="registration-wizard__draft-bar"
-                [class.registration-wizard__draft-bar--error]="draftError()" aria-live="polite">
+            <section class="registration-wizard__draft-bar" [class.registration-wizard__draft-bar--error]="draftError()"
+                aria-live="polite">
                 <div class="registration-wizard__draft-bar-icon">
-                    <siau-lucide-icon [name]="draftError() ? 'triangle-alert' : (isDraftLoading() || isDraftSaving() ? 'loader-circle' : 'save')"
+                    <siau-lucide-icon
+                        [name]="draftError() ? 'triangle-alert' : (isDraftLoading() || isDraftSaving() ? 'loader-circle' : 'save')"
                         size="16" strokeWidth="2" aria-hidden="true" />
                 </div>
                 <div class="registration-wizard__draft-bar-copy">
                     <strong>{{ draftError() ? 'Aviso del borrador' : 'Guardado automático' }}</strong>
-                    <span>{{ draftError() || draftMessage() || 'Tu avance se guarda al continuar a la siguiente sección.' }}</span>
+                    <span>{{ draftError() || draftMessage() || 'Tu avance se guarda al continuar a la siguiente
+                        sección.' }}</span>
                 </div>
                 @if (hasBackendDraft()) {
                 <button type="button" class="registration-wizard__draft-delete"
@@ -284,9 +286,8 @@
                         [error]="fieldError('cuip')" />
 
                     <div class="registration-wizard__curp-field">
-                        <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3"
-                            [required]="true" [maxLength]="18" [alphanumericOnly]="true"
-                            [value]="form().curp" (valueChange)="updateCurp($event)"
+                        <siau-input label="CURP" placeholder="Ej. UPL010923HOCZRSA3" [required]="true" [maxLength]="18"
+                            [alphanumericOnly]="true" [value]="form().curp" (valueChange)="updateCurp($event)"
                             [disabled]="isCurpInputDisabled()" [error]="fieldError('curp')" />
 
                         @if (showCurpUnlock()) {
@@ -322,8 +323,8 @@
 
                     <siau-input label="Segundo Apellido" placeholder="Opcional" [maxLength]="100"
                         [alphabeticOnly]="true" [value]="form().secondLastName"
-                        (valueChange)="updateForm('secondLastName', $event)"
-                        [disabled]="isRenapoPersonalDataDisabled()" [error]="fieldError('secondLastName')" />
+                        (valueChange)="updateForm('secondLastName', $event)" [disabled]="isRenapoPersonalDataDisabled()"
+                        [error]="fieldError('secondLastName')" />
 
                     <siau-select label="Sexo" placeholder="Seleccione sexo" [required]="true"
                         [options]="genderOptions()" [value]="form().gender" (valueChange)="updateForm('gender', $event)"
@@ -333,9 +334,9 @@
                         [options]="civilStatusOptions()" [value]="form().civilStatus"
                         (valueChange)="updateForm('civilStatus', $event)" [disabled]="isFormDisabled()" />
 
-                    <siau-input label="Fecha de Nacimiento" type="date" [required]="true"
-                        [min]="minimumBirthDate()" [max]="maximumBirthDate()" [value]="form().birthDate"
-                        [clampOnBlur]="true" [error]="fieldError('birthDate')"
+                    <siau-input label="Fecha de Nacimiento" type="date" [required]="true" [min]="minimumBirthDate()"
+                        [max]="maximumBirthDate()" [value]="form().birthDate" [clampOnBlur]="true"
+                        [error]="fieldError('birthDate')"
                         hint="Fecha permitida: desde 01/01/1900 hasta cumplir 18 años a la fecha actual."
                         (valueChange)="updateForm('birthDate', $event)" [disabled]="isBirthDateInputDisabled()" />
                 </div>
@@ -372,7 +373,8 @@
                 @if (assignmentEditLocked()) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact" role="status">
                     <siau-lucide-icon name="lock" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>La adscripción está en modo sólo lectura porque esta actualización ya está modificando la comisión.</span>
+                    <span>La adscripción está en modo sólo lectura porque esta actualización ya está modificando la
+                        comisión.</span>
                 </div>
                 }
 
@@ -382,30 +384,32 @@
                     <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>
                         Si modificas la adscripción, se eliminará la comisión existente junto con sus perfiles y no
-                        podrás agregar una nueva comisión durante esta actualización. Los perfiles de adscripción también
+                        podrás agregar una nueva comisión durante esta actualización. Los perfiles de adscripción
+                        también
                         se limpiarán cuando cambie su estructura y se recargará su catálogo.
                     </span>
                 </div>
                 }
 
                 @if (profileResetNotice(); as notice) {
-                    @if (notice.origin === 'adscripcion') {
-                    <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
-                        role="status">
-                        <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                        <span>{{ notice.message }}</span>
-                        <button type="button" class="registration-wizard__info-box-close"
-                            (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
-                            <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
-                        </button>
-                    </div>
-                    }
+                @if (notice.origin === 'adscripcion') {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ notice.message }}</span>
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
                 }
 
                 <div class="registration-wizard__grid registration-wizard__grid--assignment">
                     <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().institutionType"
-                        (valueChange)="updateAssignmentInstitutionType($event)" [disabled]="isFormDisabled() || assignmentEditLocked()" />
+                        (valueChange)="updateAssignmentInstitutionType($event)"
+                        [disabled]="isFormDisabled() || assignmentEditLocked()" />
 
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="assignmentRequiresEntity()" [options]="stateOptions()" [value]="form().entity"
@@ -447,13 +451,15 @@
                         [disabled]="isFormDisabled() || assignmentEditLocked()" [error]="fieldError('functions')" />
 
                     <siau-input label="Fecha de Ingreso" type="date" [required]="true" [max]="maximumTodayDate()"
-                        [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)" [clampOnBlur]="true"
-                        [disabled]="isFormDisabled() || assignmentEditLocked()" [error]="fieldError('admissionDate')" />
+                        [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)"
+                        [clampOnBlur]="true" [disabled]="isFormDisabled() || assignmentEditLocked()"
+                        [error]="fieldError('admissionDate')" />
 
                     <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
                         [employeeNumberOnly]="true" hint="De 3 a 20 caracteres: letras, números, espacios y guion"
                         [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)"
-                        [disabled]="isFormDisabled() || assignmentEditLocked()" [error]="fieldError('employeeNumber')" />
+                        [disabled]="isFormDisabled() || assignmentEditLocked()"
+                        [error]="fieldError('employeeNumber')" />
                 </div>
             </section>
             }
@@ -484,7 +490,8 @@
                 @if (commissionEditLocked()) {
                 <div class="registration-wizard__info-box registration-wizard__info-box--compact" role="status">
                     <siau-lucide-icon name="lock" size="16" strokeWidth="2" aria-hidden="true" />
-                    <span>La comisión fue deshabilitada porque esta actualización está modificando la adscripción. No puedes agregar una comisión en esta operación.</span>
+                    <span>La comisión fue deshabilitada porque esta actualización está modificando la adscripción. No
+                        puedes agregar una comisión en esta operación.</span>
                 </div>
                 }
 
@@ -493,24 +500,25 @@
                     role="status">
                     <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
                     <span>
-                        Si cambias cualquier nivel de la comisión o la desactivas, se eliminarán los perfiles de comisión
+                        Si cambias cualquier nivel de la comisión o la desactivas, se eliminarán los perfiles de
+                        comisión
                         actuales y se recargarán los sistemas y perfiles disponibles para la nueva estructura.
                     </span>
                 </div>
                 }
 
                 @if (profileResetNotice(); as notice) {
-                    @if (notice.origin === 'comision') {
-                    <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
-                        role="status">
-                        <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                        <span>{{ notice.message }}</span>
-                        <button type="button" class="registration-wizard__info-box-close"
-                            (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
-                            <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
-                        </button>
-                    </div>
-                    }
+                @if (notice.origin === 'comision') {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ notice.message }}</span>
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
                 }
 
                 <div class="registration-wizard__option-card"
@@ -556,11 +564,13 @@
                 <div class="registration-wizard__grid registration-wizard__grid--commission">
                     <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
                         [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
-                        (valueChange)="updateCommissionInstitutionType($event)" [disabled]="isFormDisabled() || commissionEditLocked()" />
+                        (valueChange)="updateCommissionInstitutionType($event)"
+                        [disabled]="isFormDisabled() || commissionEditLocked()" />
 
                     <siau-select label="Entidad" placeholder="Selecciona la entidad"
                         [required]="commissionRequiresEntity()" [options]="stateOptions()"
-                        [value]="form().commissionEntity" [disabled]="isFormDisabled() || commissionEditLocked() || !commissionRequiresEntity()"
+                        [value]="form().commissionEntity"
+                        [disabled]="isFormDisabled() || commissionEditLocked() || !commissionRequiresEntity()"
                         (valueChange)="updateCommissionEntity($event)" />
 
                     <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
@@ -588,7 +598,8 @@
 
                     <siau-input label="Fecha de Inicio" type="date" [required]="true" [min]="form().admissionDate"
                         [max]="maximumTodayDate()" [value]="form().commissionAdmissionDate"
-                        (valueChange)="updateForm('commissionAdmissionDate', $event)" [disabled]="isFormDisabled() || commissionEditLocked()" />
+                        (valueChange)="updateForm('commissionAdmissionDate', $event)"
+                        [disabled]="isFormDisabled() || commissionEditLocked()" />
                 </div>
                 }
             </section>
@@ -697,13 +708,12 @@
 
                 <div class="registration-wizard__grid">
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
-                        [required]="emailRequired()" [maxLength]="254" [value]="form().email"
-                        [emailOnly]="true" [error]="fieldError('email')"
-                        (valueChange)="updateForm('email', $event)" [disabled]="isFormDisabled()" />
+                        [required]="emailRequired()" [maxLength]="254" [value]="form().email" [emailOnly]="true"
+                        [error]="fieldError('email')" (valueChange)="updateForm('email', $event)"
+                        [disabled]="isFormDisabled()" />
 
                     <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
-                        [maxLength]="10" [numericOnly]="true" [value]="form().phone"
-                        [error]="fieldError('phone')"
+                        [maxLength]="10" [numericOnly]="true" [value]="form().phone" [error]="fieldError('phone')"
                         (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
 
                 </div>
@@ -719,7 +729,8 @@
 
                     <div class="registration-wizard__section-title">
                         <h3>Perfiles</h3>
-                        <p>{{ isEditMode() ? 'Perfiles separados por adscripción y comisión' : 'Sistemas y perfiles de la última estructura capturada' }}</p>
+                        <p>{{ isEditMode() ? 'Perfiles separados por adscripción y comisión' : 'Sistemas y perfiles de
+                            la última estructura capturada' }}</p>
                     </div>
 
                     <div class="registration-wizard__section-meta">
@@ -799,16 +810,20 @@
 
                             @if (assignmentCarouselProfile(); as item) {
                             <div class="registration-wizard__profiles-carousel" aria-live="polite">
-                                <div class="registration-wizard__profiles-item registration-wizard__profiles-item--carousel">
+                                <div
+                                    class="registration-wizard__profiles-item registration-wizard__profiles-item--carousel">
                                     <div class="registration-wizard__profiles-item-content">
-                                        <span class="registration-wizard__profiles-item-system">{{ item.systemLabel }}</span>
+                                        <span class="registration-wizard__profiles-item-system">{{ item.systemLabel
+                                            }}</span>
                                         <span class="registration-wizard__profiles-item-separator">•</span>
-                                        <span class="registration-wizard__profiles-item-role">{{ item.roleLabel }}</span>
+                                        <span class="registration-wizard__profiles-item-role">{{ item.roleLabel
+                                            }}</span>
                                     </div>
 
                                     <button type="button" class="registration-wizard__profiles-remove"
                                         [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !canRemoveAssignedProfile(item)"
-                                        (click)="removeAssignedProfile(item.id)" aria-label="Eliminar perfil de adscripción">
+                                        (click)="removeAssignedProfile(item.id)"
+                                        aria-label="Eliminar perfil de adscripción">
                                         <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
                                 </div>
@@ -816,19 +831,25 @@
                                 @if (assignmentAssignedProfiles().length > 1) {
                                 <div class="registration-wizard__profiles-carousel-nav">
                                     <button type="button" class="registration-wizard__profiles-carousel-button"
-                                        (click)="previousProfile('adscripcion')" aria-label="Perfil anterior de adscripción">
-                                        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2" aria-hidden="true" />
+                                        (click)="previousProfile('adscripcion')"
+                                        aria-label="Perfil anterior de adscripción">
+                                        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
                                     </button>
-                                    <span>{{ getProfileCarouselIndex('adscripcion') + 1 }} / {{ assignmentAssignedProfiles().length }}</span>
+                                    <span>{{ getProfileCarouselIndex('adscripcion') + 1 }} / {{
+                                        assignmentAssignedProfiles().length }}</span>
                                     <button type="button" class="registration-wizard__profiles-carousel-button"
-                                        (click)="nextProfile('adscripcion')" aria-label="Siguiente perfil de adscripción">
-                                        <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2" aria-hidden="true" />
+                                        (click)="nextProfile('adscripcion')"
+                                        aria-label="Siguiente perfil de adscripción">
+                                        <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
                                     </button>
                                 </div>
                                 }
                             </div>
                             } @else {
-                            <div class="registration-wizard__profiles-empty registration-wizard__profiles-empty--origin">
+                            <div
+                                class="registration-wizard__profiles-empty registration-wizard__profiles-empty--origin">
                                 Sin perfiles de adscripción.
                             </div>
                             }
@@ -847,16 +868,20 @@
 
                             @if (commissionCarouselProfile(); as item) {
                             <div class="registration-wizard__profiles-carousel" aria-live="polite">
-                                <div class="registration-wizard__profiles-item registration-wizard__profiles-item--carousel">
+                                <div
+                                    class="registration-wizard__profiles-item registration-wizard__profiles-item--carousel">
                                     <div class="registration-wizard__profiles-item-content">
-                                        <span class="registration-wizard__profiles-item-system">{{ item.systemLabel }}</span>
+                                        <span class="registration-wizard__profiles-item-system">{{ item.systemLabel
+                                            }}</span>
                                         <span class="registration-wizard__profiles-item-separator">•</span>
-                                        <span class="registration-wizard__profiles-item-role">{{ item.roleLabel }}</span>
+                                        <span class="registration-wizard__profiles-item-role">{{ item.roleLabel
+                                            }}</span>
                                     </div>
 
                                     <button type="button" class="registration-wizard__profiles-remove"
                                         [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !canRemoveAssignedProfile(item)"
-                                        (click)="removeAssignedProfile(item.id)" aria-label="Eliminar perfil de comisión">
+                                        (click)="removeAssignedProfile(item.id)"
+                                        aria-label="Eliminar perfil de comisión">
                                         <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
                                 </div>
@@ -865,19 +890,24 @@
                                 <div class="registration-wizard__profiles-carousel-nav">
                                     <button type="button" class="registration-wizard__profiles-carousel-button"
                                         (click)="previousProfile('comision')" aria-label="Perfil anterior de comisión">
-                                        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2" aria-hidden="true" />
+                                        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
                                     </button>
-                                    <span>{{ getProfileCarouselIndex('comision') + 1 }} / {{ commissionAssignedProfiles().length }}</span>
+                                    <span>{{ getProfileCarouselIndex('comision') + 1 }} / {{
+                                        commissionAssignedProfiles().length }}</span>
                                     <button type="button" class="registration-wizard__profiles-carousel-button"
                                         (click)="nextProfile('comision')" aria-label="Siguiente perfil de comisión">
-                                        <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2" aria-hidden="true" />
+                                        <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
                                     </button>
                                 </div>
                                 }
                             </div>
                             } @else {
-                            <div class="registration-wizard__profiles-empty registration-wizard__profiles-empty--origin">
-                                {{ form().commissionEnabled ? 'Sin perfiles de comisión.' : 'El usuario no tiene comisión activa.' }}
+                            <div
+                                class="registration-wizard__profiles-empty registration-wizard__profiles-empty--origin">
+                                {{ form().commissionEnabled ? 'Sin perfiles de comisión.' : 'El usuario no tiene
+                                comisión activa.' }}
                             </div>
                             }
                         </article>
@@ -890,7 +920,8 @@
                             <div>
                                 <div class="registration-wizard__profiles-add-title">Agregar sistema y perfil</div>
                                 @if (isEditMode()) {
-                                <p>Selecciona el origen que estás modificando. Al modificar uno, el otro queda en sólo lectura.</p>
+                                <p>Selecciona el origen que estás modificando. Al modificar uno, el otro queda en sólo
+                                    lectura.</p>
                                 } @else {
                                 <p>Los perfiles disponibles corresponden a {{ selectedProfileOriginLabel() }}.</p>
                                 }
@@ -953,13 +984,10 @@
                         </div>
                         }
 
-                        @if (hasAssignedSiauProfile()) {
+                        @if (isSiauProfileLocked()) {
                         <div class="registration-wizard__info-box registration-wizard__info-box--compact">
                             <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
-                            <span>
-                                El usuario ya tiene un perfil SIAU asignado.
-                                No se permite más de un perfil SIAU, sin importar si proviene de adscripción o comisión.
-                            </span>
+                            <span>{{ siauProfileLockMessage() }}</span>
                         </div>
                         }
 
@@ -1109,8 +1137,8 @@
                         </label>
 
                         <textarea id="comments" class="registration-wizard__textarea" rows="4" maxlength="1000"
-                            placeholder="Agrega comentarios sobre la cuenta"
-                            [value]="form().comment" [disabled]="isFormDisabled() || isSubmitting()"
+                            placeholder="Agrega comentarios sobre la cuenta" [value]="form().comment"
+                            [disabled]="isFormDisabled() || isSubmitting()"
                             (input)="updateForm('comment', $any($event.target).value)"></textarea>
                         @if (fieldError('comment'); as commentError) {
                         <p class="registration-wizard__field-error" role="alert">{{ commentError }}</p>
@@ -1141,7 +1169,8 @@
 
                 <div class="registration-wizard__actions">
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting() || isDraftBusy()" (click)="nextStep()">
+                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting() || isDraftBusy()"
+                        (click)="nextStep()">
                         Siguiente
                         <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
                     </button>
@@ -1152,7 +1181,8 @@
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--primary"
-                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !isLastStep()" (click)="submit()">
+                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !isLastStep()"
+                        (click)="submit()">
                         <siau-lucide-icon [name]="primaryButtonIcon()" size="14" strokeWidth="2" aria-hidden="true" />
                         {{ primaryButtonLabel() }}
                     </button>
@@ -1191,8 +1221,8 @@
 
             <button type="button" class="registration-wizard__button registration-wizard__button--danger"
                 [disabled]="isDraftDeleting()" (click)="confirmDeleteRegistrationDraft()">
-                <siau-lucide-icon [name]="isDraftDeleting() ? 'loader-circle' : 'trash-2'" size="14"
-                    strokeWidth="2" aria-hidden="true" />
+                <siau-lucide-icon [name]="isDraftDeleting() ? 'loader-circle' : 'trash-2'" size="14" strokeWidth="2"
+                    aria-hidden="true" />
                 {{ isDraftDeleting() ? 'Eliminando...' : 'Sí, eliminar borrador' }}
             </button>
         </footer>
