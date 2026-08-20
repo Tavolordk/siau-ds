@@ -820,12 +820,14 @@
                                             }}</span>
                                     </div>
 
+                                    @if (canRemoveAssignedProfile(item)) {
                                     <button type="button" class="registration-wizard__profiles-remove"
-                                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !canRemoveAssignedProfile(item)"
+                                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy()"
                                         (click)="removeAssignedProfile(item.id)"
                                         aria-label="Eliminar perfil de adscripción">
                                         <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
+                                    }
                                 </div>
 
                                 @if (assignmentAssignedProfiles().length > 1) {
@@ -878,12 +880,14 @@
                                             }}</span>
                                     </div>
 
+                                    @if (canRemoveAssignedProfile(item)) {
                                     <button type="button" class="registration-wizard__profiles-remove"
-                                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !canRemoveAssignedProfile(item)"
+                                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy()"
                                         (click)="removeAssignedProfile(item.id)"
                                         aria-label="Eliminar perfil de comisión">
                                         <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
                                     </button>
+                                    }
                                 </div>
 
                                 @if (commissionAssignedProfiles().length > 1) {
@@ -920,8 +924,8 @@
                             <div>
                                 <div class="registration-wizard__profiles-add-title">Agregar sistema y perfil</div>
                                 @if (isEditMode()) {
-                                <p>Selecciona el origen que estás modificando. Al modificar uno, el otro queda en sólo
-                                    lectura.</p>
+                                <p>Los perfiles sólo se editan en la sección activa. Si existen adscripción y comisión,
+                                    comisión tiene prioridad; si sólo existe adscripción, se editan sus perfiles.</p>
                                 } @else {
                                 <p>Los perfiles disponibles corresponden a {{ selectedProfileOriginLabel() }}.</p>
                                 }
@@ -932,13 +936,13 @@
                                 aria-label="Origen del perfil">
                                 <button type="button" class="registration-wizard__profiles-origin-option"
                                     [class.registration-wizard__profiles-origin-option--active]="selectedProfileOrigin() === 'adscripcion'"
-                                    [disabled]="isFormDisabled() || isSubmitting() || assignmentEditLocked()"
+                                    [disabled]="isFormDisabled() || isSubmitting() || assignmentProfilesLocked()"
                                     (click)="selectProfileOrigin('adscripcion')">
                                     Adscripción
                                 </button>
                                 <button type="button" class="registration-wizard__profiles-origin-option"
                                     [class.registration-wizard__profiles-origin-option--active]="selectedProfileOrigin() === 'comision'"
-                                    [disabled]="isFormDisabled() || isSubmitting() || commissionEditLocked() || !form().commissionEnabled"
+                                    [disabled]="isFormDisabled() || isSubmitting() || commissionProfilesLocked() || !form().commissionEnabled"
                                     (click)="selectProfileOrigin('comision')">
                                     Comisión
                                 </button>

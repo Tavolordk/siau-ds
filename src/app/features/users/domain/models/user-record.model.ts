@@ -216,6 +216,8 @@ export interface RegistroDatosPersonales {
     readonly sexoId: number;
     readonly fechaNacimiento: string;
     readonly estadoCivilId: number | null;
+    /** 1 cuando RENAPO devolvió información válida; 0 en cualquier otro caso. */
+    readonly curpValidada: 0 | 1;
 }
 
 export interface RegistroAsignacion {
@@ -258,8 +260,19 @@ export interface RegistroAdminRequest {
     readonly cuenta: RegistroAdminCuenta;
     /** Colección completa de sistemas/perfiles asignados. */
     readonly perfiles: readonly RegistroPerfil[] | null;
+    /** Campo publicado por el contrato 1.0.9; creación conserva el flujo único actual. */
+    readonly perfilesComision?: readonly RegistroPerfil[] | null;
     readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
+}
+
+export interface RegistroPerfilAsignado {
+    readonly sistemaId: number | null;
+    readonly sistema: string | null;
+    readonly perfilId: number | null;
+    readonly perfilClave: string | null;
+    readonly perfilDescripcion: string | null;
+    readonly origenTipo: string | null;
 }
 
 export interface RegistroAdminData {
@@ -268,9 +281,13 @@ export interface RegistroAdminData {
     readonly cuenta: string | null;
     readonly cuentaGenerada: string | null;
     readonly nombreCompleto: string | null;
+    readonly correo: string | null;
+    readonly tipoUsuarioId: number | null;
     readonly tipoUsuario: string | null;
     readonly tipoInstitucion: string | null;
     readonly sistema: string | null;
+    readonly perfilesAsignados: readonly RegistroPerfilAsignado[] | null;
+    readonly passwordTemporal: string | null;
 }
 
 export interface RegistroAdminResponse {
@@ -343,6 +360,7 @@ export interface ActualizarAdminRequest {
     readonly fechaNacimiento?: string | null;
     readonly estadoCivilId?: number | null;
     readonly cuip?: string | null;
+    readonly curpValidada?: 0 | 1 | null;
     readonly adscripcion: ActualizarAdminAsignacion;
     /**
      * El flujo SIAU conserva `null` cuando el usuario no tiene comisión.
@@ -350,7 +368,10 @@ export interface ActualizarAdminRequest {
      */
     readonly comision?: ActualizarAdminAsignacion | null;
     readonly contacto?: ActualizarAdminContacto;
-    readonly perfiles?: readonly ActualizarAdminPerfil[] | null;
+    /** Perfiles de adscripción requeridos por la operación de actualización. */
+    readonly perfiles?: readonly ActualizarAdminPerfil[];
+    /** Perfiles nuevos asociados a la comisión. */
+    readonly perfilesComision?: readonly ActualizarAdminPerfil[];
     readonly nuevaCuenta?: ActualizarAdminNuevaCuenta;
     readonly auditoria?: SolicitudAuditoria;
 }

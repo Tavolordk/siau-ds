@@ -358,6 +358,8 @@ export class UserRegistrationWizard {
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
     private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
     private initialStructureEmailSnapshot: StructureEmailSnapshot | null = null;
+    /** Valor persistido que llega en el detalle del usuario. */
+    private readonly detailCurpValidated = signal<boolean>(false);
     private readonly catalogosReady = signal<boolean>(false);
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
@@ -388,13 +390,6 @@ export class UserRegistrationWizard {
     protected readonly assignmentProfileCarouselIndex = signal<number>(0);
     protected readonly commissionProfileCarouselIndex = signal<number>(0);
     protected readonly profileResetNotice = signal<ProfileResetNotice | null>(null);
-    /**
-     * Verdadero cuando el detalle ("ver información") ya traía al menos un
-     * perfil SIAU. El bloqueo es histórico: aunque el usuario elimine de la
-     * lista los perfiles SIAU que venían del detalle, el registro en base ya
-     * existe y no se permite agregar otro perfil SIAU en esta actualización.
-     */
-    protected readonly hadInitialSiauProfile = signal<boolean>(false);
     /** En actualización sólo se permite modificar un origen por operación. */
     protected readonly editStructureScope = signal<ProfileOrigin | null>(null);
     protected readonly detailRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
@@ -581,6 +576,15 @@ export class UserRegistrationWizard {
         this.isEditMode() && this.editEnabled() && this.editStructureScope() === 'adscripcion',
     );
 
+    /** Bloqueo específico de las tarjetas/controles de perfiles en edición. */
+    protected readonly assignmentProfilesLocked = computed(() =>
+        this.isProfileOriginLocked('adscripcion'),
+    );
+
+    protected readonly commissionProfilesLocked = computed(() =>
+        this.isProfileOriginLocked('comision'),
+    );
+
     protected readonly showAssignmentProfilesChangeWarning = computed(() =>
         this.isEditMode() &&
         this.editEnabled() &&
@@ -629,35 +633,24 @@ export class UserRegistrationWizard {
     protected readonly emailRequired = computed(() => true);
     protected readonly phoneRequired = computed(() => true);
 
-    /** Regla global: un usuario nunca puede tener más de un perfil SIAU. */
-    protected readonly hasAssignedSiauProfile = computed(() =>
-        this.assignedSystemProfiles().some((profile) =>
-            this.isSiauSystem(profile.system, profile.systemLabel),
-        ),
-    );
-
     /**
-     * Bloqueo real para agregar SIAU. Además del perfil que esté en la lista,
-     * contempla los perfiles SIAU que ya existían en el detalle del usuario:
-     * eliminarlos de la pantalla no borra el registro previo, así que tampoco
-     * habilita dar de alta uno nuevo.
+     * En creación se conserva la regla de un solo perfil SIAU en el contexto
+     * activo. En edición la restricción se evalúa por sección: un SIAU en la
+     * sección bloqueada no impide agregar uno en la sección editable.
      */
-    protected readonly isSiauProfileLocked = computed(
-        () => this.hadInitialSiauProfile() || this.hasAssignedSiauProfile(),
+    protected readonly hasAssignedSiauProfile = computed(() =>
+        this.hasAssignedSiauProfileForOrigin(this.activeProfileOrigin()),
     );
 
-    /** Mensaje del aviso de SIAU, según el motivo del bloqueo. */
-    protected readonly siauProfileLockMessage = computed(() => {
-        if (this.hasAssignedSiauProfile()) {
-            return 'El usuario ya tiene un perfil SIAU asignado. No se permite más de un perfil SIAU, sin importar si proviene de adscripción o comisión.';
-        }
+    protected readonly isSiauProfileLocked = computed(() =>
+        this.hasAssignedSiauProfile(),
+    );
 
-        if (this.hadInitialSiauProfile()) {
-            return 'El usuario ya cuenta con un registro previo de perfil SIAU. Aunque lo elimines de esta lista, no es posible agregar un nuevo perfil SIAU.';
-        }
-
-        return '';
-    });
+    protected readonly siauProfileLockMessage = computed(() =>
+        this.isEditMode()
+            ? `La ${this.selectedProfileOriginLabel()} activa ya tiene un perfil SIAU. Sólo se permite uno por la sección editable; un SIAU en la sección bloqueada no cuenta para este límite.`
+            : 'El usuario ya tiene un perfil SIAU asignado. Sólo se permite uno en el contexto de perfiles activo.',
+    );
 
     protected readonly isSelectedSiauProfileBlocked = computed(() => {
         const system = this.selectedSystem();
@@ -833,8 +826,10 @@ export class UserRegistrationWizard {
             return true;
         }
 
-        if (this.isEditMode()) {
-            return false;
+        // Si el detalle confirma que la CURP ya fue validada por RENAPO, en
+        // actualización no se permite modificarla ni volver a consultarla.
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return true;
         }
 
         return (
@@ -848,9 +843,13 @@ export class UserRegistrationWizard {
             return true;
         }
 
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return true;
+        }
+
         return (
-            !this.isEditMode() &&
-            (this.renapoLookupStatus() === 'loading' || this.renapoLookupStatus() === 'success')
+            this.renapoLookupStatus() === 'loading' ||
+            this.renapoLookupStatus() === 'success'
         );
     });
 
@@ -859,13 +858,18 @@ export class UserRegistrationWizard {
             return true;
         }
 
-        // Solo RENAPO bloquea los datos que confirmó; si RENAPO no responde o no
-        // encuentra la CURP, el administrador debe poder capturar la fecha manualmente.
-        return !this.isEditMode() && this.renapoLookupStatus() === 'success';
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return true;
+        }
+
+        // RENAPO bloquea la fecha cuando la confirmó. Si no responde o no
+        // encuentra la CURP, el administrador puede capturarla manualmente.
+        return this.renapoLookupStatus() === 'success';
     });
 
     protected readonly showCurpUnlock = computed(() =>
-        !this.isEditMode() && (this.curpLocked() || this.curpUnlockChecked()),
+        (!this.isEditMode() || !this.detailCurpValidated()) &&
+        (this.curpLocked() || this.curpUnlockChecked()),
     );
 
     protected readonly renapoStatusTitle = computed(() => {
@@ -955,7 +959,19 @@ export class UserRegistrationWizard {
         }
 
         const scope = this.editStructureScope();
-        return scope !== null && scope !== origin;
+        if (scope) {
+            return scope !== origin;
+        }
+
+        // Si el detalle ya tiene adscripción y comisión, los perfiles editables
+        // pertenecen a comisión. Si sólo existe adscripción, ésa es la sección
+        // editable. La selección cambia automáticamente si la operación fija
+        // después un alcance estructural concreto.
+        const editableOrigin: ProfileOrigin = this.form().commissionEnabled
+            ? 'comision'
+            : 'adscripcion';
+
+        return editableOrigin !== origin;
     }
 
     /**
@@ -1733,7 +1749,11 @@ export class UserRegistrationWizard {
     }
 
     protected toggleCurpUnlock(checked: boolean): void {
-        if (this.isEditMode() || this.isFormDisabled() || this.isSubmitting()) {
+        if (
+            (this.isEditMode() && this.detailCurpValidated()) ||
+            this.isFormDisabled() ||
+            this.isSubmitting()
+        ) {
             return;
         }
 
@@ -2368,9 +2388,9 @@ export class UserRegistrationWizard {
         if (isSiau && this.isSiauProfileLocked()) {
             this.formErrors.update((current) => ({
                 ...current,
-                profiles: this.hasAssignedSiauProfile()
-                    ? 'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.'
-                    : 'El usuario ya tiene un registro previo con perfil SIAU. No es posible agregar otro perfil de SIAU.',
+                profiles: this.isEditMode()
+                    ? `La ${this.selectedProfileOriginLabel()} activa ya tiene un perfil SIAU. Elimina ese perfil para reemplazarlo; los perfiles SIAU de la sección bloqueada no impiden esta operación.`
+                    : 'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.',
             }));
             return;
         }
@@ -2657,6 +2677,12 @@ export class UserRegistrationWizard {
 
     private consultRenapo(curp: string): void {
         const normalizedCurp = this.toText(curp).toUpperCase();
+
+        // Un usuario que ya llegó validado desde el detalle conserva su
+        // identidad oficial; no se vuelve a disparar RENAPO en actualización.
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return;
+        }
 
         if (!this.isValidCurp(normalizedCurp)) {
             return;
@@ -3388,6 +3414,9 @@ export class UserRegistrationWizard {
                     'Captura la fecha de nacimiento.',
                 ),
                 estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
+                // Por regla del flujo este indicador viaja como 1/0. Sólo se
+                // marca como validada cuando RENAPO devolvió información completa.
+                curpValidada: this.renapoLookupStatus() === 'success' ? 1 : 0,
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -3434,40 +3463,49 @@ export class UserRegistrationWizard {
         return {
             usuarioId: userId,
 
-            curp: this.requireText(
-                current.curp,
-                'Captura la CURP.',
-            ).toUpperCase(),
+            // Cuando el detalle ya viene validado por RENAPO estos campos no
+            // se envían en el PATCH, además de permanecer bloqueados en UI.
+            // Si no estaba validado, el administrador conserva el flujo normal
+            // de edición y puede volver a consultar RENAPO.
+            ...(this.detailCurpValidated()
+                ? {}
+                : {
+                    curp: this.requireText(
+                        current.curp,
+                        'Captura la CURP.',
+                    ).toUpperCase(),
+                    nombres: this.requireText(
+                        current.firstName,
+                        'Captura el nombre.',
+                    ).toUpperCase(),
+                    primerApellido: this.requireText(
+                        current.lastName,
+                        'Captura el primer apellido.',
+                    ).toUpperCase(),
+                    segundoApellido:
+                        this.toNullableText(current.secondLastName)
+                            ?.toUpperCase() ?? null,
+                    fechaNacimiento: this.requireText(
+                        current.birthDate,
+                        'Captura la fecha de nacimiento.',
+                    ),
+                }),
 
             rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
-
-            nombres: this.requireText(
-                current.firstName,
-                'Captura el nombre.',
-            ).toUpperCase(),
-
-            primerApellido: this.requireText(
-                current.lastName,
-                'Captura el primer apellido.',
-            ).toUpperCase(),
-
-            segundoApellido:
-                this.toNullableText(current.secondLastName)
-                    ?.toUpperCase() ?? null,
 
             sexoId: this.requireCatalogId(
                 current.gender,
                 'Selecciona el sexo.',
             ),
 
-            fechaNacimiento: this.requireText(
-                current.birthDate,
-                'Captura la fecha de nacimiento.',
-            ),
-
             estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
 
             cuip: this.toNullableText(current.cuip),
+
+            // El backend espera 1/0. Si en esta edición RENAPO respondió,
+            // prevalece ese resultado; si no hubo una nueva consulta, se conserva
+            // el indicador que llegó en el detalle del usuario.
+            curpValidada: this.resolveCurpValidatedValue(),
 
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -3493,10 +3531,12 @@ export class UserRegistrationWizard {
 
             contacto: this.buildContactRequest(),
 
-            // Sólo viajan los perfiles agregados durante esta edición. Los que
-            // el usuario ya tenía en el detalle no se reenvían aunque cambie la
-            // adscripción o la comisión, para no duplicarlos en base.
-            perfiles: this.buildNewAssignedProfilesRequest(),
+            // Si la operación modifica comisión, también deben viajar en
+            // `perfiles` los perfiles de adscripción que el usuario ya tenía,
+            // para conservarlos en el request. Para una modificación de
+            // adscripción se mantiene la regla de enviar únicamente sus altas.
+            perfiles: this.buildUpdateAssignmentProfilesRequest(),
+            perfilesComision: this.buildNewAssignedProfilesRequest('comision'),
 
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
@@ -3524,22 +3564,53 @@ export class UserRegistrationWizard {
     }
 
     /**
-     * `perfiles` del PATCH `actualizar_admin`. Devuelve `null` cuando no hay
-     * altas nuevas para que el backend no vuelva a insertar lo que ya existe.
-     * El perfil NORMAL por defecto sólo se manda si el usuario se quedaría
-     * literalmente sin ningún perfil.
+     * Construye `perfiles` (adscripción) para actualizar_admin.
+     *
+     * - Si se está modificando comisión, la adscripción queda bloqueada y sus
+     *   perfiles existentes deben reenviarse para conservarlos.
+     * - En cualquier otro caso se conserva la regla de enviar sólo perfiles de
+     *   adscripción agregados durante esta edición.
      */
-    private buildNewAssignedProfilesRequest(): readonly ActualizarAdminPerfil[] | null {
-        const newProfiles = this.getNewlyAssignedProfiles();
+    private buildUpdateAssignmentProfilesRequest(): readonly ActualizarAdminPerfil[] {
+        if (this.editStructureScope() === 'comision') {
+            const existingAssignmentProfiles = this.assignedSystemProfiles().filter(
+                (profile) => profile.origin === 'adscripcion',
+            );
+
+            if (existingAssignmentProfiles.length > 0) {
+                return existingAssignmentProfiles.map((profile) =>
+                    this.toActualizarAdminPerfil(profile),
+                );
+            }
+        }
+
+        return this.buildNewAssignedProfilesRequest('adscripcion');
+    }
+
+    /**
+     * Perfiles nuevos del PATCH `actualizar_admin`, separados por origen.
+     * `perfilesComision` continúa enviando únicamente altas de comisión.
+     * Para adscripción esta función se usa cuando no aplica la conservación
+     * especial de perfiles existentes al modificar comisión.
+     *
+     * El fallback NORMAL se conserva únicamente en `perfiles` (adscripción),
+     * igual que antes, y sólo cuando el usuario se quedaría sin perfil alguno.
+     */
+    private buildNewAssignedProfilesRequest(
+        origin: ProfileOrigin,
+    ): readonly ActualizarAdminPerfil[] {
+        const newProfiles = this.getNewlyAssignedProfiles().filter(
+            (profile) => profile.origin === origin,
+        );
 
         if (newProfiles.length > 0) {
-            return newProfiles.map((profile) => ({
-                idSistema: this.resolveAssignedSystemId(profile),
-                idPerfil: this.requireCatalogId(
-                    profile.role,
-                    'Selecciona un perfil válido.',
-                ),
-            }));
+            return newProfiles.map((profile) =>
+                this.toActualizarAdminPerfil(profile),
+            );
+        }
+
+        if (origin === 'comision') {
+            return [];
         }
 
         const hasAnyProfile =
@@ -3547,11 +3618,40 @@ export class UserRegistrationWizard {
             this.initialAssignedProfiles.length > 0;
 
         return hasAnyProfile
-            ? null
+            ? []
             : [{
                 idSistema: DEFAULT_NORMAL_SYSTEM_ID,
                 idPerfil: DEFAULT_NORMAL_PROFILE_ID,
             }];
+    }
+
+    private toActualizarAdminPerfil(profile: AssignedSystemProfile): ActualizarAdminPerfil {
+        return {
+            idSistema: this.resolveAssignedSystemId(profile),
+            idPerfil: this.requireCatalogId(
+                profile.role,
+                'Selecciona un perfil válido.',
+            ),
+        };
+    }
+
+    /**
+     * `curpValidada` siempre viaja como 1/0.
+     * Una respuesta RENAPO de esta edición tiene prioridad; si no hubo una
+     * consulta concluyente se conserva el valor persistido que llegó en detalle.
+     */
+    private resolveCurpValidatedValue(): 0 | 1 {
+        const status = this.renapoLookupStatus();
+
+        if (status === 'success') {
+            return 1;
+        }
+
+        if (status === 'not-found') {
+            return 0;
+        }
+
+        return this.detailCurpValidated() ? 1 : 0;
     }
 
     private resolveAccountStatusId(status: AccountStatus): number {
@@ -3745,6 +3845,11 @@ export class UserRegistrationWizard {
         this.resetEcccPersonalLookupState();
 
         const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
+        const rawCurpValidated =
+            this.firstValue(personalData, ['curpValidada', 'curpvalidada', 'curp_validada']) ||
+            this.firstValue(datos, ['curpValidada', 'curpvalidada', 'curp_validada']);
+        this.detailCurpValidated.set(this.toBooleanFlag(rawCurpValidated));
+
         const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
         const s3Commission = this.toSectionRecord(datos, ['s3Comision']);
         const commission = Object.keys(s3Commission).length > 0
@@ -3915,17 +4020,13 @@ export class UserRegistrationWizard {
         this.assignedSystemProfiles.set(assignedProfiles);
         this.assignmentProfileCarouselIndex.set(0);
         this.commissionProfileCarouselIndex.set(0);
-        this.selectedProfileOrigin.set('adscripcion');
+        // En edición la sección de perfiles activa se deriva de la estructura
+        // existente: comisión tiene prioridad cuando ambas existen; si no hay
+        // comisión, adscripción queda editable.
+        this.selectedProfileOrigin.set(nextForm.commissionEnabled ? 'comision' : 'adscripcion');
         this.profileResetNotice.set(null);
         this.editStructureScope.set(null);
         this.initialAssignedProfiles = [...assignedProfiles];
-        // Se congela aquí porque el detalle es la única fuente que confirma que
-        // el usuario YA tiene registros SIAU en base de datos.
-        this.hadInitialSiauProfile.set(
-            assignedProfiles.some((profile) =>
-                this.isSiauSystem(profile.system, profile.systemLabel),
-            ),
-        );
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
         this.loadHydratedAssignmentCatalogs(nextForm);
     }
@@ -4111,6 +4212,14 @@ export class UserRegistrationWizard {
                     this.normalizeText(option.label) === this.normalizeText(cleanLabel))
             );
         });
+    }
+
+    private hasAssignedSiauProfileForOrigin(origin: ProfileOrigin): boolean {
+        return this.assignedSystemProfiles().some(
+            (profile) =>
+                profile.origin === origin &&
+                this.isSiauSystem(profile.system, profile.systemLabel),
+        );
     }
 
     private isSiauSystem(systemValue: string, systemLabel = ''): boolean {
@@ -4305,6 +4414,20 @@ export class UserRegistrationWizard {
         }
 
         return String(value).trim();
+    }
+
+    /** Acepta boolean, 1/0 y sus representaciones de texto del detalle. */
+    private toBooleanFlag(value: unknown): boolean {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        if (typeof value === 'number') {
+            return value === 1;
+        }
+
+        const normalized = this.toText(value).toLowerCase();
+        return normalized === '1' || normalized === 'true';
     }
 
     private toDateInputValue(value: unknown): string {
@@ -5150,10 +5273,10 @@ export class UserRegistrationWizard {
     private resetWizard(): void {
         this.resetRenapoLookupState();
         this.resetEcccPersonalLookupState();
+        this.detailCurpValidated.set(false);
         this.initialIdentitySnapshot = null;
         this.initialEditFormSnapshot = null;
         this.initialAssignedProfiles = [];
-        this.hadInitialSiauProfile.set(false);
         this.initialStructureEmailSnapshot = null;
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
