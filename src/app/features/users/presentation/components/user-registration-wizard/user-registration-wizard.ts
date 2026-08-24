@@ -40,12 +40,19 @@ import {
 } from '../../../data-access/eccc-personal-api.repository';
 import { buildUserCredentialsEmailRequest } from '../../../application/user-credentials-email.template';
 import {
+    buildUserStructureUpdateEmailRequest,
+    UserStructureEmailChange,
+    UserStructureEmailProfile,
+} from '../../../application/user-structure-update-email.template';
+import {
     DraftStructureHierarchies,
     DraftStructureResolver,
     ResolvedDraftStructureHierarchy,
 } from '../../../application/draft-structure.resolver';
 import {
+    ActualizarAdminPerfil,
     ActualizarAdminRequest,
+    ActualizarAdminResponse,
     BorradorCatalogos,
     BorradorDatos,
     BorradorGuardarRequest,
@@ -58,6 +65,19 @@ import {
     UserDetailRecord,
     UserRecord,
 } from '../../../domain/models/user-record.model';
+import {
+    MINIMUM_BIRTH_DATE,
+    RESTRICTED_TEXT_LIMITS,
+    getAdultCutoffDate,
+    getAdultCutoffDateInput,
+    getBirthDateError,
+    getRestrictedTextError,
+    isValidContactEmail,
+    sanitizeContactEmailInput,
+    sanitizeRestrictedText,
+} from '../../../../../shared/validation/field-validators';
+
+
 
 type AccountStatus = 'active' | 'baja' | 'suspended' | 'blocked';
 type UserWizardMode = 'create' | 'edit';
@@ -65,6 +85,7 @@ type RenapoLookupStatus = 'idle' | 'loading' | 'success' | 'not-found' | 'error'
 type CurpValidationStatus = string;
 type CurpValidationMessageTone = 'loading' | 'success' | 'warning' | 'error';
 type StructureProfileLookupStatus = 'idle' | 'loading' | 'success' | 'error';
+type ProfileOrigin = 'adscripcion' | 'comision';
 
 type WizardStepId =
     | 'personal-data'
@@ -145,8 +166,22 @@ interface AssignedSystemProfile {
     readonly systemLabel: string;
     readonly role: string;
     readonly roleLabel: string;
+    /** Origen funcional que devuelve el detalle: adscripción o comisión. */
+    readonly origin: ProfileOrigin;
     /** Descripción que devuelve el GET de borradores; se usa para resolver clavePerfil. */
     readonly roleDescription?: string;
+}
+
+interface ProfileResetNotice {
+    readonly origin: ProfileOrigin;
+    readonly message: string;
+}
+
+interface StructureEmailSnapshot {
+    readonly adscriptionSignature: string;
+    readonly adscriptionDescription: string;
+    readonly commissionSignature: string;
+    readonly commissionDescription: string;
 }
 
 interface SystemProfileFallbackOption extends SiauSelectOption {
@@ -322,6 +357,9 @@ export class UserRegistrationWizard {
     private initialIdentitySnapshot: IdentitySnapshot | null = null;
     private initialEditFormSnapshot: UserRegistrationForm | null = null;
     private initialAssignedProfiles: readonly AssignedSystemProfile[] = [];
+    private initialStructureEmailSnapshot: StructureEmailSnapshot | null = null;
+    /** Valor persistido que llega en el detalle del usuario. */
+    private readonly detailCurpValidated = signal<boolean>(false);
     private readonly catalogosReady = signal<boolean>(false);
 
     protected readonly activeStepId = signal<WizardStepId>('personal-data');
@@ -347,7 +385,13 @@ export class UserRegistrationWizard {
 
     protected readonly selectedSystem = signal<string>('');
     protected readonly selectedRole = signal<string>('');
+    protected readonly selectedProfileOrigin = signal<ProfileOrigin>('adscripcion');
     protected readonly assignedSystemProfiles = signal<AssignedSystemProfile[]>([]);
+    protected readonly assignmentProfileCarouselIndex = signal<number>(0);
+    protected readonly commissionProfileCarouselIndex = signal<number>(0);
+    protected readonly profileResetNotice = signal<ProfileResetNotice | null>(null);
+    /** En actualización sólo se permite modificar un origen por operación. */
+    protected readonly editStructureScope = signal<ProfileOrigin | null>(null);
     protected readonly detailRoleOptionsBySystem = signal<Record<string, readonly SiauSelectOption[]>>({});
     protected readonly structureProfileLookupStatus = signal<StructureProfileLookupStatus>('idle');
     protected readonly structureProfileMessage = signal<string>('');
@@ -491,46 +535,143 @@ export class UserRegistrationWizard {
         this.hasValidAssignmentForCommission(this.form()),
     );
 
-    /** HU07: la asignación manual de accesos requiere estructura válida. */
+    protected readonly assignmentAssignedProfiles = computed(() =>
+        this.assignedSystemProfiles().filter((profile) => profile.origin === 'adscripcion'),
+    );
+
+    protected readonly commissionAssignedProfiles = computed(() =>
+        this.assignedSystemProfiles().filter((profile) => profile.origin === 'comision'),
+    );
+
+    protected readonly assignmentCarouselProfile = computed(() =>
+        this.profileAtCarouselIndex('adscripcion'),
+    );
+
+    protected readonly commissionCarouselProfile = computed(() =>
+        this.profileAtCarouselIndex('comision'),
+    );
+
+    /**
+     * Creación conserva el flujo original: perfiles del último contexto aplicable.
+     * Si existe comisión, ésta es el origen; de lo contrario se usa adscripción.
+     * En actualización el administrador selecciona explícitamente uno de los dos orígenes.
+     */
+    protected readonly activeProfileOrigin = computed<ProfileOrigin>(() =>
+        this.isEditMode()
+            ? this.selectedProfileOrigin()
+            : this.form().commissionEnabled
+                ? 'comision'
+                : 'adscripcion',
+    );
+
+    protected readonly selectedProfileOriginLabel = computed(() =>
+        this.activeProfileOrigin() === 'comision' ? 'comisión' : 'adscripción',
+    );
+
+    protected readonly assignmentEditLocked = computed(() =>
+        this.isEditMode() && this.editEnabled() && this.editStructureScope() === 'comision',
+    );
+
+    protected readonly commissionEditLocked = computed(() =>
+        this.isEditMode() && this.editEnabled() && this.editStructureScope() === 'adscripcion',
+    );
+
+    /** Bloqueo específico de las tarjetas/controles de perfiles en edición. */
+    protected readonly assignmentProfilesLocked = computed(() =>
+        this.isProfileOriginLocked('adscripcion'),
+    );
+
+    protected readonly commissionProfilesLocked = computed(() =>
+        this.isProfileOriginLocked('comision'),
+    );
+
+    protected readonly showAssignmentProfilesChangeWarning = computed(() =>
+        this.isEditMode() &&
+        this.editEnabled() &&
+        !this.assignmentEditLocked() &&
+        (this.assignmentAssignedProfiles().length > 0 || this.form().commissionEnabled),
+    );
+
+    protected readonly showCommissionProfilesChangeWarning = computed(() =>
+        this.isEditMode() &&
+        this.editEnabled() &&
+        !this.commissionEditLocked() &&
+        this.commissionAssignedProfiles().length > 0,
+    );
+
+    /** HU07: la asignación manual de accesos requiere estructura válida del origen activo. */
     protected readonly canAssignProfiles = computed(() =>
-        this.hasProfileAssignmentContext(this.form()),
+        this.hasProfileAssignmentContext(this.form(), this.activeProfileOrigin()),
     );
 
     protected readonly canSelectProfiles = computed(() =>
         this.canAssignProfiles() &&
+        !this.isProfileOriginLocked(this.activeProfileOrigin()) &&
         this.structureProfileLookupStatus() === 'success' &&
         this.systemOptions().length > 0,
     );
 
     protected readonly structureProfileHint = computed(() => {
+        const originLabel = this.selectedProfileOriginLabel();
+
         switch (this.structureProfileLookupStatus()) {
             case 'loading':
-                return 'Consultando los sistemas y perfiles permitidos para la estructura seleccionada...';
+                return `Consultando los sistemas y perfiles permitidos para la ${originLabel} seleccionada...`;
             case 'error':
                 return this.structureProfileMessage() || 'No fue posible consultar los perfiles disponibles.';
             case 'success':
                 return this.systemOptions().length > 0
-                    ? 'Los perfiles disponibles corresponden a la institución seleccionada.'
-                    : 'La institución seleccionada no tiene perfiles configurados.';
+                    ? `Los perfiles disponibles corresponden a la ${originLabel} seleccionada.`
+                    : `La ${originLabel} seleccionada no tiene perfiles configurados.`;
             default:
-                return 'Completa la adscripción o la comisión para consultar los perfiles disponibles.';
+                return this.activeProfileOrigin() === 'comision'
+                    ? 'Completa la comisión para consultar sus perfiles disponibles.'
+                    : 'Completa la adscripción para consultar sus perfiles disponibles.';
         }
     });
 
     protected readonly emailRequired = computed(() => true);
     protected readonly phoneRequired = computed(() => true);
 
-    protected readonly hasAssignedSiauProfile = computed(() =>
-        this.assignedSystemProfiles().some((profile) =>
+    /**
+     * Regla de perfiles SIAU por origen:
+     * - Adscripción puede tener como máximo un perfil SIAU.
+     * - Comisión puede tener como máximo un perfil SIAU.
+     * - Un SIAU de un origen NO sustituye ni bloquea el SIAU del otro origen.
+     * - Los perfiles de otros sistemas son independientes y pueden agregarse normalmente.
+     */
+    protected readonly selectedSystemIsSiau = computed(() => {
+        const system = this.selectedSystem();
+        if (!system) {
+            return false;
+        }
+
+        const option = this.findKnownSystemOption(system);
+        return this.isSiauSystem(system, option?.label ?? '');
+    });
+
+    protected readonly hasAssignedSiauProfile = computed(() => {
+        const origin = this.activeProfileOrigin();
+        return this.assignedSystemProfiles().some((profile) =>
+            profile.origin === origin &&
             this.isSiauSystem(profile.system, profile.systemLabel),
-        ),
+        );
+    });
+
+    // El aviso sólo aplica cuando realmente se está seleccionando SIAU en el
+    // mismo origen que ya tiene un SIAU. No afecta otros sistemas/perfiles.
+    protected readonly isSiauProfileLocked = computed(() =>
+        this.selectedSystemIsSiau() && this.hasAssignedSiauProfile(),
     );
 
-    protected readonly isSelectedSiauProfileBlocked = computed(() => {
-        const system = this.selectedSystem();
-
-        return Boolean(system) && this.isSiauSystem(system) && this.hasAssignedSiauProfile();
+    protected readonly siauProfileLockMessage = computed(() => {
+        const origin = this.selectedProfileOriginLabel();
+        return `La ${origin} ya tiene un perfil SIAU. Si seleccionas otro perfil SIAU, se sustituirá únicamente el SIAU de esta ${origin}. Los perfiles de otros sistemas no se modifican.`;
     });
+
+    // Tener un SIAU previo en el mismo origen no bloquea la selección: al
+    // agregar otro SIAU se reemplaza sólo el anterior de ese mismo origen.
+    protected readonly isSelectedSiauProfileBlocked = computed(() => false);
 
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
@@ -673,7 +814,7 @@ export class UserRegistrationWizard {
 
     protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
 
-    protected readonly rfcRequired = computed(() => !this.isEditMode());
+    protected readonly rfcRequired = computed(() => true);
 
     protected readonly rfcHint = computed(() => {
         const prefix = this.rfcPrefix();
@@ -700,8 +841,10 @@ export class UserRegistrationWizard {
             return true;
         }
 
-        if (this.isEditMode()) {
-            return false;
+        // Si el detalle confirma que la CURP ya fue validada por RENAPO, en
+        // actualización no se permite modificarla ni volver a consultarla.
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return true;
         }
 
         return (
@@ -715,9 +858,13 @@ export class UserRegistrationWizard {
             return true;
         }
 
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return true;
+        }
+
         return (
-            !this.isEditMode() &&
-            (this.renapoLookupStatus() === 'loading' || this.renapoLookupStatus() === 'success')
+            this.renapoLookupStatus() === 'loading' ||
+            this.renapoLookupStatus() === 'success'
         );
     });
 
@@ -726,13 +873,18 @@ export class UserRegistrationWizard {
             return true;
         }
 
-        // Solo RENAPO bloquea los datos que confirmó; si RENAPO no responde o no
-        // encuentra la CURP, el administrador debe poder capturar la fecha manualmente.
-        return !this.isEditMode() && this.renapoLookupStatus() === 'success';
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return true;
+        }
+
+        // RENAPO bloquea la fecha cuando la confirmó. Si no responde o no
+        // encuentra la CURP, el administrador puede capturarla manualmente.
+        return this.renapoLookupStatus() === 'success';
     });
 
     protected readonly showCurpUnlock = computed(() =>
-        !this.isEditMode() && (this.curpLocked() || this.curpUnlockChecked()),
+        (!this.isEditMode() || !this.detailCurpValidated()) &&
+        (this.curpLocked() || this.curpUnlockChecked()),
     );
 
     protected readonly renapoStatusTitle = computed(() => {
@@ -792,6 +944,178 @@ export class UserRegistrationWizard {
 
         this.structureProfileLookupStatus.set('idle');
         this.structureProfileMessage.set('');
+    }
+
+
+    protected dismissProfileResetNotice(): void {
+        this.profileResetNotice.set(null);
+    }
+
+    protected selectProfileOrigin(origin: ProfileOrigin): void {
+        if (!this.isEditMode() || this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (origin === 'comision' && !this.form().commissionEnabled) {
+            return;
+        }
+
+        if (this.isProfileOriginLocked(origin) || this.selectedProfileOrigin() === origin) {
+            return;
+        }
+
+        this.selectedProfileOrigin.set(origin);
+        this.resetStructureProfileCatalog();
+    }
+
+    private isProfileOriginLocked(origin: ProfileOrigin): boolean {
+        if (!this.isEditMode()) {
+            return false;
+        }
+
+        const scope = this.editStructureScope();
+        if (scope) {
+            return scope !== origin;
+        }
+
+        // Si el detalle ya tiene adscripción y comisión, los perfiles editables
+        // pertenecen a comisión. Si sólo existe adscripción, ésa es la sección
+        // editable. La selección cambia automáticamente si la operación fija
+        // después un alcance estructural concreto.
+        const editableOrigin: ProfileOrigin = this.form().commissionEnabled
+            ? 'comision'
+            : 'adscripcion';
+
+        return editableOrigin !== origin;
+    }
+
+    /**
+     * La primera modificación de adscripción/comisión fija el origen editable.
+     * El otro origen queda bloqueado hasta cerrar/reabrir el detalle.
+     */
+    private claimEditStructureScope(
+        origin: ProfileOrigin,
+        changed = true,
+        resetProfileCatalog = true,
+    ): boolean {
+        if (!this.isEditMode() || !changed) {
+            return true;
+        }
+
+        const currentScope = this.editStructureScope();
+        if (currentScope && currentScope !== origin) {
+            return false;
+        }
+
+        if (!currentScope) {
+            this.editStructureScope.set(origin);
+            this.selectedProfileOrigin.set(origin);
+
+            // Los cambios estructurales sí invalidan el catálogo de perfiles porque
+            // éste depende de la estructura seleccionada. En cambio, agregar o quitar
+            // un perfil NO debe vaciar el catálogo: de hacerlo, después del primer
+            // perfil los selects quedan bloqueados y ya no es posible agregar más.
+            if (resetProfileCatalog) {
+                this.resetStructureProfileCatalog();
+            }
+
+            // Regla de actualización: adscripción y comisión son alternativas
+            // excluyentes dentro de una misma operación. Si se decide modificar
+            // adscripción, la comisión existente se elimina completa y queda
+            // bloqueada para que no pueda volver a agregarse hasta cerrar/reabrir.
+            if (origin === 'adscripcion') {
+                this.removeCommissionForAssignmentUpdate();
+            }
+        }
+
+        return true;
+    }
+
+    private removeCommissionForAssignmentUpdate(): void {
+        if (!this.isEditMode()) {
+            return;
+        }
+
+        const hadCommission = this.form().commissionEnabled;
+        const hadCommissionProfiles = this.commissionAssignedProfiles().length > 0;
+        const remainingProfiles = this.assignedSystemProfiles().filter(
+            (profile) => profile.origin !== 'comision',
+        );
+
+        this.bumpCommissionCatalogGeneration();
+        this.commissionMunicipalityOptions.set([]);
+        this.commissionInstitutionOptions.set([]);
+        this.commissionDecentralizedBodyOptions.set([]);
+        this.commissionAdministrativeUnitOptions.set([]);
+        this.commissionProfileCarouselIndex.set(0);
+
+        this.assignedSystemProfiles.set(remainingProfiles);
+        this.form.update((current) => ({
+            ...current,
+            commissionEnabled: false,
+            commissionInstitutionType: '',
+            commissionInstitution: '',
+            commissionEntity: '',
+            commissionMunicipality: '',
+            commissionDecentralizedBody: '',
+            commissionAdministrativeUnit: '',
+            commissionAdmissionDate: '',
+            profiles: remainingProfiles.map((profile) => profile.role),
+        }));
+        this.normalizeProfileCarouselIndexes();
+
+        this.formErrors.update((current) => {
+            const next = { ...current };
+            [
+                'commissionInstitutionType',
+                'commissionEntity',
+                'commissionMunicipality',
+                'commissionInstitution',
+                'commissionDecentralizedBody',
+                'commissionAdministrativeUnit',
+                'commissionAdmissionDate',
+            ].forEach((key) => delete next[key]);
+            return next;
+        });
+
+        const message = hadCommission || hadCommissionProfiles
+            ? 'Al modificar la adscripción se eliminó la comisión existente junto con sus perfiles. Durante esta actualización no se puede agregar una nueva comisión.'
+            : 'Esta actualización está modificando la adscripción. Durante esta operación no se puede agregar una comisión.';
+
+        this.profileResetNotice.set({ origin: 'adscripcion', message });
+    }
+
+    protected previousProfile(origin: ProfileOrigin): void {
+        const profiles = this.profilesForOrigin(origin);
+        if (profiles.length <= 1) {
+            return;
+        }
+
+        const current = this.getProfileCarouselIndex(origin);
+        this.setProfileCarouselIndex(origin, current <= 0 ? profiles.length - 1 : current - 1);
+    }
+
+    protected nextProfile(origin: ProfileOrigin): void {
+        const profiles = this.profilesForOrigin(origin);
+        if (profiles.length <= 1) {
+            return;
+        }
+
+        const current = this.getProfileCarouselIndex(origin);
+        this.setProfileCarouselIndex(origin, (current + 1) % profiles.length);
+    }
+
+    protected getProfileCarouselIndex(origin: ProfileOrigin): number {
+        const profiles = this.profilesForOrigin(origin);
+        if (profiles.length === 0) {
+            return 0;
+        }
+
+        const rawIndex = origin === 'comision'
+            ? this.commissionProfileCarouselIndex()
+            : this.assignmentProfileCarouselIndex();
+
+        return Math.min(Math.max(rawIndex, 0), profiles.length - 1);
     }
 
     protected readonly curpValidationSummaryForDisplay = computed(() =>
@@ -890,7 +1214,15 @@ export class UserRegistrationWizard {
 
             untracked(() => {
                 if (mode === 'edit') {
-                    this.hydrateEditForm(detail?.datos ?? {}, user);
+                    // El modal se abre antes de que termine GET /consultas/usuarios.
+                    // No hidratamos con un detalle vacío ni antes de tener los
+                    // catálogos padre, porque eso deja seleccionados por etiqueta
+                    // pero sin IDs válidos para consultar sus hijos.
+                    if (!catalogosReady || !detail) {
+                        return;
+                    }
+
+                    this.hydrateEditForm(detail, user);
                     return;
                 }
 
@@ -941,7 +1273,8 @@ export class UserRegistrationWizard {
                 return;
             }
 
-            const structureId = this.resolveProfileStructureId(current);
+            const origin = this.activeProfileOrigin();
+            const structureId = this.resolveProfileStructureId(current, origin);
 
             untracked(() => this.loadStructureProfileOptions(structureId));
         });
@@ -953,6 +1286,12 @@ export class UserRegistrationWizard {
         }
 
         this.editEnabled.set(true);
+
+        // Los catálogos ya se precargan al hidratar el detalle. Esta segunda
+        // llamada es idempotente a nivel de estado y funciona como recuperación
+        // si alguna petición de catálogo falló o fue invalidada mientras el
+        // detalle todavía estaba abriendo.
+        this.loadHydratedAssignmentCatalogs(this.form());
     }
 
     protected goToStep(stepId: string): void {
@@ -1121,13 +1460,25 @@ export class UserRegistrationWizard {
             this.isSubmitting.set(true);
             this.usersFacade.updateAdminUser(updateRequest)
                 .pipe(
+                    switchMap((response) =>
+                        this.sendStructureUpdateNotificationEmail().pipe(
+                            catchError((error: unknown) => {
+                                console.warn(
+                                    'El usuario se actualizó, pero no fue posible enviar el correo de cambio de adscripción/comisión.',
+                                    error,
+                                );
+                                return of(null);
+                            }),
+                            map(() => response),
+                        ),
+                    ),
                     takeUntilDestroyed(this.destroyRef),
                     finalize(() => this.isSubmitting.set(false)),
                 )
                 .subscribe({
                     next: (response) => {
                         this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                        this.saveSuccess.set(this.buildSaveSuccessModalState(response));
+                        this.saveSuccess.set(this.buildUpdateSuccessModalState(response));
                     },
                     error: (error: unknown) => {
                         const message = error instanceof Error
@@ -1231,6 +1582,23 @@ export class UserRegistrationWizard {
 
         const normalizedValue = this.normalizeFormInputValue(key, value);
         const previousValue = this.form()[key];
+        const changed = normalizedValue !== previousValue;
+
+        if (
+            changed &&
+            (key === 'position' || key === 'functions' || key === 'admissionDate' || key === 'employeeNumber') &&
+            !this.claimEditStructureScope('adscripcion')
+        ) {
+            return;
+        }
+
+        if (
+            changed &&
+            key === 'commissionAdmissionDate' &&
+            !this.claimEditStructureScope('comision')
+        ) {
+            return;
+        }
 
         this.form.update((current) => ({
             ...current,
@@ -1258,6 +1626,56 @@ export class UserRegistrationWizard {
         }
 
         this.clearFieldError(String(key));
+        this.applyLiveFieldValidation(key, normalizedValue);
+    }
+
+    /**
+     * Los pasos sólo se validaban al presionar "Siguiente", así que el usuario
+     * no sabía qué campo estaba mal. Cargo, Funciones y Fecha de nacimiento se
+     * revisan ahora en cada tecla y el mensaje se pinta bajo el propio campo.
+     */
+    private applyLiveFieldValidation<K extends keyof UserRegistrationForm>(
+        key: K,
+        value: UserRegistrationForm[K],
+    ): void {
+        const text = this.toText(value);
+        let message: string | null = null;
+
+        if (key === 'position' && text) {
+            message = getRestrictedTextError(
+                text,
+                RESTRICTED_TEXT_LIMITS.position.min,
+                RESTRICTED_TEXT_LIMITS.position.max,
+                'El cargo',
+            );
+        } else if (key === 'functions' && text) {
+            message = getRestrictedTextError(
+                text,
+                RESTRICTED_TEXT_LIMITS.functions.min,
+                RESTRICTED_TEXT_LIMITS.functions.max,
+                'Las funciones',
+            );
+        } else if (key === 'comment' && text) {
+            message = getRestrictedTextError(
+                text,
+                RESTRICTED_TEXT_LIMITS.comment.min,
+                RESTRICTED_TEXT_LIMITS.comment.max,
+                'El comentario',
+            );
+        } else if (key === 'birthDate' && text) {
+            // Cubre el caso de escribir el año a mano: el <input type="date">
+            // nativo respeta [min]/[max] sólo desde el calendario.
+            message = getBirthDateError(text);
+        }
+
+        if (!message) {
+            return;
+        }
+
+        this.formErrors.update((current) => ({
+            ...current,
+            [String(key)]: message,
+        }));
     }
 
     protected updateCurp(value: string): void {
@@ -1281,6 +1699,23 @@ export class UserRegistrationWizard {
             }));
             this.clearFieldError('curp');
             this.clearFieldError('rfc');
+            this.clearFieldError('birthDate');
+
+            // Edición debe validar la nueva CURP contra RENAPO igual que creación.
+            // Sólo se consulta cuando la CURP está completa y tiene formato válido.
+            if (curp.length !== 18) {
+                return;
+            }
+
+            if (!this.isValidCurp(curp)) {
+                this.formErrors.update((current) => ({
+                    ...current,
+                    curp: 'La CURP no tiene un formato válido.',
+                }));
+                return;
+            }
+
+            this.consultRenapo(curp);
             return;
         }
 
@@ -1340,7 +1775,11 @@ export class UserRegistrationWizard {
     }
 
     protected toggleCurpUnlock(checked: boolean): void {
-        if (this.isEditMode() || this.isFormDisabled() || this.isSubmitting()) {
+        if (
+            (this.isEditMode() && this.detailCurpValidated()) ||
+            this.isFormDisabled() ||
+            this.isSubmitting()
+        ) {
             return;
         }
 
@@ -1375,7 +1814,7 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.bumpCommissionCatalogGeneration();
+        const commissionChanged = this.form().commissionEnabled !== checked;
 
         if (checked && !this.canConfigureCommission()) {
             this.formErrors.update((current) => ({
@@ -1386,12 +1825,31 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (this.form().commissionEnabled !== checked) {
-            this.clearProfilesAfterStructureContextChange(
-                checked
-                    ? 'Se activó la comisión. Selecciona la institución de comisión para consultar sus perfiles.'
-                    : 'Se eliminó la comisión. Debes volver a seleccionar los perfiles de la adscripción.',
-            );
+        if (!this.claimEditStructureScope('comision', commissionChanged)) {
+            return;
+        }
+
+        this.bumpCommissionCatalogGeneration();
+
+        if (commissionChanged) {
+            if (this.isEditMode()) {
+                if (!checked) {
+                    this.clearProfilesForOrigin(
+                        'comision',
+                        'Se desactivó la comisión. Se eliminaron únicamente los perfiles asociados a la comisión; los perfiles de adscripción se conservaron.',
+                    );
+                    this.selectedProfileOrigin.set('comision');
+                }
+            } else {
+                // Creación: existe un solo contexto de perfiles. Al alternar comisión
+                // se invalida toda la selección y el catálogo pasa al último origen.
+                this.clearAllProfilesAfterCreationContextChange(
+                    checked
+                        ? 'Se activó la comisión. Selecciona su estructura para consultar los perfiles correspondientes.'
+                        : 'Se eliminó la comisión. Debes volver a seleccionar los perfiles correspondientes a la adscripción.',
+                );
+                this.selectedProfileOrigin.set(checked ? 'comision' : 'adscripcion');
+            }
         }
 
         this.form.update((current) => ({
@@ -1411,6 +1869,16 @@ export class UserRegistrationWizard {
             this.commissionInstitutionOptions.set([]);
             this.commissionDecentralizedBodyOptions.set([]);
             this.commissionAdministrativeUnitOptions.set([]);
+
+            if (this.isEditMode() && commissionChanged) {
+                // Si durante edición se eligió comisión y después se retira,
+                // adscripción debe quedar habilitada nuevamente. El origen se
+                // libera para que la siguiente modificación pueda fijar
+                // adscripción como el único alcance editable de la operación.
+                this.editStructureScope.set(null);
+                this.selectedProfileOrigin.set('adscripcion');
+                this.resetStructureProfileCatalog();
+            }
         }
 
         this.formErrors.update((current) => {
@@ -1440,6 +1908,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const institutionType = value ?? '';
+        if (!this.claimEditStructureScope('adscripcion', this.form().institutionType !== institutionType)) {
+            return;
+        }
         const requiresEntity = this.requiresEntityForInstitution(institutionType);
 
         this.clearProfilesAfterAssignmentInstitutionChange(this.form().institution, '');
@@ -1475,6 +1946,10 @@ export class UserRegistrationWizard {
 
     protected updateAssignmentEntity(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (!this.claimEditStructureScope('adscripcion', this.form().entity !== (value ?? ''))) {
             return;
         }
 
@@ -1519,6 +1994,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.claimEditStructureScope('adscripcion', this.form().municipality !== (value ?? ''))) {
+            return;
+        }
+
         this.bumpAssignmentCatalogGeneration();
 
         if (!this.assignmentRequiresMunicipality()) {
@@ -1550,6 +2029,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const institution = value ?? '';
+        if (!this.claimEditStructureScope('adscripcion', this.form().institution !== institution)) {
+            return;
+        }
         this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().institution,
             institution,
@@ -1581,6 +2063,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const decentralizedBody = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('adscripcion', this.form().decentralizedBody !== decentralizedBody)) {
+            return;
+        }
 
         // El catálogo de perfiles se consulta con el último nivel seleccionado,
         // por lo que cambiar el OAD invalida los perfiles ya elegidos.
@@ -1610,6 +2095,9 @@ export class UserRegistrationWizard {
         this.bumpAssignmentCatalogGeneration();
 
         const administrativeUnit = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('adscripcion', this.form().administrativeUnit !== administrativeUnit)) {
+            return;
+        }
 
         this.clearProfilesAfterAssignmentInstitutionChange(
             this.form().administrativeUnit,
@@ -1631,6 +2119,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionInstitutionType = value ?? '';
+        if (!this.claimEditStructureScope('comision', this.form().commissionInstitutionType !== commissionInstitutionType)) {
+            return;
+        }
         const requiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
 
         this.clearProfilesAfterCommissionInstitutionChange(this.form().commissionInstitution, '');
@@ -1666,6 +2157,10 @@ export class UserRegistrationWizard {
 
     protected updateCommissionEntity(value: string | null): void {
         if (this.isFormDisabled() || this.isSubmitting()) {
+            return;
+        }
+
+        if (!this.claimEditStructureScope('comision', this.form().commissionEntity !== (value ?? ''))) {
             return;
         }
 
@@ -1710,6 +2205,10 @@ export class UserRegistrationWizard {
             return;
         }
 
+        if (!this.claimEditStructureScope('comision', this.form().commissionMunicipality !== (value ?? ''))) {
+            return;
+        }
+
         this.bumpCommissionCatalogGeneration();
 
         if (!this.commissionRequiresMunicipality()) {
@@ -1741,6 +2240,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionInstitution = value ?? '';
+        if (!this.claimEditStructureScope('comision', this.form().commissionInstitution !== commissionInstitution)) {
+            return;
+        }
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionInstitution,
             commissionInstitution,
@@ -1772,6 +2274,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionDecentralizedBody = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('comision', this.form().commissionDecentralizedBody !== commissionDecentralizedBody)) {
+            return;
+        }
 
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionDecentralizedBody,
@@ -1797,6 +2302,9 @@ export class UserRegistrationWizard {
         this.bumpCommissionCatalogGeneration();
 
         const commissionAdministrativeUnit = this.normalizeSelectValue(value);
+        if (!this.claimEditStructureScope('comision', this.form().commissionAdministrativeUnit !== commissionAdministrativeUnit)) {
+            return;
+        }
 
         this.clearProfilesAfterCommissionInstitutionChange(
             this.form().commissionAdministrativeUnit,
@@ -1903,28 +2411,42 @@ export class UserRegistrationWizard {
 
         const isSiau = this.isSiauSystem(system, systemOption.label);
 
-        if (isSiau && this.hasAssignedSiauProfile()) {
-            this.formErrors.update((current) => ({
-                ...current,
-                profiles:
-                    'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.',
-            }));
-            return;
-        }
-
         if (this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
 
+        const origin = this.activeProfileOrigin();
+        // Agregar perfiles fija el alcance de la edición, pero NO cambia la
+        // estructura. Por eso se conserva el catálogo actual para permitir
+        // agregar varios perfiles consecutivamente en el mismo origen.
+        if (!this.claimEditStructureScope(origin, true, false)) {
+            return;
+        }
+
         const newItem: AssignedSystemProfile = {
-            id: `${system}-${role}-${Date.now()}`,
+            id: `${origin}-${system}-${role}-${Date.now()}`,
             system,
             role,
             systemLabel: systemOption.label,
             roleLabel: roleOption.label,
+            origin,
         };
 
-        this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.assignedSystemProfiles.update((current) => {
+            // Sólo al agregar SIAU se reemplaza un SIAU existente, y únicamente
+            // dentro del mismo origen (adscripción o comisión). Los SIAU del
+            // otro origen y todos los perfiles de otros sistemas se conservan.
+            const profilesToKeep = isSiau
+                ? current.filter((profile) =>
+                    profile.origin !== origin ||
+                    !this.isSiauSystem(profile.system, profile.systemLabel),
+                )
+                : current;
+
+            return [...profilesToKeep, newItem];
+        });
+        this.normalizeProfileCarouselIndexes();
+        this.setProfileCarouselIndex(origin, this.profilesForOrigin(origin).length - 1);
         this.clearFieldError('profiles');
         this.selectedSystem.set('');
         this.selectedRole.set('');
@@ -1946,7 +2468,14 @@ export class UserRegistrationWizard {
             return;
         }
 
+        // Quitar un perfil tampoco modifica la estructura ni debe invalidar
+        // los sistemas/perfiles disponibles del origen activo.
+        if (!this.claimEditStructureScope(profile.origin, true, false)) {
+            return;
+        }
+
         this.assignedSystemProfiles.update((current) => current.filter((item) => item.id !== id));
+        this.normalizeProfileCarouselIndexes();
         this.clearFieldError('profiles');
 
         // También se persiste la eliminación. Si ya no queda ningún perfil,
@@ -1999,26 +2528,36 @@ export class UserRegistrationWizard {
             });
     }
 
-    protected canRemoveAssignedProfile(_profile: AssignedSystemProfile): boolean {
-        // Un perfil SIAU debe poder eliminarse para que el administrador pueda
-        // seleccionar otro. La exclusividad se valida al agregar, no al eliminar.
-        return true;
+    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean {
+        // SIAU puede reemplazarse, pero en actualización sólo dentro del origen
+        // elegido para esta operación.
+        return !this.isProfileOriginLocked(profile.origin);
     }
 
     private clearProfilesAfterAssignmentInstitutionChange(
         previousInstitution: string | null | undefined,
         nextInstitution: string | null | undefined,
     ): void {
-        // Cuando existe comisión, los perfiles provienen de la institución de comisión.
-        // Cambiar adscripción no debe borrar ni alterar ese contexto independiente.
-        if (this.form().commissionEnabled) {
+        const changed = String(previousInstitution ?? '').trim() !== String(nextInstitution ?? '').trim();
+        if (!changed || !this.claimEditStructureScope('adscripcion')) {
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(
-            previousInstitution,
-            nextInstitution,
-            'La estructura de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+        if (!this.isEditMode()) {
+            // Flujo original de creación: si hay comisión, ésa es la fuente de perfiles.
+            if (this.form().commissionEnabled) {
+                return;
+            }
+
+            this.clearAllProfilesAfterCreationContextChange(
+                'La estructura de adscripción cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            );
+            return;
+        }
+
+        this.clearProfilesForOrigin(
+            'adscripcion',
+            'La estructura de adscripción cambió. Se eliminaron los perfiles de adscripción y la comisión existente junto con sus perfiles. Durante esta actualización no se puede agregar una nueva comisión; se recargarán los sistemas y perfiles de la nueva adscripción.',
         );
     }
 
@@ -2030,50 +2569,74 @@ export class UserRegistrationWizard {
             return;
         }
 
-        this.clearAssignedProfilesAfterInstitutionChange(
-            previousInstitution,
-            nextInstitution,
-            'La estructura de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
-        );
-    }
-
-    private clearAssignedProfilesAfterInstitutionChange(
-        previousInstitution: string | null | undefined,
-        nextInstitution: string | null | undefined,
-        message: string,
-    ): void {
-        const previousValue = String(previousInstitution ?? '').trim();
-        const nextValue = String(nextInstitution ?? '').trim();
-
-        if (previousValue === nextValue) {
+        const changed = String(previousInstitution ?? '').trim() !== String(nextInstitution ?? '').trim();
+        if (!changed || !this.claimEditStructureScope('comision')) {
             return;
         }
 
-        this.clearProfilesAfterStructureContextChange(message);
+        if (!this.isEditMode()) {
+            this.clearAllProfilesAfterCreationContextChange(
+                'La estructura de comisión cambió. Debes volver a seleccionar los sistemas y perfiles del usuario.',
+            );
+            return;
+        }
+
+        this.clearProfilesForOrigin(
+            'comision',
+            'La estructura de comisión cambió. Se eliminaron los perfiles de comisión existentes y se recargarán los sistemas y perfiles con la nueva selección.',
+        );
     }
 
-    private clearProfilesAfterStructureContextChange(message: string): void {
+    private clearAllProfilesAfterCreationContextChange(message: string): void {
         this.resetStructureProfileCatalog();
 
         const hasAssignedProfiles =
             this.assignedSystemProfiles().length > 0 || this.form().profiles.length > 0;
 
         this.assignedSystemProfiles.set([]);
-        this.form.update((current) => ({
-            ...current,
-            profiles: [],
-        }));
+        this.form.update((current) => ({ ...current, profiles: [] }));
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
+        this.assignmentProfileCarouselIndex.set(0);
+        this.commissionProfileCarouselIndex.set(0);
+        this.completedSteps.update((current) => current.filter((stepId) => stepId !== 'profiles'));
+
+        if (!hasAssignedProfiles) {
+            this.clearFieldError('profiles');
+            return;
+        }
+
+        this.formErrors.update((current) => ({ ...current, profiles: message }));
+    }
+
+    private clearProfilesForOrigin(origin: ProfileOrigin, message: string): void {
+        const currentProfiles = this.assignedSystemProfiles();
+        const removedProfiles = currentProfiles.filter((profile) => profile.origin === origin);
+        const remainingProfiles = currentProfiles.filter((profile) => profile.origin !== origin);
+
+        if (this.activeProfileOrigin() === origin) {
+            this.resetStructureProfileCatalog();
+        }
+
+        this.assignedSystemProfiles.set(remainingProfiles);
+        this.form.update((current) => ({
+            ...current,
+            profiles: remainingProfiles.map((profile) => profile.role),
+        }));
+        this.normalizeProfileCarouselIndexes();
 
         this.completedSteps.update((current) =>
             current.filter((stepId) => stepId !== 'profiles'),
         );
 
-        if (!hasAssignedProfiles) {
+        if (removedProfiles.length === 0) {
             this.clearFieldError('profiles');
             return;
+        }
+
+        if (this.isEditMode()) {
+            this.profileResetNotice.set({ origin, message });
         }
 
         this.formErrors.update((current) => ({
@@ -2148,6 +2711,12 @@ export class UserRegistrationWizard {
 
     private consultRenapo(curp: string): void {
         const normalizedCurp = this.toText(curp).toUpperCase();
+
+        // Un usuario que ya llegó validado desde el detalle conserva su
+        // identidad oficial; no se vuelve a disparar RENAPO en actualización.
+        if (this.isEditMode() && this.detailCurpValidated()) {
+            return;
+        }
 
         if (!this.isValidCurp(normalizedCurp)) {
             return;
@@ -2247,6 +2816,11 @@ export class UserRegistrationWizard {
 
             return next;
         });
+
+        // Si RENAPO devuelve a una persona menor de edad (o una fecha que no se
+        // pudo interpretar) se marca de inmediato en vez de dejar avanzar el
+        // wizard y fallar hasta el guardado.
+        this.applyLiveFieldValidation('birthDate', this.form().birthDate);
     }
 
     private clearRenapoPersonalData(): void {
@@ -2438,7 +3012,8 @@ export class UserRegistrationWizard {
     ): EcccPersonalLookupRequest | null {
         const curp = this.toText(form.curp).toUpperCase();
         const rfc = this.toText(form.rfc).toUpperCase();
-        const cuip = this.toText(form.cuip).toUpperCase();
+        const cuipValue = this.toText(form.cuip).trim();
+        const cuip = cuipValue ? cuipValue.toUpperCase() : null;
         const nombre = this.toText(form.firstName).toUpperCase();
         const primerApellido = this.toText(form.lastName).toUpperCase();
         const segundoApellido = this.toText(form.secondLastName).toUpperCase();
@@ -2491,6 +3066,41 @@ export class UserRegistrationWizard {
         this.curpValidationSummary.set(null);
     }
 
+    private buildUpdateSuccessModalState(
+        response: ActualizarAdminResponse,
+    ): SaveSuccessModalState {
+        const current = this.form();
+        const fullName = [
+            current.firstName,
+            current.lastName,
+            current.secondLastName,
+        ]
+            .map((value) => this.toText(value))
+            .filter(Boolean)
+            .join(' ');
+
+        return {
+            message:
+                this.toText(response.mensaje)
+                || 'El usuario se actualizó correctamente.',
+            userNumber: this.toText(
+                response.datos?.usuarioId
+                ?? this.user()?.userId
+                ?? this.userDetail()?.userId,
+            ),
+            account: this.toText(this.user()?.username),
+            fullName,
+            system: '',
+            hasAccessEmail: false,
+            accessEmail: this.normalizeEmail(current.email),
+            accessPhone: this.formatPhoneForDisplay(current.phone),
+            emailAccepted: false,
+            emailStatus: '',
+            emailMessage: '',
+            emailReference: '',
+        };
+    }
+
     private buildSaveSuccessModalState(
         response: RegistroAdminResponse,
         emailDelivery: CorreoDeliveryResult | null = null,
@@ -2512,6 +3122,184 @@ export class UserRegistrationWizard {
             emailMessage: this.toText(emailDelivery?.message),
             emailReference: this.toText(emailDelivery?.correoId),
         };
+    }
+
+    private sendStructureUpdateNotificationEmail(): Observable<CorreoDeliveryResult | null> {
+        const initial = this.initialStructureEmailSnapshot;
+
+        if (!initial) {
+            return of(null);
+        }
+
+        const currentForm = this.form();
+        const current = this.toStructureEmailSnapshot(currentForm);
+        const changes: UserStructureEmailChange[] = [];
+        const changedOrigins: ProfileOrigin[] = [];
+
+        if (initial.adscriptionSignature !== current.adscriptionSignature) {
+            changes.push({
+                type: 'adscripcion',
+                previousValue: initial.adscriptionDescription,
+                newValue: current.adscriptionDescription,
+            });
+            changedOrigins.push('adscripcion');
+        }
+
+        if (initial.commissionSignature !== current.commissionSignature) {
+            changes.push({
+                type: 'comision',
+                previousValue: initial.commissionDescription,
+                newValue: current.commissionDescription,
+            });
+            changedOrigins.push('comision');
+        }
+
+        if (changes.length === 0) {
+            return of(null);
+        }
+
+        const recipient = this.normalizeEmail(currentForm.email);
+
+        if (!this.isValidEmail(recipient)) {
+            console.warn(
+                'El usuario se actualizó, pero no tiene un correo válido para notificar el cambio de adscripción/comisión.',
+            );
+            return of(null);
+        }
+
+        const changedOriginSet = new Set<ProfileOrigin>(changedOrigins);
+        const initialProfileKeys = new Set(
+            this.initialAssignedProfiles.map((profile) => this.buildAssignedProfileKey(profile)),
+        );
+        const addedProfiles: UserStructureEmailProfile[] = this.assignedSystemProfiles()
+            .filter((profile) => changedOriginSet.has(profile.origin))
+            // El correo sólo debe informar perfiles realmente agregados en esta actualización.
+            // Los perfiles que el usuario ya tenía antes de editar no se vuelven a notificar.
+            .filter((profile) => !initialProfileKeys.has(this.buildAssignedProfileKey(profile)))
+            .map((profile) => ({
+                origin: profile.origin,
+                system: this.toText(profile.systemLabel) || this.resolveSystemLabel(profile.system) || profile.system,
+                profile: this.toText(profile.roleLabel)
+                    || this.resolveRoleLabel(profile.system, profile.role, profile.systemLabel, profile.roleDescription)
+                    || profile.role,
+            }));
+
+        const fullName = [
+            currentForm.firstName,
+            currentForm.lastName,
+            currentForm.secondLastName,
+        ]
+            .map((value) => this.toText(value))
+            .filter(Boolean)
+            .join(' ');
+
+        return this.correoFacade.send(
+            buildUserStructureUpdateEmailRequest({
+                recipient,
+                fullName,
+                account: this.toText(this.user()?.username) || this.toText(currentForm.username),
+                changes,
+                addedProfiles,
+            }),
+        );
+    }
+
+    private toStructureEmailSnapshot(form: UserRegistrationForm): StructureEmailSnapshot {
+        return {
+            adscriptionSignature: this.buildStructureEmailSignature(form, 'adscripcion'),
+            adscriptionDescription: this.buildStructureEmailDescription(form, 'adscripcion'),
+            commissionSignature: this.buildStructureEmailSignature(form, 'comision'),
+            commissionDescription: this.buildStructureEmailDescription(form, 'comision'),
+        };
+    }
+
+    private buildStructureEmailSignature(
+        form: UserRegistrationForm,
+        origin: ProfileOrigin,
+    ): string {
+        if (origin === 'comision' && !form.commissionEnabled) {
+            return 'SIN_COMISION';
+        }
+
+        const values = origin === 'comision'
+            ? [
+                form.commissionInstitutionType,
+                form.commissionEntity,
+                form.commissionMunicipality,
+                form.commissionInstitution,
+                form.commissionDecentralizedBody,
+                form.commissionAdministrativeUnit,
+            ]
+            : [
+                form.institutionType,
+                form.entity,
+                form.municipality,
+                form.institution,
+                form.decentralizedBody,
+                form.administrativeUnit,
+            ];
+
+        return values
+            .map((value) => this.toText(value))
+            .join('|');
+    }
+
+    private buildStructureEmailDescription(
+        form: UserRegistrationForm,
+        origin: ProfileOrigin,
+    ): string {
+        if (origin === 'comision' && !form.commissionEnabled) {
+            return 'Sin comisión';
+        }
+
+        const fields = origin === 'comision'
+            ? [
+                ['Tipo', form.commissionInstitutionType, this.institutionTypeOptions()] as const,
+                ['Entidad', form.commissionEntity, this.stateOptions()] as const,
+                ['Municipio', form.commissionMunicipality, this.commissionMunicipalityOptions()] as const,
+                ['Institución', form.commissionInstitution, this.commissionInstitutionOptions()] as const,
+                ['Órgano', form.commissionDecentralizedBody, this.commissionDecentralizedBodyOptions()] as const,
+                ['Unidad administrativa', form.commissionAdministrativeUnit, this.commissionAdministrativeUnitOptions()] as const,
+            ]
+            : [
+                ['Tipo', form.institutionType, this.institutionTypeOptions()] as const,
+                ['Entidad', form.entity, this.stateOptions()] as const,
+                ['Municipio', form.municipality, this.municipalityOptions()] as const,
+                ['Institución', form.institution, this.institutionOptions()] as const,
+                ['Órgano', form.decentralizedBody, this.decentralizedBodyOptions()] as const,
+                ['Unidad administrativa', form.administrativeUnit, this.administrativeUnitOptions()] as const,
+            ];
+
+        const description = fields
+            .map(([label, value, options]) => {
+                const resolved = this.resolveStructureEmailOptionLabel(value, options);
+                return resolved ? `${label}: ${resolved}` : '';
+            })
+            .filter(Boolean)
+            .join(' · ');
+
+        return description || (origin === 'comision' ? 'Comisión sin detalle' : 'Adscripción sin detalle');
+    }
+
+    private resolveStructureEmailOptionLabel(
+        value: string | null | undefined,
+        options: readonly SiauSelectOption[],
+    ): string {
+        const cleanValue = this.toText(value);
+
+        if (!cleanValue || cleanValue === NO_APLICA_VALUE || cleanValue === CLEAR_SELECTION_VALUE) {
+            return '';
+        }
+
+        const normalized = this.normalizeText(cleanValue);
+        const option = options.find(
+            (item) =>
+                item.value === cleanValue
+                || this.normalizeText(item.value) === normalized
+                || this.normalizeText(item.label) === normalized,
+        );
+
+        return this.toText(option?.label) || cleanValue;
     }
 
     private sendAccessCredentialsEmail(
@@ -2660,6 +3448,9 @@ export class UserRegistrationWizard {
                     'Captura la fecha de nacimiento.',
                 ),
                 estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
+                // Por regla del flujo este indicador viaja como 1/0. Sólo se
+                // marca como validada cuando RENAPO devolvió información completa.
+                curpValidada: this.renapoLookupStatus() === 'success' ? 1 : 0,
             },
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -2696,7 +3487,6 @@ export class UserRegistrationWizard {
             this.userDetail()?.userId;
 
         const current = this.form();
-        const assignedProfiles = this.assignedSystemProfiles();
 
         if (!userId || userId <= 0) {
             throw new Error(
@@ -2704,49 +3494,52 @@ export class UserRegistrationWizard {
             );
         }
 
-        if (assignedProfiles.length === 0) {
-            throw new Error(
-                'Selecciona al menos un sistema y perfil.',
-            );
-        }
-
         return {
             usuarioId: userId,
 
-            curp: this.requireText(
-                current.curp,
-                'Captura la CURP.',
-            ).toUpperCase(),
+            // Cuando el detalle ya viene validado por RENAPO estos campos no
+            // se envían en el PATCH, además de permanecer bloqueados en UI.
+            // Si no estaba validado, el administrador conserva el flujo normal
+            // de edición y puede volver a consultar RENAPO.
+            ...(this.detailCurpValidated()
+                ? {}
+                : {
+                    curp: this.requireText(
+                        current.curp,
+                        'Captura la CURP.',
+                    ).toUpperCase(),
+                    nombres: this.requireText(
+                        current.firstName,
+                        'Captura el nombre.',
+                    ).toUpperCase(),
+                    primerApellido: this.requireText(
+                        current.lastName,
+                        'Captura el primer apellido.',
+                    ).toUpperCase(),
+                    segundoApellido:
+                        this.toNullableText(current.secondLastName)
+                            ?.toUpperCase() ?? null,
+                    fechaNacimiento: this.requireText(
+                        current.birthDate,
+                        'Captura la fecha de nacimiento.',
+                    ),
+                }),
 
             rfc: this.toNullableText(current.rfc)?.toUpperCase() ?? null,
-
-            nombres: this.requireText(
-                current.firstName,
-                'Captura el nombre.',
-            ).toUpperCase(),
-
-            primerApellido: this.requireText(
-                current.lastName,
-                'Captura el primer apellido.',
-            ).toUpperCase(),
-
-            segundoApellido:
-                this.toNullableText(current.secondLastName)
-                    ?.toUpperCase() ?? null,
 
             sexoId: this.requireCatalogId(
                 current.gender,
                 'Selecciona el sexo.',
             ),
 
-            fechaNacimiento: this.requireText(
-                current.birthDate,
-                'Captura la fecha de nacimiento.',
-            ),
-
             estadoCivilId: this.toCatalogId(current.civilStatus) ?? null,
 
             cuip: this.toNullableText(current.cuip),
+
+            // El backend espera 1/0. Si en esta edición RENAPO respondió,
+            // prevalece ese resultado; si no hubo una nueva consulta, se conserva
+            // el indicador que llegó en el detalle del usuario.
+            curpValidada: this.resolveCurpValidatedValue(),
 
             adscripcion: {
                 estructuraId: this.resolveAssignmentStructureId(),
@@ -2772,22 +3565,86 @@ export class UserRegistrationWizard {
 
             contacto: this.buildContactRequest(),
 
-            perfiles: assignedProfiles.map((profile) => ({
-                idSistema: this.resolveAssignedSystemId(profile),
-
-                idPerfil: this.requireCatalogId(
-                    profile.role,
-                    'Selecciona un perfil válido.',
-                ),
-            })),
-
-            nuevaCuenta: null,
+            // En edición el PATCH envía la colección COMPLETA que está
+            // actualmente visible en cada origen. No se limita a uno/dos perfiles
+            // ni únicamente a las altas detectadas en esta sesión. De esta forma
+            // pueden viajar tantos perfiles como el usuario haya agregado, siempre
+            // respetando la regla independiente de máximo un SIAU por origen.
+            perfiles: this.buildAllAssignedProfilesRequest('adscripcion'),
+            perfilesComision: this.buildAllAssignedProfilesRequest('comision'),
 
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
                 correlationId: 'SIAU-FRONT',
             },
         };
+    }
+
+    /**
+     * Serializa todos los perfiles que actualmente pertenecen al origen indicado.
+     *
+     * No existe un límite de cantidad para perfiles normales: si el usuario tiene
+     * 3, 5, 10 o más perfiles en Adscripción/Comisión, todos viajan en el payload.
+     * La única regla especial permanece en la UI: máximo un perfil SIAU por origen.
+     *
+     * Para adscripción se conserva el fallback NORMAL únicamente cuando el usuario
+     * no tiene ningún perfil en ninguno de los dos orígenes, igual que en el flujo
+     * anterior. Comisión, cuando no tiene perfiles, se envía como arreglo vacío.
+     */
+    private buildAllAssignedProfilesRequest(
+        origin: ProfileOrigin,
+    ): readonly ActualizarAdminPerfil[] {
+        const profiles = this.assignedSystemProfiles().filter(
+            (profile) => profile.origin === origin,
+        );
+
+        if (profiles.length > 0) {
+            return profiles.map((profile) =>
+                this.toActualizarAdminPerfil(profile),
+            );
+        }
+
+        if (origin === 'comision') {
+            return [];
+        }
+
+        const hasAnyProfile = this.assignedSystemProfiles().length > 0;
+
+        return hasAnyProfile
+            ? []
+            : [{
+                idSistema: DEFAULT_NORMAL_SYSTEM_ID,
+                idPerfil: DEFAULT_NORMAL_PROFILE_ID,
+            }];
+    }
+
+    private toActualizarAdminPerfil(profile: AssignedSystemProfile): ActualizarAdminPerfil {
+        return {
+            idSistema: this.resolveAssignedSystemId(profile),
+            idPerfil: this.requireCatalogId(
+                profile.role,
+                'Selecciona un perfil válido.',
+            ),
+        };
+    }
+
+    /**
+     * `curpValidada` siempre viaja como 1/0.
+     * Una respuesta RENAPO de esta edición tiene prioridad; si no hubo una
+     * consulta concluyente se conserva el valor persistido que llegó en detalle.
+     */
+    private resolveCurpValidatedValue(): 0 | 1 {
+        const status = this.renapoLookupStatus();
+
+        if (status === 'success') {
+            return 1;
+        }
+
+        if (status === 'not-found') {
+            return 0;
+        }
+
+        return this.detailCurpValidated() ? 1 : 0;
     }
 
     private resolveAccountStatusId(status: AccountStatus): number {
@@ -2971,11 +3828,33 @@ export class UserRegistrationWizard {
         return null;
     }
 
-    private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
+    private hydrateEditForm(detail: UserDetailRecord, user: UserRecord | null): void {
+        const datos = detail.datos;
+        // Invalida respuestas que pudieran pertenecer al usuario/modal anterior.
+        // Así ningún catálogo tardío puede sobrescribir la jerarquía del detalle
+        // que se está abriendo ahora.
+        this.bumpAssignmentCatalogGeneration();
+        this.bumpCommissionCatalogGeneration();
         this.resetRenapoLookupState();
         this.resetEcccPersonalLookupState();
 
         const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
+        const persistedCurpValidated = detail.curpValidada === 1;
+        this.detailCurpValidated.set(persistedCurpValidated);
+
+        // El detalle es la fuente de verdad en edición. Si el backend indica
+        // curpValidada = 1, no se dispara una nueva consulta RENAPO y se muestra
+        // el indicador persistido exigido por HU04/RN15.
+        if (persistedCurpValidated) {
+            this.renapoLookupStatus.set('success');
+            this.renapoMessage.set(
+                'La CURP de este usuario ya fue validada en RENAPO. En edición no se permite volver a consultar RENAPO ni modificar CURP, nombre(s), apellidos o fecha de nacimiento.',
+            );
+            this.renapoMessageVisible.set(true);
+            this.curpLocked.set(true);
+            this.curpUnlockChecked.set(false);
+        }
+
         const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
         const s3Commission = this.toSectionRecord(datos, ['s3Comision']);
         const commission = Object.keys(s3Commission).length > 0
@@ -2999,37 +3878,25 @@ export class UserRegistrationWizard {
                 this.stateOptions,
             );
 
-        const commissionInstitutionTypeId = this.toText(commission['tipoInstitucionId']);
-        const commissionInstitutionTypeLabel = this.toText(commission['tipoInstitucion']);
-        const commissionInstitutionType =
-            commissionInstitutionTypeId || commissionInstitutionTypeLabel;
-
-        if (commissionInstitutionType) {
-            this.institutionTypeOptions.set(this.mergeSelectOptions(
-                [{
-                    value: commissionInstitutionType,
-                    label: commissionInstitutionTypeLabel || commissionInstitutionType,
-                }],
-                this.institutionTypeOptions(),
-            ));
-        }
+        // Comisión debe resolverse exactamente igual que adscripción: primero
+        // por ID y después por etiqueta. El detalle puede publicar estado/entidad
+        // según la versión del servicio; ambos contratos se aceptan.
+        const commissionInstitutionType = this.resolveRecordSelectValue(
+            commission,
+            ['tipoInstitucionId', 'idTipoInstitucion'],
+            ['tipoInstitucion', 'tipoInstitucionNombre', 'tipoInstitucionClave'],
+            this.institutionTypeOptions,
+        );
 
         const commissionRequiresEntity = this.requiresEntityForInstitution(commissionInstitutionType);
-        const commissionEntityId = this.toText(commission['estadoId']);
-        const commissionEntityLabel = this.toText(commission['estado']);
         const commissionEntity = !commissionRequiresEntity
             ? ''
-            : commissionEntityId || commissionEntityLabel;
-
-        if (commissionEntity) {
-            this.stateOptions.set(this.mergeSelectOptions(
-                [{
-                    value: commissionEntity,
-                    label: commissionEntityLabel || commissionEntity,
-                }],
-                this.stateOptions(),
-            ));
-        }
+            : this.resolveRecordSelectValue(
+                commission,
+                ['estadoId', 'entidadId', 'idEstado', 'idEntidad'],
+                ['estado', 'entidad', 'estadoNombre', 'entidadNombre'],
+                this.stateOptions,
+            );
 
         const hasCommissionData =
             this.hasText(this.firstValue(commission, ['tipoInstitucion', 'tipoInstitucionId'])) ||
@@ -3140,7 +4007,10 @@ export class UserRegistrationWizard {
             comment: this.toText(datos['comentario']),
         };
 
-        const assignedProfiles = this.toAssignedSystemProfiles(datos['s6Perfiles']);
+        const assignedProfiles = this.toAssignedSystemProfiles(
+            datos['s6Perfiles'],
+            nextForm.commissionEnabled ? 'comision' : 'adscripcion',
+        );
 
         this.activeStepId.set('personal-data');
         this.completedSteps.set([...this.stepOrder()]);
@@ -3148,16 +4018,28 @@ export class UserRegistrationWizard {
         this.form.set(nextForm);
         this.initialIdentitySnapshot = this.toIdentitySnapshot(nextForm);
         this.initialEditFormSnapshot = this.toEditFormSnapshot(nextForm);
+        this.initialStructureEmailSnapshot = this.toStructureEmailSnapshot(nextForm);
         this.selectedSystem.set('');
         this.selectedRole.set('');
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set(assignedProfiles);
+        this.assignmentProfileCarouselIndex.set(0);
+        this.commissionProfileCarouselIndex.set(0);
+        // En edición la sección de perfiles activa se deriva de la estructura
+        // existente: comisión tiene prioridad cuando ambas existen; si no hay
+        // comisión, adscripción queda editable.
+        this.selectedProfileOrigin.set(nextForm.commissionEnabled ? 'comision' : 'adscripcion');
+        this.profileResetNotice.set(null);
+        this.editStructureScope.set(null);
         this.initialAssignedProfiles = [...assignedProfiles];
         this.detailRoleOptionsBySystem.set(this.buildDetailRoleOptionsBySystem(assignedProfiles));
         this.loadHydratedAssignmentCatalogs(nextForm);
     }
 
-    private toAssignedSystemProfiles(value: unknown): AssignedSystemProfile[] {
+    private toAssignedSystemProfiles(
+        value: unknown,
+        fallbackOrigin: ProfileOrigin = 'adscripcion',
+    ): AssignedSystemProfile[] {
         if (!Array.isArray(value)) {
             return [];
         }
@@ -3190,6 +4072,10 @@ export class UserRegistrationWizard {
                 const rawRoleId = this.toText(
                     this.firstValue(record, ['perfilId', 'rolId', 'idPerfil', 'role']),
                 );
+                const origin = this.toProfileOrigin(
+                    this.firstValue(record, ['origenTipo', 'origen', 'originType', 'origin']),
+                    fallbackOrigin,
+                );
                 const systemOption = this.findKnownSystemOption(rawSystemId, rawSystemLabel) ?? null;
 
                 const systemValue = systemOption?.value || rawSystemId || rawSystemLabel;
@@ -3203,11 +4089,12 @@ export class UserRegistrationWizard {
                 }
 
                 return {
-                    id: `${systemValue}-${roleValue}-${index}`,
+                    id: `${origin}-${systemValue}-${roleValue}-${index}`,
                     system: systemValue,
                     role: roleValue,
                     systemLabel,
                     roleLabel,
+                    origin,
                 } satisfies AssignedSystemProfile;
             })
             .filter((item): item is AssignedSystemProfile => item !== null);
@@ -3356,6 +4243,10 @@ export class UserRegistrationWizard {
         const systemOption = this.findKnownSystemOption(system);
 
         return this.assignedSystemProfiles().some((profile) => {
+            if (profile.origin !== this.activeProfileOrigin()) {
+                return false;
+            }
+
             const sameSystem =
                 profile.system === system ||
                 this.normalizeText(profile.system) === this.normalizeText(system) ||
@@ -3527,6 +4418,26 @@ export class UserRegistrationWizard {
 
         if (!textValue) {
             return '';
+        }
+
+        // Algunos orígenes legacy entregan fechas como serial de Excel/OLE
+        // (por ejemplo, 45100 = 2023-06-23). Se convierte antes de intentar
+        // interpretar formatos de texto para evitar mostrar el serial en el input.
+        if (/^\d{4,6}(?:\.\d+)?$/.test(textValue)) {
+            const serial = Number(textValue);
+
+            if (Number.isFinite(serial) && serial >= 1 && serial <= 100000) {
+                const excelEpochUtc = Date.UTC(1899, 11, 30);
+                const date = new Date(excelEpochUtc + Math.floor(serial) * 86_400_000);
+
+                if (!Number.isNaN(date.getTime())) {
+                    const year = date.getUTCFullYear();
+                    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                    const day = String(date.getUTCDate()).padStart(2, '0');
+
+                    return `${year}-${month}-${day}`;
+                }
+            }
         }
 
         const isoMatch = /^(\d{4}-\d{2}-\d{2})/.exec(textValue);
@@ -3870,6 +4781,13 @@ export class UserRegistrationWizard {
         this.completedSteps.set(this.inferCompletedDraftSteps(activeStep));
         this.draftMessage.set('Borrador recuperado. Puedes continuar donde lo dejaste.');
 
+        // Al abrir/restaurar cualquier borrador se vuelve a consultar la
+        // información integral con los datos personales ya guardados. La
+        // validación se muestra en el sidebar (y en móvil) independientemente
+        // del paso en el que quedó el borrador; no es necesario regresar a
+        // Datos Personales para consultar ni para ver Personal, SAU y ECCC.
+        this.consultEcccAndPersonal();
+
         const unresolvedAssignment = Boolean(
             draft.datos.adscripcion.estructuraId && !hierarchies.assignment,
         );
@@ -4012,6 +4930,7 @@ export class UserRegistrationWizard {
                 : [];
 
         const seen = new Set<string>();
+        const origin: ProfileOrigin = datos.comision ? 'comision' : 'adscripcion';
 
         return sourceProfiles.flatMap((profile, index) => {
             const systemId = profile.idSistema;
@@ -4046,10 +4965,11 @@ export class UserRegistrationWizard {
                 : '';
 
             return [{
-                id: `${systemValue}:${roleValue}`,
+                id: `${origin}-${systemValue}:${roleValue}`,
                 system: systemValue,
                 systemLabel,
                 role: roleValue,
+                origin,
                 roleLabel: this.resolveRoleLabel(
                     systemValue,
                     roleValue,
@@ -4336,9 +5256,11 @@ export class UserRegistrationWizard {
     private resetWizard(): void {
         this.resetRenapoLookupState();
         this.resetEcccPersonalLookupState();
+        this.detailCurpValidated.set(false);
         this.initialIdentitySnapshot = null;
         this.initialEditFormSnapshot = null;
         this.initialAssignedProfiles = [];
+        this.initialStructureEmailSnapshot = null;
         this.activeStepId.set('personal-data');
         this.completedSteps.set([]);
         this.editEnabled.set(true);
@@ -4357,6 +5279,11 @@ export class UserRegistrationWizard {
         this.selectedRole.set('');
         this.roleOptions.set([]);
         this.assignedSystemProfiles.set([]);
+        this.assignmentProfileCarouselIndex.set(0);
+        this.commissionProfileCarouselIndex.set(0);
+        this.selectedProfileOrigin.set('adscripcion');
+        this.profileResetNotice.set(null);
+        this.editStructureScope.set(null);
         this.detailRoleOptionsBySystem.set({});
         this.resetStructureProfileCatalog();
         this.showPassword.set(false);
@@ -4461,9 +5388,9 @@ export class UserRegistrationWizard {
         if (!structureId) {
             this.resetStructureProfileCatalog();
             this.structureProfileMessage.set(
-                this.form().commissionEnabled
-                    ? 'Completa la institución de la comisión para consultar sus perfiles.'
-                    : 'Completa la institución de adscripción para consultar sus perfiles.',
+                this.activeProfileOrigin() === 'comision'
+                    ? 'Completa la estructura de comisión para consultar sus perfiles.'
+                    : 'Completa la estructura de adscripción para consultar sus perfiles.',
             );
             return;
         }
@@ -4479,7 +5406,9 @@ export class UserRegistrationWizard {
 
         this.loadedProfileStructureId = structureId;
         this.structureProfileLookupStatus.set('loading');
-        this.structureProfileMessage.set('Consultando perfiles permitidos para la estructura seleccionada...');
+        this.structureProfileMessage.set(
+            `Consultando perfiles permitidos para la ${this.selectedProfileOriginLabel()} seleccionada...`,
+        );
         this.systemOptions.set([]);
         this.structureRoleOptionsBySystem.set({});
         this.selectedSystem.set('');
@@ -4502,8 +5431,8 @@ export class UserRegistrationWizard {
                     this.structureProfileLookupStatus.set('success');
                     this.structureProfileMessage.set(
                         catalog.systems.length > 0
-                            ? 'Perfiles disponibles cargados correctamente.'
-                            : 'La institución seleccionada no tiene sistemas y perfiles configurados.',
+                            ? `Perfiles de ${this.selectedProfileOriginLabel()} cargados correctamente.`
+                            : `La ${this.selectedProfileOriginLabel()} seleccionada no tiene sistemas y perfiles configurados.`,
                     );
                     this.clearFieldError('profiles');
                     this.ensureDefaultSiauProfile();
@@ -5158,6 +6087,7 @@ export class UserRegistrationWizard {
             this.mode() !== 'create' ||
             this.structureProfileLookupStatus() !== 'success' ||
             this.assignedSystemProfiles().some((profile) =>
+                profile.origin === this.activeProfileOrigin() &&
                 this.isSiauSystem(profile.system, profile.systemLabel),
             )
         ) {
@@ -5186,13 +6116,51 @@ export class UserRegistrationWizard {
         this.assignedSystemProfiles.update((current) => [
             ...current,
             {
-                id: `${system}-${userRole.value}-default`,
+                id: `${this.activeProfileOrigin()}-${system}-${userRole.value}-default`,
                 system,
                 systemLabel: systemOption.label,
                 role: userRole.value,
                 roleLabel: userRole.label,
+                origin: this.activeProfileOrigin(),
             },
         ]);
+    }
+
+    private profilesForOrigin(origin: ProfileOrigin): readonly AssignedSystemProfile[] {
+        return origin === 'comision'
+            ? this.commissionAssignedProfiles()
+            : this.assignmentAssignedProfiles();
+    }
+
+    private profileAtCarouselIndex(origin: ProfileOrigin): AssignedSystemProfile | null {
+        const profiles = this.profilesForOrigin(origin);
+        return profiles[this.getProfileCarouselIndex(origin)] ?? null;
+    }
+
+    private setProfileCarouselIndex(origin: ProfileOrigin, index: number): void {
+        const nextIndex = Math.max(index, 0);
+        if (origin === 'comision') {
+            this.commissionProfileCarouselIndex.set(nextIndex);
+            return;
+        }
+
+        this.assignmentProfileCarouselIndex.set(nextIndex);
+    }
+
+    private normalizeProfileCarouselIndexes(): void {
+        this.setProfileCarouselIndex(
+            'adscripcion',
+            this.getProfileCarouselIndex('adscripcion'),
+        );
+        this.setProfileCarouselIndex(
+            'comision',
+            this.getProfileCarouselIndex('comision'),
+        );
+    }
+
+    private toProfileOrigin(value: unknown, fallback: ProfileOrigin): ProfileOrigin {
+        const normalized = this.normalizeText(this.toText(value));
+        return normalized === 'comision' ? 'comision' : normalized === 'adscripcion' ? 'adscripcion' : fallback;
     }
 
     private isFederalInstitutionType(value: string | null | undefined): boolean {
@@ -5441,20 +6409,30 @@ export class UserRegistrationWizard {
 
         if (stepId === 'profiles') {
             if (
-                this.isEditMode() &&
                 this.shouldValidateAssignedProfiles() &&
-                this.assignedSystemProfiles().length === 0
-            ) {
-                nextErrors['profiles'] = 'Debes agregar al menos un sistema y perfil.';
-            }
-
-            if (
-                this.shouldValidateAssignedProfiles() &&
-                this.assignedSystemProfiles().length > 0 &&
-                !this.hasProfileAssignmentContext(current)
+                this.assignedSystemProfiles().some(
+                    (profile) => !this.hasProfileAssignmentContext(current, profile.origin),
+                )
             ) {
                 nextErrors['profiles'] =
-                    'Registra una adscripción o una comisión válida antes de asignar perfiles.';
+                    'Cada perfil debe corresponder a una adscripción o comisión válida.';
+            }
+        }
+
+        if (stepId === 'account') {
+            const shouldValidateComment = this.shouldValidateEditFields(current, ['comment']);
+
+            if (shouldValidateComment && this.hasText(current.comment)) {
+                const commentError = this.getRestrictedTextValidationError(
+                    current.comment,
+                    5,
+                    1000,
+                    'El comentario',
+                );
+
+                if (commentError) {
+                    nextErrors['comment'] = commentError;
+                }
             }
         }
 
@@ -5494,46 +6472,61 @@ export class UserRegistrationWizard {
             validCurp = true;
         }
 
-        if (!hasRfc && !this.isEditMode()) {
+        if (!hasRfc) {
             errors['rfc'] = 'El RFC es obligatorio.';
-        } else if (hasRfc && !this.isValidRfc(current.rfc)) {
+        } else if (!this.isValidRfc(current.rfc)) {
             errors['rfc'] = 'El RFC no tiene un formato válido.';
         } else {
             validRfc = hasRfc;
         }
 
-        if (!hasBirthDate) {
-            errors['birthDate'] = 'La fecha de nacimiento es obligatoria.';
-        } else if (hasBirthDate && !this.isValidDateInput(current.birthDate)) {
-            errors['birthDate'] = 'La fecha de nacimiento no es válida.';
-        } else if (hasBirthDate && !this.isDateOnOrBeforeToday(current.birthDate)) {
-            errors['birthDate'] = 'La fecha de nacimiento no puede ser posterior a la fecha actual.';
-        } else if (hasBirthDate && !this.isAdult(current.birthDate)) {
-            errors['birthDate'] = 'El usuario debe ser mayor de edad.';
+        const birthDateError = getBirthDateError(current.birthDate);
+
+        if (birthDateError) {
+            errors['birthDate'] = birthDateError;
         }
 
         if (validCurp && validRfc && !this.rfcMatchesCurp(current.rfc, current.curp)) {
-            errors['rfc'] = 'Los primeros 10 caracteres del RFC deben coincidir con la CURP.';
+            errors['rfc'] = 'Los primeros 10 caracteres del RFC deben coincidir con los datos de la CURP.';
         }
 
-        if (validRfc && hasBirthDate && !this.rfcBirthDateMatchesDate(current.rfc, current.birthDate)) {
-            errors['rfc'] = 'La fecha contenida en el RFC debe coincidir con la fecha de nacimiento.';
+        const hasValidBirthDate = hasBirthDate && this.isValidDateInput(current.birthDate);
+        const rfcBirthDateMatches =
+            validRfc &&
+            hasValidBirthDate &&
+            this.rfcBirthDateMatchesDate(current.rfc, current.birthDate);
+
+        if (validRfc && hasValidBirthDate && !rfcBirthDateMatches) {
+            errors['rfc'] = 'La fecha contenida en el RFC debe coincidir con la fecha de nacimiento capturada.';
         }
 
         const curpBirthDate = validCurp ? this.getBirthDateFromCurp(current.curp) : null;
+        const curpBirthDateMatches =
+            Boolean(curpBirthDate) &&
+            hasValidBirthDate &&
+            this.areSameCalendarDates(current.birthDate, curpBirthDate ?? '');
 
-        if (curpBirthDate && !this.isAdult(curpBirthDate)) {
+        if (curpBirthDate && !this.isBirthDateOnOrAfterMinimum(curpBirthDate)) {
+            errors['curp'] = 'La fecha contenida en la CURP no puede ser anterior al 01/01/1900.';
+        } else if (curpBirthDate && !this.isAdult(curpBirthDate)) {
             errors['curp'] =
-                'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de edad.';
+                'La fecha de nacimiento contenida en la CURP corresponde a una persona menor de 18 años.';
         }
 
-        if (
-            curpBirthDate &&
-            hasBirthDate &&
-            !this.areSameCalendarDates(current.birthDate, curpBirthDate)
-        ) {
-            errors['birthDate'] =
-                'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
+        if (hasValidBirthDate) {
+            const curpMismatch = Boolean(curpBirthDate) && !curpBirthDateMatches;
+            const rfcMismatch = validRfc && !rfcBirthDateMatches;
+
+            if (curpMismatch && rfcMismatch) {
+                errors['birthDate'] =
+                    'La fecha de nacimiento debe coincidir con las fechas contenidas en la CURP y el RFC.';
+            } else if (curpMismatch) {
+                errors['birthDate'] =
+                    'La fecha de nacimiento debe coincidir con la fecha registrada en la CURP.';
+            } else if (rfcMismatch) {
+                errors['birthDate'] =
+                    'La fecha de nacimiento debe coincidir con la fecha contenida en el RFC.';
+            }
         }
     }
 
@@ -5590,8 +6583,8 @@ export class UserRegistrationWizard {
 
         const normalized = this.toText(value).normalize('NFC');
 
-        if (normalized.length > 100 || !/^[\p{L}\s]+$/u.test(normalized)) {
-            errors[key] = `${label} debe contener únicamente letras y espacios (máximo 100 caracteres).`;
+        if (normalized.length > 100 || !/^[A-Z ]+$/.test(normalized)) {
+            errors[key] = `${label} debe contener únicamente letras A-Z y espacios (máximo 100 caracteres).`;
         }
     }
 
@@ -5601,18 +6594,34 @@ export class UserRegistrationWizard {
     ): void {
         if (
             this.shouldValidateEditFields(current, ['position']) &&
-            this.hasText(current.position) &&
-            !this.isValidTextWithinRange(current.position, 2, 150)
+            this.hasText(current.position)
         ) {
-            errors['position'] = 'El cargo debe tener entre 2 y 150 caracteres válidos.';
+            const positionError = this.getRestrictedTextValidationError(
+                current.position,
+                2,
+                150,
+                'El cargo',
+            );
+
+            if (positionError) {
+                errors['position'] = positionError;
+            }
         }
 
         if (
             this.shouldValidateEditFields(current, ['functions']) &&
-            this.hasText(current.functions) &&
-            !this.isValidTextWithinRange(current.functions, 5, 500)
+            this.hasText(current.functions)
         ) {
-            errors['functions'] = 'Las funciones deben tener entre 5 y 500 caracteres válidos.';
+            const functionsError = this.getRestrictedTextValidationError(
+                current.functions,
+                5,
+                500,
+                'Las funciones',
+            );
+
+            if (functionsError) {
+                errors['functions'] = functionsError;
+            }
         }
 
         if (
@@ -5828,18 +6837,22 @@ export class UserRegistrationWizard {
         );
     }
 
-    private hasProfileAssignmentContext(current: UserRegistrationForm): boolean {
-        return current.commissionEnabled
-            ? this.hasValidCommissionContext(current)
+    private hasProfileAssignmentContext(
+        current: UserRegistrationForm,
+        origin: ProfileOrigin = this.activeProfileOrigin(),
+    ): boolean {
+        return origin === 'comision'
+            ? current.commissionEnabled && this.hasValidCommissionContext(current)
             : this.hasValidAssignmentForCommission(current);
     }
 
-    private resolveProfileStructureId(current: UserRegistrationForm): number | undefined {
-        // El parámetro estructuraId es el id del ÚLTIMO nivel filtrado por el usuario:
-        // unidad administrativa > órgano desconcentrado > institución.
-        // Si solo llegó hasta institución, se manda la institución; si llegó hasta
-        // unidad administrativa, se manda la unidad administrativa.
-        const selection = current.commissionEnabled
+    private resolveProfileStructureId(
+        current: UserRegistrationForm,
+        origin: ProfileOrigin = this.activeProfileOrigin(),
+    ): number | undefined {
+        // El catálogo se consulta por origen. Ambos pueden coexistir en el detalle:
+        // adscripción y comisión mantienen sus perfiles de forma independiente.
+        const selection = origin === 'comision'
             ? this.resolveDeepestStructureSelection([
                 {
                     field: 'commissionAdministrativeUnit',
@@ -5944,9 +6957,15 @@ export class UserRegistrationWizard {
         profiles: readonly AssignedSystemProfile[],
     ): string {
         return profiles
-            .map((profile) => `${profile.system}|${profile.role}`)
+            .map((profile) => this.buildAssignedProfileKey(profile))
             .sort()
             .join('||');
+    }
+
+    private buildAssignedProfileKey(profile: AssignedSystemProfile): string {
+        return [profile.origin, profile.system, profile.role]
+            .map((value) => this.toText(value).trim().toUpperCase())
+            .join('|');
     }
 
     private validateChangedIdentityFields(): boolean {
@@ -6023,6 +7042,7 @@ export class UserRegistrationWizard {
             account: [
                 'password',
                 'confirmPassword',
+                'comment',
             ],
         };
 
@@ -6068,6 +7088,18 @@ export class UserRegistrationWizard {
             return this.normalizeNameInput(textValue) as UserRegistrationForm[K];
         }
 
+        if (key === 'position') {
+            return this.normalizeRestrictedTextInput(textValue, 150, true) as UserRegistrationForm[K];
+        }
+
+        if (key === 'functions') {
+            return this.normalizeRestrictedTextInput(textValue, 500, true) as UserRegistrationForm[K];
+        }
+
+        if (key === 'comment') {
+            return this.normalizeRestrictedTextInput(textValue, 1000, false) as UserRegistrationForm[K];
+        }
+
         if (this.shouldUppercaseField(key)) {
             return textValue.toUpperCase() as UserRegistrationForm[K];
         }
@@ -6081,7 +7113,10 @@ export class UserRegistrationWizard {
             key === 'admissionDate' ||
             key === 'commissionAdmissionDate'
         ) {
-            return (this.toDateInputValue(textValue) || textValue) as UserRegistrationForm[K];
+            // Sin fallback al texto original: si el origen manda un serial o una
+            // cadena que no se puede interpretar, el campo queda vacío en lugar
+            // de mostrar basura como "45100" y saltarse las validaciones.
+            return this.toDateInputValue(textValue) as UserRegistrationForm[K];
         }
 
         if (key === 'email') {
@@ -6100,8 +7135,6 @@ export class UserRegistrationWizard {
             'firstName',
             'lastName',
             'secondLastName',
-            'position',
-            'functions',
             'employeeNumber',
             'username',
         ].includes(key);
@@ -6113,11 +7146,11 @@ export class UserRegistrationWizard {
 
     private normalizeNameInput(value: unknown): string {
         return this.toText(value)
-            .normalize('NFC')
-            .replace(/[^\p{L}\s]/gu, '')
+            .normalize('NFKC')
+            .toUpperCase()
+            .replace(/[^A-Z\s]/g, '')
             .replace(/\s+/g, ' ')
-            .trim()
-            .toUpperCase();
+            .trim();
     }
 
     private normalizeAlphanumericInput(value: unknown, maxLength: number): string {
@@ -6266,20 +7299,16 @@ export class UserRegistrationWizard {
     private isValidRfc(value: string): boolean {
         const rfc = this.toText(value).toUpperCase();
 
-        return /^([A-Z]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
+        // MVC03 VC03: RFC de persona física, exactamente 13 caracteres.
+        return /^[A-Z]{4}\d{6}[A-Z0-9]{3}$/.test(rfc);
     }
 
     private isValidEmail(value: string): boolean {
-        const email = this.normalizeEmail(value);
-
-        return email.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(email);
+        return isValidContactEmail(this.toText(value));
     }
 
     private normalizeEmail(value: unknown): string {
-        return this.toText(value)
-            .normalize('NFKC')
-            .replace(/[\u0000-\u001F\u007F-\u009F\u00A0\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, '')
-            .trim();
+        return sanitizeContactEmailInput(value);
     }
 
     private formatPhoneForDisplay(value: unknown): string {
@@ -6292,8 +7321,17 @@ export class UserRegistrationWizard {
         return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`;
     }
 
+    protected minimumBirthDate(): string {
+        return MINIMUM_BIRTH_DATE;
+    }
+
     protected maximumBirthDate(): string {
-        return this.formatDateInputValue(this.getAdultCutoffDate());
+        return getAdultCutoffDateInput();
+    }
+
+    /** Error vivo del campo, para pintarlo bajo el input mientras se escribe. */
+    protected fieldError(key: string): string | null {
+        return this.formErrors()[key] ?? null;
     }
 
     protected maximumTodayDate(): string {
@@ -6335,14 +7373,31 @@ export class UserRegistrationWizard {
         return admissionDate !== null && commissionDate.getTime() >= admissionDate.getTime();
     }
 
-    private isValidTextWithinRange(value: string, minimum: number, maximum: number): boolean {
-        const text = this.toText(value);
+    private getRestrictedTextValidationError(
+        value: string,
+        minimum: number,
+        maximum: number,
+        label: string,
+    ): string | null {
+        return getRestrictedTextError(this.toText(value), minimum, maximum, label);
+    }
 
-        return (
-            text.length >= minimum &&
-            text.length <= maximum &&
-            /^[A-Z0-9ÁÉÍÓÚÜÑ\s\-.,!#$%&/()=?¿¡+@:;_"]+$/i.test(text)
-        );
+    private normalizeRestrictedTextInput(
+        value: unknown,
+        maximum: number,
+        uppercase: boolean,
+    ): string {
+        return sanitizeRestrictedText(value, maximum, uppercase);
+    }
+
+    private isBirthDateOnOrAfterMinimum(dateValue: string): boolean {
+        const birthDate = this.parseDateInput(dateValue);
+
+        if (!birthDate) {
+            return false;
+        }
+
+        return birthDate.getTime() >= this.getMinimumBirthDate().getTime();
     }
 
     private isAdult(dateValue: string): boolean {
@@ -6355,13 +7410,12 @@ export class UserRegistrationWizard {
         return birthDate.getTime() <= this.getAdultCutoffDate().getTime();
     }
 
+    private getMinimumBirthDate(): Date {
+        return this.parseDateInput(MINIMUM_BIRTH_DATE) as Date;
+    }
+
     private getAdultCutoffDate(): Date {
-        const cutoffDate = new Date();
-
-        cutoffDate.setHours(0, 0, 0, 0);
-        cutoffDate.setFullYear(cutoffDate.getFullYear() - 18);
-
-        return cutoffDate;
+        return getAdultCutoffDate();
     }
 
     private isValidDateInput(value: string): boolean {

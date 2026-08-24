@@ -353,14 +353,47 @@ export class UsersApiRepository {
                         'No fue posible consultar el detalle del usuario.',
                     ),
                 ),
-                map((response) => ({
-                    userId,
-                    datos: response.datos ?? {},
-                })),
+                map((response) => this.toUserDetailRecord(userId, response.datos ?? {})),
                 catchError((error: unknown) =>
                     this.handleError(error, 'No fue posible consultar el detalle del usuario.'),
                 ),
             );
+    }
+
+    /**
+     * Normaliza el contrato de GET /api/v1/consultas/usuarios/{id}.
+     * `curpValidada` vive en `s1DatosPersonales` en el contrato actual y se
+     * expone de forma explícita para que la pantalla de edición no dependa de
+     * volver a interpretar el objeto crudo.
+     */
+    private toUserDetailRecord(
+        userId: number,
+        datos: Record<string, unknown>,
+    ): UserDetailRecord {
+        const personal =
+            this.asRecord(datos['s1DatosPersonales'])
+            ?? this.asRecord(datos['datosPersonales'])
+            ?? {};
+
+        return {
+            userId,
+            datos,
+            curpValidada: this.readBinaryFlag(personal, [
+                'curpValidada',
+                'curpvalidada',
+                'curp_validada',
+            ]),
+            curpValidadaEn: this.readNullableText(personal, [
+                'curpValidadaEn',
+                'curpvalidadaen',
+                'curp_validada_en',
+            ]),
+            curpValidadaFuente: this.readNullableText(personal, [
+                'curpValidadaFuente',
+                'curpvalidadafuente',
+                'curp_validada_fuente',
+            ]),
+        };
     }
 
     private toUsersPageResult(
@@ -514,6 +547,30 @@ export class UsersApiRepository {
             'claveEstatus',
             'statusKey',
         ]);
+        const commissionInstitutionId = this.readPositiveNumber(record, [
+            'institucionComisionId',
+            'comisionInstitucionId',
+        ]);
+        const commissionInstitution = this.readText(record, [
+            'institucionComision',
+            'comisionInstitucion',
+        ]);
+        const commissionInstitutionTypeId = this.readPositiveNumber(record, [
+            'tipoInstitucionComisionId',
+            'comisionTipoInstitucionId',
+        ]);
+        const commissionInstitutionType = this.readText(record, [
+            'tipoInstitucionComision',
+            'comisionTipoInstitucion',
+        ]);
+        const commissionEntityId = this.readPositiveNumber(record, [
+            'entidadComisionId',
+            'comisionEntidadId',
+        ]);
+        const commissionEntity = this.readText(record, [
+            'entidadComision',
+            'comisionEntidad',
+        ]);
 
         return {
             userId,
@@ -521,17 +578,32 @@ export class UsersApiRepository {
                 || `usuario-${userId}`,
             fullName: fullName || composedName || 'Sin nombre',
             email: this.readText(record, ['correoElectronico', 'correo', 'email']) || 'Sin correo',
-            institution: this.readText(record, ['institucion', 'nombreInstitucion']) || 'Sin institución',
-            entity: this.readText(record, ['entidad', 'nombreEntidad']) || 'Sin entidad',
-            commission: this.readText(record, [
+            // El contrato 1.0.8 ya distingue la adscripción de la comisión.
+            // Para las columnas generales se prefiere la adscripción explícita
+            // y se conserva el contrato anterior como fallback.
+            institution: this.readText(record, [
+                'institucionAdscripcion',
+                'institucion',
+                'nombreInstitucion',
+            ]) || 'Sin institución',
+            entity: this.readText(record, [
+                'entidadAdscripcion',
+                'entidad',
+                'nombreEntidad',
+            ]) || 'Sin entidad',
+            commission: commissionInstitution || this.readText(record, [
                 'comision',
                 'comisionUnidadAdministrativa',
                 'unidadAdministrativaComision',
                 'comisionOrganoAdministrativoDesconcentrado',
                 'organoAdministrativoDesconcentradoComision',
-                'comisionInstitucion',
-                'institucionComision',
             ]) || 'Sin comisión',
+            commissionInstitutionId,
+            commissionInstitution: commissionInstitution || 'Sin comisión',
+            commissionInstitutionTypeId,
+            commissionInstitutionType,
+            commissionEntityId,
+            commissionEntity,
             role: this.readText(record, ['rol', 'tipoUsuario', 'perfil', 'role']) || 'Sin rol',
             roleKey: this.readText(record, ['rolClave', 'claveRol', 'tipoUsuarioClave', 'roleKey']),
             status: status || 'Sin estatus',
@@ -927,6 +999,34 @@ export class UsersApiRepository {
         return result;
     }
 
+    private readBinaryFlag(
+        record: Record<string, unknown>,
+        keys: readonly string[],
+    ): 0 | 1 {
+        for (const key of keys) {
+            const value = record[key];
+
+            if (value === 1 || value === true) {
+                return 1;
+            }
+
+            if (value === 0 || value === false) {
+                return 0;
+            }
+
+            const normalized = String(value ?? '').trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true') {
+                return 1;
+            }
+
+            if (normalized === '0' || normalized === 'false') {
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
     private readNullableText(record: Record<string, unknown>, keys: readonly string[]): string | null {
         const value = this.readText(record, keys);
         return value || null;
@@ -1042,6 +1142,23 @@ export class UsersApiRepository {
         const normalized = value.toLowerCase();
 
         return normalized === 'null' || normalized === 'undefined';
+    }
+
+    private readPositiveNumber(
+        record: UnknownRecord | null,
+        keys: readonly string[],
+    ): number | null {
+        if (!record) return null;
+
+        for (const key of keys) {
+            const value = this.toPositiveNumber(record[key]);
+
+            if (value !== null) {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private readNumber(record: UnknownRecord | null, keys: readonly string[], fallback: number): number {

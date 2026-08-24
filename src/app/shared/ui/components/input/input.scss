@@ -53,3 +53,18 @@
   color: var(--siau-color-primary-400);
   font-size: var(--siau-text-xs);
 }
+.siau-input__control--invalid {
+  border-color: var(--siau-color-danger-fg);
+  background: var(--siau-color-danger-bg);
+
+  &:focus {
+    border-color: var(--siau-color-danger-fg);
+    box-shadow: 0 0 0 3px var(--siau-color-danger-ring);
+  }
+}
+
+.siau-input__error {
+  color: var(--siau-color-danger-fg);
+  font-size: var(--siau-text-xs);
+  font-weight: var(--siau-font-weight-semibold);
+}

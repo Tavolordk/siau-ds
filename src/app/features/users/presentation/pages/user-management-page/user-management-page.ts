@@ -5,6 +5,13 @@ import { catchError, finalize, forkJoin, of, timeout } from 'rxjs';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
 import { CatalogoOption, CatalogosFacade } from '../../../../../core/catalogos';
 import { SiauModal } from '../../../../../shared/ui';
+import {
+    CONTACT_EMAIL_MAX_LENGTH,
+    RESTRICTED_TEXT_LIMITS,
+    getContactEmailError,
+    getRestrictedTextError,
+    sanitizeRestrictedText,
+} from '../../../../../shared/validation/field-validators';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
 import {
@@ -321,7 +328,7 @@ export class UserManagementPage {
             group: 'general',
             kind: 'text',
             options: [],
-            maxLength: 254,
+            maxLength: CONTACT_EMAIL_MAX_LENGTH,
             inputMode: 'email',
         },
         {
@@ -383,54 +390,6 @@ export class UserManagementPage {
             options: this.administrativeUnitOptions(),
         },
         {
-            key: 'comisionTipoInstitucionId',
-            label: 'Comisión · Tipo de institución',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'commission',
-            kind: 'catalog',
-            options: this.institutionTypeOptions(),
-        },
-        {
-            key: 'comisionEntidadId',
-            label: 'Comisión · Entidad',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'commission',
-            kind: 'catalog',
-            options: this.stateOptions(),
-        },
-        {
-            key: 'comisionMunicipioId',
-            label: 'Comisión · Municipio/Alcaldía',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'commission',
-            kind: 'catalog',
-            options: this.commissionMunicipalityOptions(),
-        },
-        {
-            key: 'comisionInstitucionId',
-            label: 'Comisión · Institución',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'commission',
-            kind: 'catalog',
-            options: this.commissionInstitutionOptions(),
-        },
-        {
-            key: 'comisionOrganoAdministrativoDesconcentradoId',
-            label: 'Comisión · Órgano Administrativo Desconcentrado',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'commission',
-            kind: 'catalog',
-            options: this.commissionDecentralizedBodyOptions(),
-        },
-        {
-            key: 'comisionUnidadAdministrativaId',
-            label: 'Comisión · Unidad Administrativa',
-            placeholder: 'Escribe para buscar y selecciona',
-            group: 'commission',
-            kind: 'catalog',
-            options: this.commissionAdministrativeUnitOptions(),
-        },
-        {
             key: 'nombreUsuario',
             label: 'Nombre de usuario',
             placeholder: '14 caracteres',
@@ -478,6 +437,14 @@ export class UserManagementPage {
     protected readonly selectableFilterDefinitions = computed<readonly UserFilterDefinition[]>(() =>
         this.filterDefinitions().filter((filter) => !this.isFilterCheckboxDisabled(filter)),
     );
+    protected readonly selectedFilterDefinitions = computed<readonly UserFilterDefinition[]>(() => {
+        const selectedKeys = this.draftFilterKeys();
+        return this.filterDefinitions().filter((filter) => selectedKeys.includes(filter.key));
+    });
+    protected readonly availableFilterDefinitions = computed<readonly UserFilterDefinition[]>(() => {
+        const selectedKeys = this.draftFilterKeys();
+        return this.filterDefinitions().filter((filter) => !selectedKeys.includes(filter.key));
+    });
     protected readonly effectiveDraftFilters = computed<UserFilterValues>(() => {
         const draft = this.draftFilters();
         const effective = { ...EMPTY_USER_FILTERS } as Record<UserFilterKey, string>;
@@ -519,6 +486,19 @@ export class UserManagementPage {
 
         if (hasStart !== hasEnd) {
             return 'El período de último movimiento requiere fecha de inicio y fecha de fin.';
+        }
+
+        // MVC10 VC01-VC03: si se usa Nombre(s), Primer apellido o Segundo
+        // apellido como criterio de búsqueda, deben capturarse al menos dos
+        // de los tres campos que integran el nombre.
+        const capturedNameCriteria = [
+            filters.primerApellido,
+            filters.segundoApellido,
+            filters.nombres,
+        ].filter((value) => Boolean(String(value ?? '').trim())).length;
+
+        if (capturedNameCriteria === 1) {
+            return 'Para buscar por nombre debes capturar al menos dos campos entre Nombre(s), Primer apellido y Segundo apellido.';
         }
 
         return null;
@@ -682,6 +662,154 @@ export class UserManagementPage {
         this.selectedFilterTab.set(tab);
     }
 
+    protected getFilterGroupLabel(group: UserFilterGroupKey): string {
+        switch (group) {
+            case 'general':
+                return 'Datos personales';
+            case 'adscription':
+                return 'Adscripción';
+            case 'commission':
+                return 'Comisión';
+            case 'account':
+                return 'Cuenta y acceso';
+            default:
+                return 'Otros';
+        }
+    }
+
+    protected addDraftFilterFromPicker(event: Event): void {
+        const select = event.target as HTMLSelectElement | null;
+        const key = String(select?.value ?? '').trim() as UserFilterKey;
+
+        if (select) {
+            select.value = '';
+        }
+
+        if (!key) {
+            return;
+        }
+        this.addDraftFilter(key);
+    }
+
+    protected addDraftFilter(key: UserFilterKey): void {
+        const definition = this.filterDefinitions().find((filter) => filter.key === key);
+        if (!definition || this.isFilterCheckboxDisabled(definition)) {
+            return;
+        }
+
+        // Si el usuario agrega un filtro dependiente, mostramos también los
+        // padres necesarios para que pueda completar la jerarquía de arriba
+        // hacia abajo, en lugar de dejarle un campo bloqueado sin contexto.
+        this.addHierarchyParentFilters(key);
+        this.setDraftFilterSelected(key, true);
+        this.ensureHierarchyParentsForCurrentInstitutionType(key);
+    }
+
+    private addHierarchyParentFilters(key: UserFilterKey): void {
+        const parentsByKey: Partial<Record<UserFilterKey, readonly UserFilterKey[]>> = {
+            // Adscripción
+            entidadId: ['tipoInstitucionId'],
+            municipioId: ['tipoInstitucionId', 'entidadId'],
+            institucionId: ['tipoInstitucionId'],
+            organoAdministrativoDesconcentradoId: ['tipoInstitucionId', 'institucionId'],
+            unidadAdministrativaId: ['tipoInstitucionId', 'institucionId'],
+
+            // Comisión
+            comisionEntidadId: ['comisionTipoInstitucionId'],
+            comisionMunicipioId: ['comisionTipoInstitucionId', 'comisionEntidadId'],
+            comisionInstitucionId: ['comisionTipoInstitucionId'],
+            comisionOrganoAdministrativoDesconcentradoId: [
+                'comisionTipoInstitucionId',
+                'comisionInstitucionId',
+            ],
+            comisionUnidadAdministrativaId: [
+                'comisionTipoInstitucionId',
+                'comisionInstitucionId',
+            ],
+        };
+
+        const parents = parentsByKey[key] ?? [];
+        parents.forEach((parentKey) => this.setDraftFilterSelected(parentKey, true));
+    }
+
+    private ensureHierarchyParentsForCurrentInstitutionType(changedKey: UserFilterKey): void {
+        const selectedKeys = this.draftFilterKeys();
+        const filters = this.draftFilters();
+
+        const adscriptionKeys: readonly UserFilterKey[] = [
+            'entidadId',
+            'municipioId',
+            'institucionId',
+            'organoAdministrativoDesconcentradoId',
+            'unidadAdministrativaId',
+        ];
+        const commissionKeys: readonly UserFilterKey[] = [
+            'comisionEntidadId',
+            'comisionMunicipioId',
+            'comisionInstitucionId',
+            'comisionOrganoAdministrativoDesconcentradoId',
+            'comisionUnidadAdministrativaId',
+        ];
+
+        const isAdscriptionChange = changedKey === 'tipoInstitucionId'
+            || adscriptionKeys.includes(changedKey);
+        const isCommissionChange = changedKey === 'comisionTipoInstitucionId'
+            || commissionKeys.includes(changedKey);
+
+        if (isAdscriptionChange && adscriptionKeys.some((key) => selectedKeys.includes(key))) {
+            this.setDraftFilterSelected('tipoInstitucionId', true);
+
+            if (filters.tipoInstitucionId && this.requiresEntityForInstitution(filters.tipoInstitucionId)) {
+                this.setDraftFilterSelected('entidadId', true);
+            }
+            if (filters.tipoInstitucionId && this.requiresMunicipalityForInstitution(filters.tipoInstitucionId)) {
+                this.setDraftFilterSelected('municipioId', true);
+            }
+        }
+
+        if (isCommissionChange && commissionKeys.some((key) => selectedKeys.includes(key))) {
+            this.setDraftFilterSelected('comisionTipoInstitucionId', true);
+
+            if (
+                filters.comisionTipoInstitucionId
+                && this.requiresEntityForInstitution(filters.comisionTipoInstitucionId)
+            ) {
+                this.setDraftFilterSelected('comisionEntidadId', true);
+            }
+            if (
+                filters.comisionTipoInstitucionId
+                && this.requiresMunicipalityForInstitution(filters.comisionTipoInstitucionId)
+            ) {
+                this.setDraftFilterSelected('comisionMunicipioId', true);
+            }
+        }
+    }
+
+    protected removeDraftFilter(key: UserFilterKey): void {
+        const keysToRemove = DATE_FILTER_KEYS.includes(key) ? DATE_FILTER_KEYS : [key];
+        const definition = this.filterDefinitions().find((filter) => filter.key === key);
+
+        this.draftFilters.update((filters) => {
+            const next = { ...filters } as Record<UserFilterKey, string>;
+            keysToRemove.forEach((candidate) => {
+                next[candidate] = '';
+            });
+            return next as unknown as UserFilterValues;
+        });
+
+        this.draftCatalogLabels.update((labels) => {
+            const next = { ...labels };
+            keysToRemove.forEach((candidate) => delete next[candidate]);
+            return next;
+        });
+
+        this.setDraftFilterSelected(key, false);
+
+        if (definition?.kind === 'catalog') {
+            this.handleHierarchyFilterChange(key, '');
+        }
+    }
+
     protected setDraftFilterSelected(key: UserFilterKey, selected: boolean): void {
         if (!selected) {
             const keysToRemove = DATE_FILTER_KEYS.includes(key) ? DATE_FILTER_KEYS : [key];
@@ -800,7 +928,6 @@ export class UserManagementPage {
             ...filters,
             [key]: normalizedValue,
         }));
-        this.syncDraftFilterKey(key, normalizedValue);
     }
 
     protected updateCatalogDraftFilter(filter: UserFilterDefinition, label: string): void {
@@ -819,10 +946,10 @@ export class UserManagementPage {
             ...filters,
             [filter.key]: nextValue,
         }));
-        this.syncDraftFilterKey(filter.key, nextValue);
 
         if (previousValue !== nextValue) {
             this.handleHierarchyFilterChange(filter.key, nextValue);
+            this.ensureHierarchyParentsForCurrentInstitutionType(filter.key);
         }
     }
 
@@ -1186,7 +1313,7 @@ export class UserManagementPage {
     }
 
     protected updateBajaComment(value: string): void {
-        const normalizedValue = String(value ?? '').toUpperCase();
+        const normalizedValue = this.normalizeOperationCommentInput(value);
 
         this.bajaComment.set(normalizedValue);
 
@@ -1309,7 +1436,7 @@ export class UserManagementPage {
     }
 
     protected updateStatusComment(value: string): void {
-        const normalizedValue = String(value ?? '').toUpperCase();
+        const normalizedValue = this.normalizeOperationCommentInput(value);
 
         this.statusComment.set(normalizedValue);
 
@@ -2271,10 +2398,8 @@ export class UserManagementPage {
                     ? null
                     : 'El RFC debe tener 13 caracteres y cumplir el formato establecido.';
             case 'correo':
-                return value.length <= 254
-                    && /^[A-Za-z][A-Za-z0-9._%+-]*@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(value)
-                    ? null
-                    : 'Captura un correo válido de máximo 254 caracteres.';
+                // Misma regla VC02 que usa el login y el alta de usuario.
+                return getContactEmailError(value);
             case 'numeroTelefonico':
                 return /^\d{10}$/.test(value)
                     ? null
@@ -2294,15 +2419,22 @@ export class UserManagementPage {
     }
 
     private validateOperationComment(value: string): string | null {
-        if (value.length < 5) {
-            return 'El comentario debe contener al menos 5 caracteres.';
+        const text = String(value ?? '').trim();
+        const { min, max } = RESTRICTED_TEXT_LIMITS.comment;
+
+        if (!text) {
+            return 'El comentario es obligatorio.';
         }
-        if (value.length > 1000) {
-            return 'El comentario no puede exceder 1,000 caracteres.';
-        }
-        return /^[A-Z0-9 .,!#$%&/()=?¿¡+@:;_"-]+$/.test(value)
-            ? null
-            : 'El comentario contiene caracteres no permitidos.';
+
+        // MVC11/MVC12/MVC13: A-Z, espacios, 0-9 y
+        // -.,!#$%&/()=?¿¡+@:;_" con longitud de 5 a 1,000.
+        return getRestrictedTextError(text, min, max, 'El comentario');
+    }
+
+    private normalizeOperationCommentInput(value: unknown): string {
+        const { max } = RESTRICTED_TEXT_LIMITS.comment;
+
+        return sanitizeRestrictedText(value, max, true);
     }
 
     private toOptionalText(value: unknown): string | undefined {

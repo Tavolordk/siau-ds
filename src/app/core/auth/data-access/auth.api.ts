@@ -1,6 +1,13 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, of, throwError } from 'rxjs';
+import {
+    getContactValueError,
+    isPhoneContactValue,
+    isValidContactValue,
+    sanitizeContactEmailInput,
+    sanitizeContactPhoneInput,
+} from '../../../shared/validation/field-validators';
 import { AUTH_API_BASE_URL } from '../../http/auth-api-base-url.token';
 import { ADMIN_PROFILE_KEYWORD, AUTH_SYSTEM } from '../domain/auth.constants';
 import { AuthSession, PendingAuthChallenge, SessionValidation } from '../domain/auth-session.model';
@@ -87,7 +94,13 @@ export class AuthApi {
         }
 
         if (!this.isValidContact(contact)) {
-            return throwError(() => new Error('Captura un correo electrónico o teléfono celular válido.'));
+            return throwError(
+                () =>
+                    new Error(
+                        getContactValueError(contact) ??
+                            'Captura un correo electrónico o teléfono celular válido.',
+                    ),
+            );
         }
 
         if (!request.captchaToken?.trim()) {
@@ -261,11 +274,9 @@ export class AuthApi {
     private normalizeContact(contact: string): string {
         const value = String(contact ?? '').trim();
 
-        if (/^\d+$/.test(value)) {
-            return value.replace(/\D/g, '').slice(0, 10);
-        }
-
-        return value.replace(/\s+/g, '').slice(0, 254);
+        return isPhoneContactValue(value)
+            ? sanitizeContactPhoneInput(value)
+            : sanitizeContactEmailInput(value);
     }
 
     private resolveContactMethod(contact: string): LoginContactMethod {
@@ -273,15 +284,7 @@ export class AuthApi {
     }
 
     private isValidContact(contact: string): boolean {
-        if (/^\d+$/.test(contact)) {
-            return /^\d{10}$/.test(contact);
-        }
-
-        return this.isValidEmail(contact);
-    }
-
-    private isValidEmail(value: string): boolean {
-        return value.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(value);
+        return isValidContactValue(contact);
     }
 
     private createContactMethodLabel(value: string | null, fallback: LoginContactMethod): string {

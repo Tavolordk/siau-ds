@@ -10,7 +10,14 @@ export interface UserRecord {
     readonly email: string;
     readonly institution: string;
     readonly entity: string;
+    /** Comisión resuelta por GET /usuarios/gestion (contrato 1.0.8). */
     readonly commission: string;
+    readonly commissionInstitutionId: number | null;
+    readonly commissionInstitution: string;
+    readonly commissionInstitutionTypeId: number | null;
+    readonly commissionInstitutionType: string;
+    readonly commissionEntityId: number | null;
+    readonly commissionEntity: string;
     readonly role: UserRole;
     readonly roleKey: string;
     readonly status: UserStatus;
@@ -66,6 +73,11 @@ export interface UsersPageResult {
 export interface UserDetailRecord {
     readonly userId: number;
     readonly datos: Record<string, unknown>;
+    /** Indicador persistido publicado por s1DatosPersonales.curpValidada. */
+    readonly curpValidada: 0 | 1;
+    /** Metadatos informativos de la validación persistida, cuando existan. */
+    readonly curpValidadaEn: string | null;
+    readonly curpValidadaFuente: string | null;
 }
 
 
@@ -209,6 +221,8 @@ export interface RegistroDatosPersonales {
     readonly sexoId: number;
     readonly fechaNacimiento: string;
     readonly estadoCivilId: number | null;
+    /** 1 cuando RENAPO devolvió información válida; 0 en cualquier otro caso. */
+    readonly curpValidada: 0 | 1;
 }
 
 export interface RegistroAsignacion {
@@ -251,8 +265,19 @@ export interface RegistroAdminRequest {
     readonly cuenta: RegistroAdminCuenta;
     /** Colección completa de sistemas/perfiles asignados. */
     readonly perfiles: readonly RegistroPerfil[] | null;
+    /** Campo publicado por el contrato 1.0.9; creación conserva el flujo único actual. */
+    readonly perfilesComision?: readonly RegistroPerfil[] | null;
     readonly comentario?: string | null;
     readonly auditoria: RegistroAuditoria;
+}
+
+export interface RegistroPerfilAsignado {
+    readonly sistemaId: number | null;
+    readonly sistema: string | null;
+    readonly perfilId: number | null;
+    readonly perfilClave: string | null;
+    readonly perfilDescripcion: string | null;
+    readonly origenTipo: string | null;
 }
 
 export interface RegistroAdminData {
@@ -261,9 +286,13 @@ export interface RegistroAdminData {
     readonly cuenta: string | null;
     readonly cuentaGenerada: string | null;
     readonly nombreCompleto: string | null;
+    readonly correo: string | null;
+    readonly tipoUsuarioId: number | null;
     readonly tipoUsuario: string | null;
     readonly tipoInstitucion: string | null;
     readonly sistema: string | null;
+    readonly perfilesAsignados: readonly RegistroPerfilAsignado[] | null;
+    readonly passwordTemporal: string | null;
 }
 
 export interface RegistroAdminResponse {
@@ -285,6 +314,7 @@ export interface SolicitudOperacionRequest {
 export interface SolicitudOperacionData {
     readonly operacion: string | null;
     readonly usuarioId: number | null;
+    readonly borradorId?: number | null;
     readonly filasAfectadas: number;
     readonly totalRegistros: number;
 }
@@ -294,28 +324,61 @@ export interface SolicitudOperacionResponse {
     readonly datos: SolicitudOperacionData | null;
 }
 
+/**
+ * Contrato publicado por PATCH /api/solicitudes/actualizar_admin.
+ * En Swagger únicamente `usuarioId` y `adscripcion` son obligatorios.
+ */
+export interface ActualizarAdminAsignacion {
+    readonly estructuraId?: number | null;
+    readonly cargo?: string | null;
+    readonly funciones?: string | null;
+    readonly numeroEmpleado?: string | null;
+    readonly fechaInicio?: string | null;
+}
+
+export interface ActualizarAdminContacto {
+    readonly correo?: string | null;
+    readonly celular?: string | null;
+}
+
 export interface ActualizarAdminPerfil {
-    readonly idSistema: number;
-    readonly idPerfil: number;
+    readonly idSistema?: number | null;
+    readonly idPerfil?: number | null;
+}
+
+export interface ActualizarAdminNuevaCuenta {
+    readonly correoNuevo?: string | null;
+    readonly passwordHash?: string | null;
+    readonly tipoUsuarioId?: number | null;
+    readonly sistemaId?: number | null;
+    readonly perfilId?: number | null;
 }
 
 export interface ActualizarAdminRequest {
     readonly usuarioId: number;
-    readonly curp: string;
-    readonly rfc: string | null;
-    readonly nombres: string;
-    readonly primerApellido: string;
-    readonly segundoApellido: string | null;
-    readonly sexoId: number;
-    readonly fechaNacimiento: string;
-    readonly estadoCivilId: number | null;
-    readonly cuip: string | null;
-    readonly adscripcion: RegistroAsignacion;
-    readonly comision: RegistroAsignacion | null;
-    readonly contacto: RegistroMedioContacto;
-    readonly perfiles: readonly ActualizarAdminPerfil[];
-    readonly nuevaCuenta: null;
-    readonly auditoria: RegistroAuditoria;
+    readonly curp?: string | null;
+    readonly rfc?: string | null;
+    readonly nombres?: string | null;
+    readonly primerApellido?: string | null;
+    readonly segundoApellido?: string | null;
+    readonly sexoId?: number | null;
+    readonly fechaNacimiento?: string | null;
+    readonly estadoCivilId?: number | null;
+    readonly cuip?: string | null;
+    readonly curpValidada?: 0 | 1 | null;
+    readonly adscripcion: ActualizarAdminAsignacion;
+    /**
+     * El flujo SIAU conserva `null` cuando el usuario no tiene comisión.
+     * El campo no es obligatorio en el contrato nuevo.
+     */
+    readonly comision?: ActualizarAdminAsignacion | null;
+    readonly contacto?: ActualizarAdminContacto;
+    /** Perfiles de adscripción requeridos por la operación de actualización. */
+    readonly perfiles?: readonly ActualizarAdminPerfil[];
+    /** Perfiles nuevos asociados a la comisión. */
+    readonly perfilesComision?: readonly ActualizarAdminPerfil[];
+    readonly nuevaCuenta?: ActualizarAdminNuevaCuenta;
+    readonly auditoria?: SolicitudAuditoria;
 }
 
-export type ActualizarAdminResponse = RegistroAdminResponse;
+export type ActualizarAdminResponse = SolicitudOperacionResponse;

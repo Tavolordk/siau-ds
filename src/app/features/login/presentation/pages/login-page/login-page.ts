@@ -4,6 +4,14 @@ import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
 import { CaptchaFacade } from '../../../../../core/captcha/application/captcha.facade';
 import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
+import {
+    CONTACT_EMAIL_MAX_LENGTH,
+    CONTACT_PHONE_LENGTH,
+    getContactValueError,
+    isPhoneContactValue,
+    sanitizeContactEmailInput,
+    sanitizeContactPhoneInput,
+} from '../../../../../shared/validation/field-validators';
 
 @Component({
     selector: 'siau-login-page',
@@ -84,17 +92,18 @@ export class LoginPage implements OnDestroy {
             return;
         }
 
-        const firstCharacter = value.charAt(0);
-        const startsAsPhone = /^\d$/.test(firstCharacter);
-
-        const normalizedValue = startsAsPhone
-            ? value.replace(/\D/g, '').slice(0, 10)
-            : value.replace(/\s+/g, '').slice(0, 254);
+        // Se sanea mientras se escribe: el campo ya no acepta caracteres fuera
+        // del catálogo VC02 (era el bug "el correo no tiene el formato adecuado").
+        const normalizedValue = isPhoneContactValue(value)
+            ? sanitizeContactPhoneInput(value)
+            : sanitizeContactEmailInput(value);
 
         if (originalValue !== normalizedValue) {
             control.setValue(normalizedValue, { emitEvent: false });
         }
 
+        // Si había un error de una petición anterior, no debe ocultar el error local del nuevo valor.
+        this.auth.clearError();
         control.updateValueAndValidity({ emitEvent: false });
     }
 
@@ -122,9 +131,7 @@ export class LoginPage implements OnDestroy {
     }
 
     protected isPhoneContact(): boolean {
-        const value = this.form.controls.contact.value.trim();
-
-        return /^\d/.test(value);
+        return isPhoneContactValue(this.form.controls.contact.value);
     }
 
     protected contactIconLabel(): string {
@@ -136,24 +143,27 @@ export class LoginPage implements OnDestroy {
     }
 
     protected contactMaxLength(): number {
-        return this.isPhoneContact() ? 10 : 254;
+        return this.isPhoneContact() ? CONTACT_PHONE_LENGTH : CONTACT_EMAIL_MAX_LENGTH;
     }
 
+    /**
+     * VC02 - HU01. La regla vive en shared/validation para que el formulario,
+     * el repositorio de auth y la búsqueda avanzada usen exactamente la misma.
+     */
     private contactValidator(control: AbstractControl<string>): ValidationErrors | null {
-        const value = String(control.value ?? '').trim();
+        // No depende de `this`: Angular puede ejecutar el ValidatorFn sin contexto de la clase.
+        const message = getContactValueError(control.value);
 
-        if (!value) {
-            return { required: true };
-        }
-
-        if (/^\d+$/.test(value)) {
-            return /^\d{10}$/.test(value) ? null : { phoneLength: true };
-        }
-
-        return this.isValidEmail(value) ? null : { email: true };
+        return message ? { contact: message } : null;
     }
 
-    private isValidEmail(value: string): boolean {
-        return value.length <= 254 && /^[A-Za-z][A-Za-z0-9._%+-]*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/.test(value);
+    protected contactErrorMessage(): string | null {
+        const control = this.form.controls.contact;
+
+        if (!control.touched || control.valid) {
+            return null;
+        }
+
+        return (control.errors?.['contact'] as string | undefined) ?? null;
     }
 }

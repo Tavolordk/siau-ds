@@ -15,7 +15,7 @@ const INTEGRAL_LOOKUP_TIMEOUT_MS = 15_000;
 export interface EcccPersonalLookupRequest {
     readonly curp: string;
     readonly rfc: string;
-    readonly cuip: string;
+    readonly cuip: string | null;
     readonly nombre: string;
     readonly primerApellido: string;
     readonly segundoApellido: string;
@@ -104,10 +104,17 @@ export class EcccPersonalApiRepository {
     consultarIntegral(
         request: EcccPersonalLookupRequest,
     ): Observable<EcccPersonalLookupResponse> {
+        const payload: EcccPersonalLookupRequest = {
+            ...request,
+            // CUIP es opcional para la consulta integral. Si no viene
+            // capturado, backend requiere null explícito y no cadena vacía.
+            cuip: request.cuip?.trim() ? request.cuip.trim().toUpperCase() : null,
+        };
+
         return this.http
             .post<EcccPersonalLookupResponse>(
                 `${this.baseUrl}${INTEGRAL_LOOKUP_PATH}`,
-                request,
+                payload,
             )
             .pipe(
                 timeout(INTEGRAL_LOOKUP_TIMEOUT_MS),
