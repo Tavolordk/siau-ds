@@ -353,14 +353,47 @@ export class UsersApiRepository {
                         'No fue posible consultar el detalle del usuario.',
                     ),
                 ),
-                map((response) => ({
-                    userId,
-                    datos: response.datos ?? {},
-                })),
+                map((response) => this.toUserDetailRecord(userId, response.datos ?? {})),
                 catchError((error: unknown) =>
                     this.handleError(error, 'No fue posible consultar el detalle del usuario.'),
                 ),
             );
+    }
+
+    /**
+     * Normaliza el contrato de GET /api/v1/consultas/usuarios/{id}.
+     * `curpValidada` vive en `s1DatosPersonales` en el contrato actual y se
+     * expone de forma explícita para que la pantalla de edición no dependa de
+     * volver a interpretar el objeto crudo.
+     */
+    private toUserDetailRecord(
+        userId: number,
+        datos: Record<string, unknown>,
+    ): UserDetailRecord {
+        const personal =
+            this.asRecord(datos['s1DatosPersonales'])
+            ?? this.asRecord(datos['datosPersonales'])
+            ?? {};
+
+        return {
+            userId,
+            datos,
+            curpValidada: this.readBinaryFlag(personal, [
+                'curpValidada',
+                'curpvalidada',
+                'curp_validada',
+            ]),
+            curpValidadaEn: this.readNullableText(personal, [
+                'curpValidadaEn',
+                'curpvalidadaen',
+                'curp_validada_en',
+            ]),
+            curpValidadaFuente: this.readNullableText(personal, [
+                'curpValidadaFuente',
+                'curpvalidadafuente',
+                'curp_validada_fuente',
+            ]),
+        };
     }
 
     private toUsersPageResult(
@@ -964,6 +997,34 @@ export class UsersApiRepository {
         }
 
         return result;
+    }
+
+    private readBinaryFlag(
+        record: Record<string, unknown>,
+        keys: readonly string[],
+    ): 0 | 1 {
+        for (const key of keys) {
+            const value = record[key];
+
+            if (value === 1 || value === true) {
+                return 1;
+            }
+
+            if (value === 0 || value === false) {
+                return 0;
+            }
+
+            const normalized = String(value ?? '').trim().toLowerCase();
+            if (normalized === '1' || normalized === 'true') {
+                return 1;
+            }
+
+            if (normalized === '0' || normalized === 'false') {
+                return 0;
+            }
+        }
+
+        return 0;
     }
 
     private readNullableText(record: Record<string, unknown>, keys: readonly string[]): string | null {

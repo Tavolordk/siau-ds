@@ -92,8 +92,9 @@ export class SiauInput {
       const maxLength = this.maxLength();
       const normalize = (value: string): string => {
         const normalizedValue = value
-          .normalize('NFC')
-          .replace(/[^\p{L}\s]/gu, '')
+          .normalize('NFKC')
+          .toUpperCase()
+          .replace(/[^A-Z\s]/g, '')
           .replace(/\s+/g, ' ')
           .replace(/^\s+/, '');
 

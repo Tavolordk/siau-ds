@@ -634,29 +634,44 @@ export class UserRegistrationWizard {
     protected readonly phoneRequired = computed(() => true);
 
     /**
-     * En creación se conserva la regla de un solo perfil SIAU en el contexto
-     * activo. En edición la restricción se evalúa por sección: un SIAU en la
-     * sección bloqueada no impide agregar uno en la sección editable.
+     * Regla de perfiles SIAU por origen:
+     * - Adscripción puede tener como máximo un perfil SIAU.
+     * - Comisión puede tener como máximo un perfil SIAU.
+     * - Un SIAU de un origen NO sustituye ni bloquea el SIAU del otro origen.
+     * - Los perfiles de otros sistemas son independientes y pueden agregarse normalmente.
      */
-    protected readonly hasAssignedSiauProfile = computed(() =>
-        this.hasAssignedSiauProfileForOrigin(this.activeProfileOrigin()),
-    );
-
-    protected readonly isSiauProfileLocked = computed(() =>
-        this.hasAssignedSiauProfile(),
-    );
-
-    protected readonly siauProfileLockMessage = computed(() =>
-        this.isEditMode()
-            ? `La ${this.selectedProfileOriginLabel()} activa ya tiene un perfil SIAU. Sólo se permite uno por la sección editable; un SIAU en la sección bloqueada no cuenta para este límite.`
-            : 'El usuario ya tiene un perfil SIAU asignado. Sólo se permite uno en el contexto de perfiles activo.',
-    );
-
-    protected readonly isSelectedSiauProfileBlocked = computed(() => {
+    protected readonly selectedSystemIsSiau = computed(() => {
         const system = this.selectedSystem();
+        if (!system) {
+            return false;
+        }
 
-        return Boolean(system) && this.isSiauSystem(system) && this.isSiauProfileLocked();
+        const option = this.findKnownSystemOption(system);
+        return this.isSiauSystem(system, option?.label ?? '');
     });
+
+    protected readonly hasAssignedSiauProfile = computed(() => {
+        const origin = this.activeProfileOrigin();
+        return this.assignedSystemProfiles().some((profile) =>
+            profile.origin === origin &&
+            this.isSiauSystem(profile.system, profile.systemLabel),
+        );
+    });
+
+    // El aviso sólo aplica cuando realmente se está seleccionando SIAU en el
+    // mismo origen que ya tiene un SIAU. No afecta otros sistemas/perfiles.
+    protected readonly isSiauProfileLocked = computed(() =>
+        this.selectedSystemIsSiau() && this.hasAssignedSiauProfile(),
+    );
+
+    protected readonly siauProfileLockMessage = computed(() => {
+        const origin = this.selectedProfileOriginLabel();
+        return `La ${origin} ya tiene un perfil SIAU. Si seleccionas otro perfil SIAU, se sustituirá únicamente el SIAU de esta ${origin}. Los perfiles de otros sistemas no se modifican.`;
+    });
+
+    // Tener un SIAU previo en el mismo origen no bloquea la selección: al
+    // agregar otro SIAU se reemplaza sólo el anterior de ese mismo origen.
+    protected readonly isSelectedSiauProfileBlocked = computed(() => false);
 
     protected readonly availableRoleOptions = computed<readonly SiauSelectOption[]>(() => {
         const system = this.selectedSystem();
@@ -799,7 +814,7 @@ export class UserRegistrationWizard {
 
     protected readonly rfcPrefix = computed(() => this.getRfcPrefixFromCurp(this.form().curp));
 
-    protected readonly rfcRequired = computed(() => !this.isEditMode());
+    protected readonly rfcRequired = computed(() => true);
 
     protected readonly rfcHint = computed(() => {
         const prefix = this.rfcPrefix();
@@ -978,7 +993,11 @@ export class UserRegistrationWizard {
      * La primera modificación de adscripción/comisión fija el origen editable.
      * El otro origen queda bloqueado hasta cerrar/reabrir el detalle.
      */
-    private claimEditStructureScope(origin: ProfileOrigin, changed = true): boolean {
+    private claimEditStructureScope(
+        origin: ProfileOrigin,
+        changed = true,
+        resetProfileCatalog = true,
+    ): boolean {
         if (!this.isEditMode() || !changed) {
             return true;
         }
@@ -991,7 +1010,14 @@ export class UserRegistrationWizard {
         if (!currentScope) {
             this.editStructureScope.set(origin);
             this.selectedProfileOrigin.set(origin);
-            this.resetStructureProfileCatalog();
+
+            // Los cambios estructurales sí invalidan el catálogo de perfiles porque
+            // éste depende de la estructura seleccionada. En cambio, agregar o quitar
+            // un perfil NO debe vaciar el catálogo: de hacerlo, después del primer
+            // perfil los selects quedan bloqueados y ya no es posible agregar más.
+            if (resetProfileCatalog) {
+                this.resetStructureProfileCatalog();
+            }
 
             // Regla de actualización: adscripción y comisión son alternativas
             // excluyentes dentro de una misma operación. Si se decide modificar
@@ -1196,7 +1222,7 @@ export class UserRegistrationWizard {
                         return;
                     }
 
-                    this.hydrateEditForm(detail.datos, user);
+                    this.hydrateEditForm(detail, user);
                     return;
                 }
 
@@ -2385,22 +2411,15 @@ export class UserRegistrationWizard {
 
         const isSiau = this.isSiauSystem(system, systemOption.label);
 
-        if (isSiau && this.isSiauProfileLocked()) {
-            this.formErrors.update((current) => ({
-                ...current,
-                profiles: this.isEditMode()
-                    ? `La ${this.selectedProfileOriginLabel()} activa ya tiene un perfil SIAU. Elimina ese perfil para reemplazarlo; los perfiles SIAU de la sección bloqueada no impiden esta operación.`
-                    : 'SIAU ya tiene un perfil asignado. Elimina el perfil listado antes de agregar otro perfil de SIAU.',
-            }));
-            return;
-        }
-
         if (this.isRoleAlreadyAssigned(system, roleOption)) {
             return;
         }
 
         const origin = this.activeProfileOrigin();
-        if (!this.claimEditStructureScope(origin)) {
+        // Agregar perfiles fija el alcance de la edición, pero NO cambia la
+        // estructura. Por eso se conserva el catálogo actual para permitir
+        // agregar varios perfiles consecutivamente en el mismo origen.
+        if (!this.claimEditStructureScope(origin, true, false)) {
             return;
         }
 
@@ -2413,7 +2432,20 @@ export class UserRegistrationWizard {
             origin,
         };
 
-        this.assignedSystemProfiles.update((current) => [...current, newItem]);
+        this.assignedSystemProfiles.update((current) => {
+            // Sólo al agregar SIAU se reemplaza un SIAU existente, y únicamente
+            // dentro del mismo origen (adscripción o comisión). Los SIAU del
+            // otro origen y todos los perfiles de otros sistemas se conservan.
+            const profilesToKeep = isSiau
+                ? current.filter((profile) =>
+                    profile.origin !== origin ||
+                    !this.isSiauSystem(profile.system, profile.systemLabel),
+                )
+                : current;
+
+            return [...profilesToKeep, newItem];
+        });
+        this.normalizeProfileCarouselIndexes();
         this.setProfileCarouselIndex(origin, this.profilesForOrigin(origin).length - 1);
         this.clearFieldError('profiles');
         this.selectedSystem.set('');
@@ -2436,7 +2468,9 @@ export class UserRegistrationWizard {
             return;
         }
 
-        if (!this.claimEditStructureScope(profile.origin)) {
+        // Quitar un perfil tampoco modifica la estructura ni debe invalidar
+        // los sistemas/perfiles disponibles del origen activo.
+        if (!this.claimEditStructureScope(profile.origin, true, false)) {
             return;
         }
 
@@ -3531,12 +3565,13 @@ export class UserRegistrationWizard {
 
             contacto: this.buildContactRequest(),
 
-            // Si la operación modifica comisión, también deben viajar en
-            // `perfiles` los perfiles de adscripción que el usuario ya tenía,
-            // para conservarlos en el request. Para una modificación de
-            // adscripción se mantiene la regla de enviar únicamente sus altas.
-            perfiles: this.buildUpdateAssignmentProfilesRequest(),
-            perfilesComision: this.buildNewAssignedProfilesRequest('comision'),
+            // En edición el PATCH envía la colección COMPLETA que está
+            // actualmente visible en cada origen. No se limita a uno/dos perfiles
+            // ni únicamente a las altas detectadas en esta sesión. De esta forma
+            // pueden viajar tantos perfiles como el usuario haya agregado, siempre
+            // respetando la regla independiente de máximo un SIAU por origen.
+            perfiles: this.buildAllAssignedProfilesRequest('adscripcion'),
+            perfilesComision: this.buildAllAssignedProfilesRequest('comision'),
 
             auditoria: {
                 usuarioEjecutorId: this.resolveCurrentUserId(),
@@ -3546,65 +3581,25 @@ export class UserRegistrationWizard {
     }
 
     /**
-     * Perfiles que se agregaron en esta edición, es decir, los que no venían en
-     * el detalle del usuario. Se compara por origen + sistema + perfil con la
-     * misma llave que usa el correo de cambio de estructura.
-     */
-    private getNewlyAssignedProfiles(): readonly AssignedSystemProfile[] {
-        // Se compara por `id` y no por sistema/perfil: si el usuario elimina un
-        // perfil por el cambio de estructura y vuelve a elegir el mismo, sigue
-        // siendo un alta nueva sobre la adscripción/comisión actual.
-        const initialIds = new Set(
-            this.initialAssignedProfiles.map((profile) => profile.id),
-        );
-
-        return this.assignedSystemProfiles().filter(
-            (profile) => !initialIds.has(profile.id),
-        );
-    }
-
-    /**
-     * Construye `perfiles` (adscripción) para actualizar_admin.
+     * Serializa todos los perfiles que actualmente pertenecen al origen indicado.
      *
-     * - Si se está modificando comisión, la adscripción queda bloqueada y sus
-     *   perfiles existentes deben reenviarse para conservarlos.
-     * - En cualquier otro caso se conserva la regla de enviar sólo perfiles de
-     *   adscripción agregados durante esta edición.
-     */
-    private buildUpdateAssignmentProfilesRequest(): readonly ActualizarAdminPerfil[] {
-        if (this.editStructureScope() === 'comision') {
-            const existingAssignmentProfiles = this.assignedSystemProfiles().filter(
-                (profile) => profile.origin === 'adscripcion',
-            );
-
-            if (existingAssignmentProfiles.length > 0) {
-                return existingAssignmentProfiles.map((profile) =>
-                    this.toActualizarAdminPerfil(profile),
-                );
-            }
-        }
-
-        return this.buildNewAssignedProfilesRequest('adscripcion');
-    }
-
-    /**
-     * Perfiles nuevos del PATCH `actualizar_admin`, separados por origen.
-     * `perfilesComision` continúa enviando únicamente altas de comisión.
-     * Para adscripción esta función se usa cuando no aplica la conservación
-     * especial de perfiles existentes al modificar comisión.
+     * No existe un límite de cantidad para perfiles normales: si el usuario tiene
+     * 3, 5, 10 o más perfiles en Adscripción/Comisión, todos viajan en el payload.
+     * La única regla especial permanece en la UI: máximo un perfil SIAU por origen.
      *
-     * El fallback NORMAL se conserva únicamente en `perfiles` (adscripción),
-     * igual que antes, y sólo cuando el usuario se quedaría sin perfil alguno.
+     * Para adscripción se conserva el fallback NORMAL únicamente cuando el usuario
+     * no tiene ningún perfil en ninguno de los dos orígenes, igual que en el flujo
+     * anterior. Comisión, cuando no tiene perfiles, se envía como arreglo vacío.
      */
-    private buildNewAssignedProfilesRequest(
+    private buildAllAssignedProfilesRequest(
         origin: ProfileOrigin,
     ): readonly ActualizarAdminPerfil[] {
-        const newProfiles = this.getNewlyAssignedProfiles().filter(
+        const profiles = this.assignedSystemProfiles().filter(
             (profile) => profile.origin === origin,
         );
 
-        if (newProfiles.length > 0) {
-            return newProfiles.map((profile) =>
+        if (profiles.length > 0) {
+            return profiles.map((profile) =>
                 this.toActualizarAdminPerfil(profile),
             );
         }
@@ -3613,9 +3608,7 @@ export class UserRegistrationWizard {
             return [];
         }
 
-        const hasAnyProfile =
-            this.assignedSystemProfiles().length > 0 ||
-            this.initialAssignedProfiles.length > 0;
+        const hasAnyProfile = this.assignedSystemProfiles().length > 0;
 
         return hasAnyProfile
             ? []
@@ -3835,7 +3828,8 @@ export class UserRegistrationWizard {
         return null;
     }
 
-    private hydrateEditForm(datos: Record<string, unknown>, user: UserRecord | null): void {
+    private hydrateEditForm(detail: UserDetailRecord, user: UserRecord | null): void {
+        const datos = detail.datos;
         // Invalida respuestas que pudieran pertenecer al usuario/modal anterior.
         // Así ningún catálogo tardío puede sobrescribir la jerarquía del detalle
         // que se está abriendo ahora.
@@ -3845,10 +3839,21 @@ export class UserRegistrationWizard {
         this.resetEcccPersonalLookupState();
 
         const personalData = this.toSectionRecord(datos, ['s1DatosPersonales', 'datosPersonales']);
-        const rawCurpValidated =
-            this.firstValue(personalData, ['curpValidada', 'curpvalidada', 'curp_validada']) ||
-            this.firstValue(datos, ['curpValidada', 'curpvalidada', 'curp_validada']);
-        this.detailCurpValidated.set(this.toBooleanFlag(rawCurpValidated));
+        const persistedCurpValidated = detail.curpValidada === 1;
+        this.detailCurpValidated.set(persistedCurpValidated);
+
+        // El detalle es la fuente de verdad en edición. Si el backend indica
+        // curpValidada = 1, no se dispara una nueva consulta RENAPO y se muestra
+        // el indicador persistido exigido por HU04/RN15.
+        if (persistedCurpValidated) {
+            this.renapoLookupStatus.set('success');
+            this.renapoMessage.set(
+                'La CURP de este usuario ya fue validada en RENAPO. En edición no se permite volver a consultar RENAPO ni modificar CURP, nombre(s), apellidos o fecha de nacimiento.',
+            );
+            this.renapoMessageVisible.set(true);
+            this.curpLocked.set(true);
+            this.curpUnlockChecked.set(false);
+        }
 
         const assignment = this.toSectionRecord(datos, ['s2Adscripcion', 'adscripcion']);
         const s3Commission = this.toSectionRecord(datos, ['s3Comision']);
@@ -4214,14 +4219,6 @@ export class UserRegistrationWizard {
         });
     }
 
-    private hasAssignedSiauProfileForOrigin(origin: ProfileOrigin): boolean {
-        return this.assignedSystemProfiles().some(
-            (profile) =>
-                profile.origin === origin &&
-                this.isSiauSystem(profile.system, profile.systemLabel),
-        );
-    }
-
     private isSiauSystem(systemValue: string, systemLabel = ''): boolean {
         const cleanValue = this.toText(systemValue);
         const option = this.findKnownSystemOption(cleanValue, systemLabel);
@@ -4414,20 +4411,6 @@ export class UserRegistrationWizard {
         }
 
         return String(value).trim();
-    }
-
-    /** Acepta boolean, 1/0 y sus representaciones de texto del detalle. */
-    private toBooleanFlag(value: unknown): boolean {
-        if (typeof value === 'boolean') {
-            return value;
-        }
-
-        if (typeof value === 'number') {
-            return value === 1;
-        }
-
-        const normalized = this.toText(value).toLowerCase();
-        return normalized === '1' || normalized === 'true';
     }
 
     private toDateInputValue(value: unknown): string {
@@ -6104,6 +6087,7 @@ export class UserRegistrationWizard {
             this.mode() !== 'create' ||
             this.structureProfileLookupStatus() !== 'success' ||
             this.assignedSystemProfiles().some((profile) =>
+                profile.origin === this.activeProfileOrigin() &&
                 this.isSiauSystem(profile.system, profile.systemLabel),
             )
         ) {
@@ -6488,9 +6472,9 @@ export class UserRegistrationWizard {
             validCurp = true;
         }
 
-        if (!hasRfc && !this.isEditMode()) {
+        if (!hasRfc) {
             errors['rfc'] = 'El RFC es obligatorio.';
-        } else if (hasRfc && !this.isValidRfc(current.rfc)) {
+        } else if (!this.isValidRfc(current.rfc)) {
             errors['rfc'] = 'El RFC no tiene un formato válido.';
         } else {
             validRfc = hasRfc;
@@ -6599,8 +6583,8 @@ export class UserRegistrationWizard {
 
         const normalized = this.toText(value).normalize('NFC');
 
-        if (normalized.length > 100 || !/^[\p{L}\s]+$/u.test(normalized)) {
-            errors[key] = `${label} debe contener únicamente letras y espacios (máximo 100 caracteres).`;
+        if (normalized.length > 100 || !/^[A-Z ]+$/.test(normalized)) {
+            errors[key] = `${label} debe contener únicamente letras A-Z y espacios (máximo 100 caracteres).`;
         }
     }
 
@@ -7162,11 +7146,11 @@ export class UserRegistrationWizard {
 
     private normalizeNameInput(value: unknown): string {
         return this.toText(value)
-            .normalize('NFC')
-            .replace(/[^\p{L}\s]/gu, '')
+            .normalize('NFKC')
+            .toUpperCase()
+            .replace(/[^A-Z\s]/g, '')
             .replace(/\s+/g, ' ')
-            .trim()
-            .toUpperCase();
+            .trim();
     }
 
     private normalizeAlphanumericInput(value: unknown, maxLength: number): string {
@@ -7315,7 +7299,8 @@ export class UserRegistrationWizard {
     private isValidRfc(value: string): boolean {
         const rfc = this.toText(value).toUpperCase();
 
-        return /^([A-Z]{3,4})\d{6}[A-Z0-9]{3}$/.test(rfc);
+        // MVC03 VC03: RFC de persona física, exactamente 13 caracteres.
+        return /^[A-Z]{4}\d{6}[A-Z0-9]{3}$/.test(rfc);
     }
 
     private isValidEmail(value: string): boolean {

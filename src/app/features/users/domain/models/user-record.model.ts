@@ -73,6 +73,11 @@ export interface UsersPageResult {
 export interface UserDetailRecord {
     readonly userId: number;
     readonly datos: Record<string, unknown>;
+    /** Indicador persistido publicado por s1DatosPersonales.curpValidada. */
+    readonly curpValidada: 0 | 1;
+    /** Metadatos informativos de la validación persistida, cuando existan. */
+    readonly curpValidadaEn: string | null;
+    readonly curpValidadaFuente: string | null;
 }
 
 

@@ -9,6 +9,8 @@ import {
     CONTACT_EMAIL_MAX_LENGTH,
     RESTRICTED_TEXT_LIMITS,
     getContactEmailError,
+    getRestrictedTextError,
+    sanitizeRestrictedText,
 } from '../../../../../shared/validation/field-validators';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { UsersFacade } from '../../../application/users.facade';
@@ -484,6 +486,19 @@ export class UserManagementPage {
 
         if (hasStart !== hasEnd) {
             return 'El período de último movimiento requiere fecha de inicio y fecha de fin.';
+        }
+
+        // MVC10 VC01-VC03: si se usa Nombre(s), Primer apellido o Segundo
+        // apellido como criterio de búsqueda, deben capturarse al menos dos
+        // de los tres campos que integran el nombre.
+        const capturedNameCriteria = [
+            filters.primerApellido,
+            filters.segundoApellido,
+            filters.nombres,
+        ].filter((value) => Boolean(String(value ?? '').trim())).length;
+
+        if (capturedNameCriteria === 1) {
+            return 'Para buscar por nombre debes capturar al menos dos campos entre Nombre(s), Primer apellido y Segundo apellido.';
         }
 
         return null;
@@ -2411,21 +2426,15 @@ export class UserManagementPage {
             return 'El comentario es obligatorio.';
         }
 
-        if (text.length < min) {
-            return `El comentario debe tener al menos ${min} caracteres (llevas ${text.length}).`;
-        }
-
-        if (text.length > max) {
-            return `El comentario no puede exceder ${max} caracteres (llevas ${text.length}).`;
-        }
-
-        return null;
+        // MVC11/MVC12/MVC13: A-Z, espacios, 0-9 y
+        // -.,!#$%&/()=?¿¡+@:;_" con longitud de 5 a 1,000.
+        return getRestrictedTextError(text, min, max, 'El comentario');
     }
 
     private normalizeOperationCommentInput(value: unknown): string {
-        // Los comentarios de operaciones aceptan cualquier carácter.
-        // Sólo se limita la longitud; no se eliminan acentos, ñ, emojis ni símbolos.
-        return String(value ?? '').slice(0, RESTRICTED_TEXT_LIMITS.comment.max);
+        const { max } = RESTRICTED_TEXT_LIMITS.comment;
+
+        return sanitizeRestrictedText(value, max, true);
     }
 
     private toOptionalText(value: unknown): string | undefined {
