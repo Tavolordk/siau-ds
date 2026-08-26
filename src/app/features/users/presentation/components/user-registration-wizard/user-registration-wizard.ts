@@ -20,6 +20,7 @@ import {
     Observable,
     of,
     switchMap,
+    throwError,
 } from 'rxjs';
 import { CatalogoOption, CatalogoRecord, CatalogosFacade } from '../../../../../core/catalogos';
 import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
@@ -213,6 +214,7 @@ interface ValidationMessage {
 }
 
 interface SaveSuccessModalState {
+    readonly isUpdate: boolean;
     readonly message: string;
     readonly userNumber: string;
     readonly account: string;
@@ -1461,24 +1463,32 @@ export class UserRegistrationWizard {
             this.usersFacade.updateAdminUser(updateRequest)
                 .pipe(
                     switchMap((response) =>
-                        this.sendStructureUpdateNotificationEmail().pipe(
+                        this.sendStructureUpdateNotificationEmail(response).pipe(
+                            map((emailDelivery) => ({ response, emailDelivery })),
                             catchError((error: unknown) => {
                                 console.warn(
-                                    'El usuario se actualizó, pero no fue posible enviar el correo de cambio de adscripción/comisión.',
+                                    'El usuario se actualizó, pero no fue posible enviar el correo con las nuevas credenciales.',
                                     error,
                                 );
-                                return of(null);
+                                return of({
+                                    response,
+                                    emailDelivery: this.toFailedEmailDelivery(
+                                        error,
+                                        'El usuario se actualizó, pero no fue posible enviar el correo con las nuevas credenciales.',
+                                    ),
+                                });
                             }),
-                            map(() => response),
                         ),
                     ),
                     takeUntilDestroyed(this.destroyRef),
                     finalize(() => this.isSubmitting.set(false)),
                 )
                 .subscribe({
-                    next: (response) => {
+                    next: ({ response, emailDelivery }) => {
                         this.stepOrder().forEach((stepId) => this.markCompleted(stepId));
-                        this.saveSuccess.set(this.buildUpdateSuccessModalState(response));
+                        this.saveSuccess.set(
+                            this.buildUpdateSuccessModalState(response, emailDelivery),
+                        );
                     },
                     error: (error: unknown) => {
                         const message = error instanceof Error
@@ -1654,13 +1664,6 @@ export class UserRegistrationWizard {
                 RESTRICTED_TEXT_LIMITS.functions.min,
                 RESTRICTED_TEXT_LIMITS.functions.max,
                 'Las funciones',
-            );
-        } else if (key === 'comment' && text) {
-            message = getRestrictedTextError(
-                text,
-                RESTRICTED_TEXT_LIMITS.comment.min,
-                RESTRICTED_TEXT_LIMITS.comment.max,
-                'El comentario',
             );
         } else if (key === 'birthDate' && text) {
             // Cubre el caso de escribir el año a mano: el <input type="date">
@@ -3068,6 +3071,7 @@ export class UserRegistrationWizard {
 
     private buildUpdateSuccessModalState(
         response: ActualizarAdminResponse,
+        emailDelivery: CorreoDeliveryResult | null = null,
     ): SaveSuccessModalState {
         const current = this.form();
         const fullName = [
@@ -3080,6 +3084,7 @@ export class UserRegistrationWizard {
             .join(' ');
 
         return {
+            isUpdate: true,
             message:
                 this.toText(response.mensaje)
                 || 'El usuario se actualizó correctamente.',
@@ -3088,16 +3093,18 @@ export class UserRegistrationWizard {
                 ?? this.user()?.userId
                 ?? this.userDetail()?.userId,
             ),
-            account: this.toText(this.user()?.username),
+            account:
+                this.toText(response.datos?.cuentaGenerada)
+                || this.toText(this.user()?.username),
             fullName,
             system: '',
-            hasAccessEmail: false,
+            hasAccessEmail: emailDelivery !== null,
             accessEmail: this.normalizeEmail(current.email),
             accessPhone: this.formatPhoneForDisplay(current.phone),
-            emailAccepted: false,
-            emailStatus: '',
-            emailMessage: '',
-            emailReference: '',
+            emailAccepted: emailDelivery?.accepted ?? false,
+            emailStatus: this.toText(emailDelivery?.status),
+            emailMessage: this.toText(emailDelivery?.message),
+            emailReference: this.toText(emailDelivery?.correoId),
         };
     }
 
@@ -3109,6 +3116,7 @@ export class UserRegistrationWizard {
         const current = this.form();
 
         return {
+            isUpdate: false,
             message: this.toText(response.mensaje) || 'El usuario se guardó correctamente.',
             userNumber: this.toText(data?.usuarioId),
             account: this.toText(data?.cuentaGenerada) || this.toText(data?.cuenta),
@@ -3124,19 +3132,16 @@ export class UserRegistrationWizard {
         };
     }
 
-    private sendStructureUpdateNotificationEmail(): Observable<CorreoDeliveryResult | null> {
+    private sendStructureUpdateNotificationEmail(
+        response: ActualizarAdminResponse,
+    ): Observable<CorreoDeliveryResult | null> {
         const initial = this.initialStructureEmailSnapshot;
-
-        if (!initial) {
-            return of(null);
-        }
-
         const currentForm = this.form();
         const current = this.toStructureEmailSnapshot(currentForm);
         const changes: UserStructureEmailChange[] = [];
         const changedOrigins: ProfileOrigin[] = [];
 
-        if (initial.adscriptionSignature !== current.adscriptionSignature) {
+        if (initial && initial.adscriptionSignature !== current.adscriptionSignature) {
             changes.push({
                 type: 'adscripcion',
                 previousValue: initial.adscriptionDescription,
@@ -3145,7 +3150,7 @@ export class UserRegistrationWizard {
             changedOrigins.push('adscripcion');
         }
 
-        if (initial.commissionSignature !== current.commissionSignature) {
+        if (initial && initial.commissionSignature !== current.commissionSignature) {
             changes.push({
                 type: 'comision',
                 previousValue: initial.commissionDescription,
@@ -3154,17 +3159,27 @@ export class UserRegistrationWizard {
             changedOrigins.push('comision');
         }
 
-        if (changes.length === 0) {
+        const recipient = this.normalizeEmail(currentForm.email);
+        const account = this.toText(response.datos?.cuentaGenerada);
+        const temporaryPassword = this.toText(response.datos?.passwordTemporal);
+
+        // El response es la fuente de verdad para distinguir los dos resultados:
+        // - sin ambas propiedades: actualización normal, sin correo de credenciales;
+        // - con ambas propiedades: cambio de institución con cuenta nueva.
+        if (!account && !temporaryPassword) {
             return of(null);
         }
 
-        const recipient = this.normalizeEmail(currentForm.email);
+        if (!account || !temporaryPassword) {
+            return throwError(() => new Error(
+                'El usuario se actualizó, pero la respuesta de actualizar_admin devolvió incompletas las nuevas credenciales.',
+            ));
+        }
 
         if (!this.isValidEmail(recipient)) {
-            console.warn(
-                'El usuario se actualizó, pero no tiene un correo válido para notificar el cambio de adscripción/comisión.',
-            );
-            return of(null);
+            return throwError(() => new Error(
+                'El usuario se actualizó, pero no tiene un correo válido para enviarle las nuevas credenciales.',
+            ));
         }
 
         const changedOriginSet = new Set<ProfileOrigin>(changedOrigins);
@@ -3197,7 +3212,8 @@ export class UserRegistrationWizard {
             buildUserStructureUpdateEmailRequest({
                 recipient,
                 fullName,
-                account: this.toText(this.user()?.username) || this.toText(currentForm.username),
+                account,
+                temporaryPassword,
                 changes,
                 addedProfiles,
             }),
@@ -3414,13 +3430,16 @@ export class UserRegistrationWizard {
             );
     }
 
-    private toFailedEmailDelivery(error: unknown): CorreoDeliveryResult {
+    private toFailedEmailDelivery(
+        error: unknown,
+        fallbackMessage = 'El usuario fue creado, pero no fue posible solicitar el envío del correo de acceso.',
+    ): CorreoDeliveryResult {
         return {
             accepted: false,
             message:
                 error instanceof Error
                     ? error.message
-                    : 'El usuario fue creado, pero no fue posible solicitar el envío del correo de acceso.',
+                    : fallbackMessage,
             status: null,
             correoId: null,
             recipientCount: 0,
@@ -6419,23 +6438,6 @@ export class UserRegistrationWizard {
             }
         }
 
-        if (stepId === 'account') {
-            const shouldValidateComment = this.shouldValidateEditFields(current, ['comment']);
-
-            if (shouldValidateComment && this.hasText(current.comment)) {
-                const commentError = this.getRestrictedTextValidationError(
-                    current.comment,
-                    5,
-                    1000,
-                    'El comentario',
-                );
-
-                if (commentError) {
-                    nextErrors['comment'] = commentError;
-                }
-            }
-        }
-
         this.formErrors.update((currentErrors) => {
             const cleanErrors = { ...currentErrors };
 
@@ -7042,7 +7044,6 @@ export class UserRegistrationWizard {
             account: [
                 'password',
                 'confirmPassword',
-                'comment',
             ],
         };
 
