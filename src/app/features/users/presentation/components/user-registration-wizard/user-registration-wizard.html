@@ -1216,8 +1216,10 @@
     </section>
 </siau-modal>
 
-<siau-modal [open]="saveSuccess() !== null" title="Usuario guardado correctamente"
-    subtitle="Registro y notificación de acceso" icon="circle-check" size="md" headerBadge="Éxito"
+<siau-modal [open]="saveSuccess() !== null"
+    [title]="saveSuccess()?.isUpdate ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente'"
+    [subtitle]="saveSuccess()?.isUpdate ? 'Actualización y envío de nuevas credenciales' : 'Registro y notificación de acceso'"
+    icon="circle-check" size="md" headerBadge="Éxito"
     (close)="closeSaveSuccessModal()">
     @if (saveSuccess(); as success) {
     <section class="registration-wizard__success-modal">
@@ -1227,8 +1229,10 @@
             </div>
 
             <div class="registration-wizard__success-heading">
-                <p class="registration-wizard__success-eyebrow">Registro confirmado</p>
-                <h3>Creación de usuario completada</h3>
+                <p class="registration-wizard__success-eyebrow">
+                    {{ success.isUpdate ? 'Actualización confirmada' : 'Registro confirmado' }}
+                </p>
+                <h3>{{ success.isUpdate ? 'Actualización de usuario completada' : 'Creación de usuario completada' }}</h3>
                 <p>{{ success.message }}</p>
             </div>
         </div>
@@ -1251,8 +1255,12 @@
 
             <p>
                 @if (success.emailAccepted) {
+                @if (success.isUpdate) {
+                Hemos enviado la nueva cuenta y la contraseña temporal al correo registrado.
+                } @else {
                 Hemos enviado tu cuenta y tus medios registrados para recibir el código de acceso. Podrás ingresar con
                 Telegram o con correo electrónico.
+                }
                 } @else {
                 {{ success.emailMessage }}
                 }

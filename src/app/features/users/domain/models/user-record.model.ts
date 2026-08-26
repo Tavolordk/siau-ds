@@ -325,6 +325,23 @@ export interface SolicitudOperacionResponse {
 }
 
 /**
+ * Respuesta específica de actualizar_admin.
+ * Cuando el cambio de institución genera una cuenta nueva, el backend devuelve
+ * aquí las credenciales que deben notificarse al usuario.
+ */
+export interface ActualizarAdminData extends SolicitudOperacionData {
+    /** Sólo se incluye cuando el cambio de institución genera una cuenta nueva. */
+    readonly cuentaGenerada?: string | null;
+    /** Sólo se incluye junto con cuentaGenerada. */
+    readonly passwordTemporal?: string | null;
+}
+
+export interface ActualizarAdminResponse {
+    readonly mensaje: string | null;
+    readonly datos: ActualizarAdminData | null;
+}
+
+/**
  * Contrato publicado por PATCH /api/solicitudes/actualizar_admin.
  * En Swagger únicamente `usuarioId` y `adscripcion` son obligatorios.
  */
@@ -380,5 +397,3 @@ export interface ActualizarAdminRequest {
     readonly nuevaCuenta?: ActualizarAdminNuevaCuenta;
     readonly auditoria?: SolicitudAuditoria;
 }
-
-export type ActualizarAdminResponse = SolicitudOperacionResponse;
