@@ -1135,23 +1135,6 @@
                         </div>
                     </div>
 
-                    <div class="registration-wizard__field registration-wizard__field--full">
-                        <label class="registration-wizard__field-label" for="comments">
-                            Comentarios
-                        </label>
-
-                        <textarea id="comments" class="registration-wizard__textarea" rows="4" maxlength="1000"
-                            placeholder="Agrega comentarios sobre la cuenta" [value]="form().comment"
-                            [disabled]="isFormDisabled() || isSubmitting()"
-                            (input)="updateForm('comment', $any($event.target).value)"></textarea>
-                        @if (fieldError('comment'); as commentError) {
-                        <p class="registration-wizard__field-error" role="alert">{{ commentError }}</p>
-                        } @else {
-                        <p class="registration-wizard__field-help">
-                            Opcional. Si capturas un comentario, debe tener de 5 a 1,000 caracteres válidos.
-                        </p>
-                        }
-                    </div>
                 </div>
             </section>
             }

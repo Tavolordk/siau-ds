@@ -1655,13 +1655,6 @@ export class UserRegistrationWizard {
                 RESTRICTED_TEXT_LIMITS.functions.max,
                 'Las funciones',
             );
-        } else if (key === 'comment' && text) {
-            message = getRestrictedTextError(
-                text,
-                RESTRICTED_TEXT_LIMITS.comment.min,
-                RESTRICTED_TEXT_LIMITS.comment.max,
-                'El comentario',
-            );
         } else if (key === 'birthDate' && text) {
             // Cubre el caso de escribir el año a mano: el <input type="date">
             // nativo respeta [min]/[max] sólo desde el calendario.
@@ -6419,23 +6412,6 @@ export class UserRegistrationWizard {
             }
         }
 
-        if (stepId === 'account') {
-            const shouldValidateComment = this.shouldValidateEditFields(current, ['comment']);
-
-            if (shouldValidateComment && this.hasText(current.comment)) {
-                const commentError = this.getRestrictedTextValidationError(
-                    current.comment,
-                    5,
-                    1000,
-                    'El comentario',
-                );
-
-                if (commentError) {
-                    nextErrors['comment'] = commentError;
-                }
-            }
-        }
-
         this.formErrors.update((currentErrors) => {
             const cleanErrors = { ...currentErrors };
 
@@ -7042,7 +7018,6 @@ export class UserRegistrationWizard {
             account: [
                 'password',
                 'confirmPassword',
-                'comment',
             ],
         };
 
