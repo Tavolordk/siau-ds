@@ -1,4 +1,4 @@
-import type { CorreoRequest } from '../../../core/correo';
+import type { CorreoRequest } from '../../../../core/correo';
 
 export type UserStructureEmailChangeType = 'adscripcion' | 'comision';
 

@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, Observable, throwError, timeout } from 'rxjs';
-import { ECCC_PERSONAL_API_BASE_URL } from '../../../core/http/eccc-personal-api-base-url.token';
+import { ECCC_PERSONAL_API_BASE_URL } from '../../../../core/http/eccc-personal-api-base-url.token';
 
 /**
  * IMPORTANTE:

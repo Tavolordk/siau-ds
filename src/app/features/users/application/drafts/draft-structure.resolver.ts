@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { SiauSelectOption } from '../../../shared/ui';
+import { SiauSelectOption } from '../../../../shared/ui';
 import {
     BorradorEstructuraCatalogo,
     BorradorItem,
-} from '../domain/models/user-record.model';
+} from '../../domain/models/user-record.model';
 
 export interface ResolvedDraftStructureHierarchy {
     readonly institutionType: string;

@@ -1,4 +1,4 @@
-import { CorreoRequest } from '../../../core/correo';
+import { CorreoRequest } from '../../../../core/correo';
 
 export interface UserCredentialsEmailTemplateInput {
     readonly recipient: string;

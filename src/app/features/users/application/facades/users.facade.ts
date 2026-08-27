@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { UsersApiRepository } from '../data-access/users-api.repository';
+import { UsersApiRepository } from '../../data-access/users/users-api.repository';
 import {
     ActualizarAdminRequest,
     ActualizarAdminResponse,
@@ -15,7 +15,7 @@ import {
     UserDetailRecord,
     UsersPageResult,
     UsersQuery,
-} from '../domain/models/user-record.model';
+} from '../../domain/models/user-record.model';
 
 @Injectable({ providedIn: 'root' })
 export class UsersFacade {
