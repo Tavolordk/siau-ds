@@ -6,7 +6,7 @@ import {
     ProfileOrigin,
     StructureProfileCatalog,
 } from '../models/user-registration-wizard.models';
-import { UserRegistrationFormRules } from '../rules/user-registration-form.rules';
+import { UserRegistrationFormRules } from '../validation/user-registration-form.rules';
 
 @Injectable({ providedIn: 'root' })
 export class UserProfileMatcher {

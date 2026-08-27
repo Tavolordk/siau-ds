@@ -4,13 +4,13 @@ import { SiauModal } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { BorradorItem, UserRecord } from '../../../domain/models/user-record.model';
 import { UserRegistrationWizard } from '../../components/user-registration-wizard/user-registration-wizard';
-import { UserAccountOperationsController } from './controllers/user-account-operations.controller';
-import { UserManagementDataController } from './controllers/user-management-data.controller';
-import { UserManagementFilterController } from './controllers/user-management-filter.controller';
-import { UserManagementFilterPresenter } from './presenters/user-management-filter.presenter';
-import { UserManagementFilterState } from './state/user-management-filter.state';
-import { USER_MANAGEMENT_PROVIDERS } from './providers/user-management.providers';
-import { UserManagementPagePresenter } from './presenters/user-management-page.presenter';
+import { UserAccountOperationsController } from './accounts/user-account-operations.controller';
+import { UserManagementDataController } from './data/user-management-data.controller';
+import { UserManagementFilterController } from './filters/user-management-filter.controller';
+import { UserManagementFilterPresenter } from './filters/user-management-filter.presenter';
+import { UserManagementFilterState } from './filters/user-management-filter.state';
+import { USER_MANAGEMENT_PROVIDERS } from './configuration/user-management.providers';
+import { UserManagementPagePresenter } from './view/user-management-page.presenter';
 import { UserManagementPageState } from './state/user-management-page.state';
 import {
     BadgeTone,

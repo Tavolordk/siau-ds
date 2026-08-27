@@ -14,7 +14,7 @@ import {
     UserWizardMode,
     WizardStepId,
 } from '../models/user-registration-wizard.models';
-import { UserRegistrationIdentityCoordinator } from '../coordinators/user-registration-identity.coordinator';
+import { UserRegistrationIdentityCoordinator } from '../identity/user-registration-identity.coordinator';
 
 /**
  * Estado mutable del asistente de registro.

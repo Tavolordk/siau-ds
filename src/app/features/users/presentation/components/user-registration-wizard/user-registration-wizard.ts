@@ -2,11 +2,11 @@ import { ChangeDetectionStrategy, Component, inject, input, output } from '@angu
 import { SiauInput, SiauModal, SiauSelect, SiauStep } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { BorradorItem, UserDetailRecord, UserRecord } from '../../../domain/models/user-record.model';
-import { UserRegistrationLifecycleCoordinator } from './coordinators/user-registration-lifecycle.coordinator';
-import { USER_REGISTRATION_PROVIDERS } from './providers/user-registration.providers';
-import { UserRegistrationPresenter } from './presenters/user-registration.presenter';
+import { UserRegistrationLifecycleCoordinator } from './lifecycle/user-registration-lifecycle.coordinator';
+import { USER_REGISTRATION_PROVIDERS } from './configuration/user-registration.providers';
+import { UserRegistrationPresenter } from './view/user-registration.presenter';
 import { UserRegistrationState } from './state/user-registration.state';
-import { UserRegistrationViewFacade } from './facades/user-registration-view.facade';
+import { UserRegistrationViewFacade } from './view/user-registration-view.facade';
 import {
     AccountStatus,
     AssignedSystemProfile,

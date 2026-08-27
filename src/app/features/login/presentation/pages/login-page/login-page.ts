@@ -3,7 +3,7 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
 import { CaptchaFacade } from '../../../../../core/captcha/application/captcha.facade';
-import { AnimatedAuthBackground } from '../../../../../shared/ui/animated-auth-background/animated-auth-background';
+import { AnimatedAuthBackground } from '../../../../../shared/ui/components/animated-auth-background/animated-auth-background';
 import {
     CONTACT_EMAIL_MAX_LENGTH,
     CONTACT_PHONE_LENGTH,
