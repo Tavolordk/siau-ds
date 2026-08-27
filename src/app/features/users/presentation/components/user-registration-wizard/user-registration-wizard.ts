@@ -2,11 +2,11 @@ import { ChangeDetectionStrategy, Component, inject, input, output } from '@angu
 import { SiauInput, SiauModal, SiauSelect, SiauStep } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
 import { BorradorItem, UserDetailRecord, UserRecord } from '../../../domain/models/user-record.model';
-import { UserRegistrationLifecycleCoordinator } from './user-registration-lifecycle.coordinator';
-import { USER_REGISTRATION_PROVIDERS } from './user-registration.providers';
-import { UserRegistrationPresenter } from './user-registration.presenter';
-import { UserRegistrationState } from './user-registration.state';
-import { UserRegistrationViewFacade } from './user-registration-view.facade';
+import { UserRegistrationLifecycleCoordinator } from './coordinators/user-registration-lifecycle.coordinator';
+import { USER_REGISTRATION_PROVIDERS } from './providers/user-registration.providers';
+import { UserRegistrationPresenter } from './presenters/user-registration.presenter';
+import { UserRegistrationState } from './state/user-registration.state';
+import { UserRegistrationViewFacade } from './facades/user-registration-view.facade';
 import {
     AccountStatus,
     AssignedSystemProfile,
@@ -15,7 +15,7 @@ import {
     ProfileOrigin,
     UserRegistrationForm,
     UserWizardMode,
-} from './user-registration-wizard.models';
+} from './models/user-registration-wizard.models';
 
 @Component({
     selector: 'app-user-registration-wizard',
