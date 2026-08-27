@@ -1,120 +1,28 @@
-import {
-    ChangeDetectionStrategy,
-    Component,
-    effect,
-    DestroyRef,
-    inject,
-    input,
-    output,
-    signal,
-    untracked,
-    WritableSignal,
-} from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { finalize, map, Observable, of } from 'rxjs';
-import { AuthStorage } from '../../../../../core/auth/data-access/auth.storage';
-import {
-    SiauInput,
-    SiauModal,
-    SiauSelect,
-    SiauSelectOption,
-    SiauStep,
-} from '../../../../../shared/ui';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
+import { SiauInput, SiauModal, SiauSelect, SiauStep } from '../../../../../shared/ui';
 import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
-import { UsersFacade } from '../../../application/users.facade';
-import {
-    BorradorGuardarRequest,
-    BorradorItem,
-    UserDetailRecord,
-    UserRecord,
-} from '../../../domain/models/user-record.model';
-import {
-    MINIMUM_BIRTH_DATE,
-    getAdultCutoffDateInput,
-} from '../../../../../shared/validation/field-validators';
-
+import { BorradorItem, UserDetailRecord, UserRecord } from '../../../domain/models/user-record.model';
+import { UserRegistrationLifecycleCoordinator } from './user-registration-lifecycle.coordinator';
+import { USER_REGISTRATION_PROVIDERS } from './user-registration.providers';
+import { UserRegistrationPresenter } from './user-registration.presenter';
+import { UserRegistrationState } from './user-registration.state';
+import { UserRegistrationViewFacade } from './user-registration-view.facade';
 import {
     AccountStatus,
-    UserWizardMode,
-    CurpValidationStatus,
-    CurpValidationMessageTone,
-    ProfileOrigin,
-    WizardStepId,
-    UserRegistrationForm,
-    IdentitySnapshot,
     AssignedSystemProfile,
-    StructureEmailSnapshot,
-    ALL_WIZARD_STEPS,
-    INITIAL_FORM,
+    CurpValidationMessageTone,
+    CurpValidationStatus,
+    ProfileOrigin,
+    UserRegistrationForm,
+    UserWizardMode,
 } from './user-registration-wizard.models';
-import { UserRegistrationFormRules } from './user-registration-form.rules';
-import { UserRegistrationState } from './user-registration.state';
-import { UserRegistrationPresenter } from './user-registration.presenter';
-import { UserRegistrationFieldController } from './user-registration-field.controller';
-import { UserRegistrationEditScopeController } from './user-registration-edit-scope.controller';
-import {
-    UserRegistrationNavigationActions,
-    UserRegistrationNavigationController,
-} from './user-registration-navigation.controller';
-import { UserRegistrationContextFactory } from './user-registration-context.factory';
-import { UserRegistrationResetService } from './user-registration-reset.service';
-import {
-    StructureEmailCatalogs,
-    UserRegistrationNotificationService,
-} from './user-registration-notification.service';
-import { UserProfileMatcher } from './user-profile.matcher';
-import { UserRegistrationEditMapper } from './user-registration-edit.mapper';
-import { UserRegistrationIdentityCoordinator } from './user-registration-identity.coordinator';
-import {
-    UserRegistrationCatalogCoordinator,
-    UserRegistrationCatalogState,
-} from './user-registration-catalog.coordinator';
-import { UserRegistrationDraftProfileService } from './user-registration-draft-profile.service';
-import {
-    UserRegistrationDraftContext,
-    UserRegistrationDraftCoordinator,
-} from './user-registration-draft.coordinator';
-import {
-    UserRegistrationProfileContext,
-    UserRegistrationProfileController,
-} from './user-registration-profile.controller';
-import {
-    UserRegistrationStructureContext,
-    UserRegistrationStructureController,
-} from './user-registration-structure.controller';
-import {
-    UserRegistrationValidationContext,
-    UserRegistrationValidator,
-} from './user-registration.validator';
-import {
-    UserRegistrationValidationCoordinator,
-    UserRegistrationValidationState,
-} from './user-registration-validation.coordinator';
-import {
-    UserRegistrationSubmissionContext,
-    UserRegistrationSubmissionCoordinator,
-} from './user-registration-submission.coordinator';
 
 @Component({
     selector: 'app-user-registration-wizard',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [SiauModal, SiauInput, SiauSelect, SiauLucideIcon],
-    providers: [
-        UserRegistrationIdentityCoordinator,
-        UserRegistrationState,
-        UserRegistrationPresenter,
-        UserRegistrationFieldController,
-        UserRegistrationEditScopeController,
-        UserRegistrationNavigationController,
-        UserRegistrationResetService,
-        UserRegistrationContextFactory,
-        UserRegistrationCatalogCoordinator,
-        UserRegistrationDraftProfileService,
-        UserRegistrationDraftCoordinator,
-        UserRegistrationProfileController,
-        UserRegistrationStructureController,
-    ],
+    providers: [...USER_REGISTRATION_PROVIDERS],
     templateUrl: './user-registration-wizard.html',
     styleUrl: './user-registration-wizard.scss',
 })
@@ -129,59 +37,11 @@ export class UserRegistrationWizard {
     readonly closed = output<void>();
     readonly saved = output<void>();
 
-    private readonly usersFacade = inject(UsersFacade);
-    private readonly authStorage = inject(AuthStorage);
-    private readonly destroyRef = inject(DestroyRef);
-    private readonly formRules = inject(UserRegistrationFormRules);
-    private readonly notificationService = inject(UserRegistrationNotificationService);
-    private readonly validator = inject(UserRegistrationValidator);
-    private readonly validationCoordinator = inject(UserRegistrationValidationCoordinator);
-    private readonly submissionCoordinator = inject(UserRegistrationSubmissionCoordinator);
-    private readonly profileMatcher = inject(UserProfileMatcher);
-    private readonly editMapper = inject(UserRegistrationEditMapper);
-    private readonly identityCoordinator = inject(UserRegistrationIdentityCoordinator);
-    private readonly catalogCoordinator = inject(UserRegistrationCatalogCoordinator);
-    private readonly draftProfileService = inject(UserRegistrationDraftProfileService);
-    private readonly draftCoordinator = inject(UserRegistrationDraftCoordinator);
-    private readonly profileController = inject(UserRegistrationProfileController);
-    private readonly structureController = inject(UserRegistrationStructureController);
-
     private readonly state = inject(UserRegistrationState);
     private readonly presenter = inject(UserRegistrationPresenter);
-    private readonly fieldController = inject(UserRegistrationFieldController);
-    private readonly editScopeController = inject(UserRegistrationEditScopeController);
-    private readonly navigationController = inject(UserRegistrationNavigationController);
-    private readonly contextFactory = inject(UserRegistrationContextFactory);
+    private readonly view = inject(UserRegistrationViewFacade);
+    private readonly lifecycle = inject(UserRegistrationLifecycleCoordinator);
 
-    private hydrationKey = '';
-    private readonly catalogosReady = this.state.catalogosReady;
-
-    private get initialIdentitySnapshot(): IdentitySnapshot | null {
-        return this.state.initialIdentitySnapshot();
-    }
-    private set initialIdentitySnapshot(value: IdentitySnapshot | null) {
-        this.state.initialIdentitySnapshot.set(value);
-    }
-    private get initialEditFormSnapshot(): UserRegistrationForm | null {
-        return this.state.initialEditFormSnapshot();
-    }
-    private set initialEditFormSnapshot(value: UserRegistrationForm | null) {
-        this.state.initialEditFormSnapshot.set(value);
-    }
-    private get initialAssignedProfiles(): readonly AssignedSystemProfile[] {
-        return this.state.initialAssignedProfiles();
-    }
-    private set initialAssignedProfiles(value: readonly AssignedSystemProfile[]) {
-        this.state.initialAssignedProfiles.set(value);
-    }
-    private get initialStructureEmailSnapshot(): StructureEmailSnapshot | null {
-        return this.state.initialStructureEmailSnapshot();
-    }
-    private set initialStructureEmailSnapshot(value: StructureEmailSnapshot | null) {
-        this.state.initialStructureEmailSnapshot.set(value);
-    }
-
-    private readonly detailCurpValidated = this.state.detailCurpValidated;
     protected readonly activeStepId = this.state.activeStepId;
     protected readonly editEnabled = this.state.editEnabled;
     protected readonly completedSteps = this.state.completedSteps;
@@ -202,7 +62,6 @@ export class UserRegistrationWizard {
     protected readonly curpLocked = this.state.curpLocked;
     protected readonly curpUnlockChecked = this.state.curpUnlockChecked;
     protected readonly curpValidationSummary = this.state.curpValidationSummary;
-
     protected readonly selectedSystem = this.state.selectedSystem;
     protected readonly selectedRole = this.state.selectedRole;
     protected readonly selectedProfileOrigin = this.state.selectedProfileOrigin;
@@ -214,9 +73,6 @@ export class UserRegistrationWizard {
     protected readonly detailRoleOptionsBySystem = this.state.detailRoleOptionsBySystem;
     protected readonly structureProfileLookupStatus = this.state.structureProfileLookupStatus;
     protected readonly structureProfileMessage = this.state.structureProfileMessage;
-    private readonly structureRoleOptionsBySystem = this.state.structureRoleOptionsBySystem;
-    private readonly allSystemOptions = this.state.allSystemOptions;
-
     protected readonly showPassword = this.state.showPassword;
     protected readonly showConfirmPassword = this.state.showConfirmPassword;
     protected readonly genderOptions = this.state.genderOptions;
@@ -308,565 +164,74 @@ export class UserRegistrationWizard {
     protected readonly primaryButtonIcon = this.presenter.primaryButtonIcon;
 
     constructor() {
-        effect(() => {
-            this.state.syncInputs(
-                this.mode(),
-                this.readonlyMode(),
-                this.open(),
-                this.user(),
-                this.userDetail(),
-            );
-        });
-
-        effect(() => {
-            const isOpen = this.open();
-
-            if (isOpen && !this.catalogosReady()) {
-                this.contextFactory.loadCatalogos();
-            }
-
-            const mode = this.mode();
-            const user = this.user();
-            const detail = this.userDetail();
-            const catalogosReady = this.catalogosReady();
-            const draftToOpen = this.draftToOpen();
-            const autoRestoreDraft = this.autoRestoreDraft();
-
-            if (!isOpen) {
-                this.hydrationKey = '';
-                return;
-            }
-
-            const userKey = user?.userId ?? user?.username ?? 'sin-usuario';
-            const detailKey = detail ? 'con-detalle' : 'sin-detalle';
-            const draftKey = draftToOpen?.borradorId ?? 'sin-borrador';
-            const nextHydrationKey = `${mode}-${userKey}-${detailKey}-${draftKey}-${autoRestoreDraft}-${catalogosReady}`;
-
-            if (this.hydrationKey === nextHydrationKey) {
-                return;
-            }
-
-            this.hydrationKey = nextHydrationKey;
-
-            untracked(() => {
-                if (mode === 'edit') {
-                    // El modal se abre antes de que termine GET /consultas/usuarios.
-                    // No hidratamos con un detalle vacío ni antes de tener los
-                    // catálogos padre, porque eso deja seleccionados por etiqueta
-                    // pero sin IDs válidos para consultar sus hijos.
-                    if (!catalogosReady || !detail) {
-                        return;
-                    }
-
-                    this.hydrateEditForm(detail, user);
-                    return;
-                }
-
-                this.contextFactory.resetWizard();
-                this.editEnabled.set(true);
-                this.contextFactory.ensureDefaultSiauProfile();
-
-                if (!catalogosReady) {
-                    return;
-                }
-
-                if (draftToOpen) {
-                    this.contextFactory.restoreProvidedRegistrationDraft(draftToOpen);
-                } else if (autoRestoreDraft) {
-                    this.contextFactory.loadRegistrationDraft();
-                }
-            });
-        });
-
-        effect(() => {
-            /*
-             * Dependencias: los catálogos de sistemas/perfiles Y la lista de
-             * perfiles asignados. Sin esta última, al restaurar un borrador
-             * después de que los catálogos ya cargaron el efecto no vuelve a
-             * correr y las etiquetas se quedan en los ids.
-             *
-             * No hay ciclo: `refreshAssignedProfileLabels` sólo escribe cuando
-             * alguna etiqueta cambió, así que la segunda pasada no hace nada.
-             */
-            this.assignedSystemProfiles();
-            this.systemOptions();
-            this.allSystemOptions();
-            this.structureRoleOptionsBySystem();
-            this.roleOptions();
-            this.draftProfileService.fallbackOptions();
-
-            untracked(() => this.contextFactory.refreshAssignedProfileLabels());
-        });
-
-        effect(() => {
-            const shouldLoad =
-                this.open() &&
-                this.catalogosReady() &&
-                this.activeStepId() === 'profiles';
-            const current = this.form();
-
-            if (!shouldLoad) {
-                return;
-            }
-
-            const origin = this.activeProfileOrigin();
-            const structureId = this.contextFactory.resolveProfileStructureId(current, origin);
-
-            untracked(() => this.contextFactory.loadStructureProfileOptions(structureId));
+        this.lifecycle.connect({
+            open: this.open,
+            mode: this.mode,
+            user: this.user,
+            userDetail: this.userDetail,
+            readonlyMode: this.readonlyMode,
+            draftToOpen: this.draftToOpen,
+            autoRestoreDraft: this.autoRestoreDraft,
         });
     }
 
-    protected dismissRenapoMessage(): void {
-        this.renapoMessageVisible.set(false);
-    }
-
-    protected dismissSubmitError(): void {
-        this.clearFieldError('submit');
-    }
-
-    protected dismissCurrentStepErrors(): void {
-        const keys = new Set(this.currentStepErrors().map((error) => error.key));
-        if (keys.size === 0) {
-            return;
-        }
-        this.formErrors.update((current) => {
-            const next = { ...current };
-            keys.forEach((key) => delete next[key]);
-            return next;
-        });
-    }
-
-    protected dismissStructureProfileError(): void {
-        if (this.structureProfileLookupStatus() === 'error') {
-            this.structureProfileLookupStatus.set('idle');
-            this.structureProfileMessage.set('');
-        }
-    }
-
-    protected dismissProfileResetNotice(): void {
-        this.profileResetNotice.set(null);
-    }
-
-    protected selectProfileOrigin(origin: ProfileOrigin): void {
-        this.editScopeController.selectProfileOrigin(origin, () => this.contextFactory.resetStructureProfileCatalog());
-    }
-
-    private isProfileOriginLocked(origin: ProfileOrigin): boolean {
-        return this.presenter.isProfileOriginLocked(origin);
-    }
-
-    private claimEditStructureScope(
-        origin: ProfileOrigin,
-        changed = true,
-        resetProfileCatalog = true,
-    ): boolean {
-        return this.editScopeController.claim(
-            origin,
-            changed,
-            resetProfileCatalog,
-            () => this.contextFactory.resetStructureProfileCatalog(),
-        );
-    }
-
-    protected previousProfile(origin: ProfileOrigin): void {
-        this.profileController.previousProfile(origin, this.contextFactory.profile());
-    }
-
-    protected nextProfile(origin: ProfileOrigin): void {
-        this.profileController.nextProfile(origin, this.contextFactory.profile());
-    }
-
-    protected getProfileCarouselIndex(origin: ProfileOrigin): number {
-        return this.profileController.getCarouselIndex(origin, this.contextFactory.profile());
-    }
-
-    protected enableEditing(): void {
-        if (!this.isEditMode() || this.readonlyMode()) {
-            return;
-        }
-
-        this.editEnabled.set(true);
-
-        // Los catálogos ya se precargan al hidratar el detalle. Esta segunda
-        // llamada es idempotente a nivel de estado y funciona como recuperación
-        // si alguna petición de catálogo falló o fue invalidada mientras el
-        // detalle todavía estaba abriendo.
-        this.contextFactory.loadHydratedAssignmentCatalogs(this.form());
-    }
-
-    protected goToStep(stepId: string): void {
-        if (this.isWizardStep(stepId)) {
-            this.navigationController.goToStep(stepId, this.navigationActions());
-        }
-    }
-
-    protected nextStep(): void {
-        this.navigationController.nextStep(this.navigationActions());
-    }
-
-    protected previousStep(): void {
-        this.navigationController.previousStep();
-    }
-
-    private navigationActions(): UserRegistrationNavigationActions {
-        return {
-            validateStep: (stepId) => this.contextFactory.validateStep(stepId),
-            validateChangedIdentityFields: () => this.contextFactory.validateChangedIdentityFields(),
-            consultEcccAndPersonal: () => this.consultEcccAndPersonal(),
-            buildDraftSaveRequest: (nextStepId, completedSteps) =>
-                this.contextFactory.buildDraftSaveRequest(nextStepId, completedSteps),
-        };
-    }
-
-    protected closeWizard(): void {
-        if (this.isSubmitting() || this.isDraftBusy()) {
-            return;
-        }
-
-        this.closed.emit();
-        this.contextFactory.resetWizard();
-    }
-
-    protected closeSaveSuccessModal(): void {
-        this.saveSuccess.set(null);
-        this.saved.emit();
-        this.closed.emit();
-        this.contextFactory.resetWizard();
-    }
-
-    protected submit(): void {
-        this.submissionCoordinator.submit(this.contextFactory.submission());
-    }
-
-    protected updateForm<K extends keyof UserRegistrationForm>(
-        key: K,
-        value: UserRegistrationForm[K] | string | null,
-    ): void {
-        this.fieldController.updateForm(
-            key,
-            value,
-            (origin) => this.claimEditStructureScope(origin),
-        );
-    }
-
-    protected updateCurp(value: string): void {
-        this.fieldController.updateCurp(value);
-    }
-
-    protected updateRfc(value: string): void {
-        this.fieldController.updateRfc(value);
-    }
-
-    protected toggleCurpUnlock(checked: boolean): void {
-        this.fieldController.toggleCurpUnlock(checked);
-    }
-
-    protected toggleCommissionSection(checked: boolean): void {
-        this.structureController.toggleCommissionSection(checked, this.contextFactory.structure());
-    }
-
-    protected updateAssignmentInstitutionType(value: string | null): void {
-        this.structureController.updateAssignmentInstitutionType(value, this.contextFactory.structure());
-    }
-
-    protected updateAssignmentEntity(value: string | null): void {
-        this.structureController.updateAssignmentEntity(value, this.contextFactory.structure());
-    }
-
-    protected updateAssignmentMunicipality(value: string | null): void {
-        this.structureController.updateAssignmentMunicipality(value, this.contextFactory.structure());
-    }
-
-    protected updateAssignmentInstitution(value: string | null): void {
-        this.structureController.updateAssignmentInstitution(value, this.contextFactory.structure());
-    }
-
-    protected updateAssignmentDecentralizedBody(value: string | null): void {
-        this.structureController.updateAssignmentDecentralizedBody(value, this.contextFactory.structure());
-    }
-
-    protected updateAssignmentAdministrativeUnit(value: string | null): void {
-        this.structureController.updateAssignmentAdministrativeUnit(value, this.contextFactory.structure());
-    }
-
-    protected updateCommissionInstitutionType(value: string | null): void {
-        this.structureController.updateCommissionInstitutionType(value, this.contextFactory.structure());
-    }
-
-    protected updateCommissionEntity(value: string | null): void {
-        this.structureController.updateCommissionEntity(value, this.contextFactory.structure());
-    }
-
-    protected updateCommissionMunicipality(value: string | null): void {
-        this.structureController.updateCommissionMunicipality(value, this.contextFactory.structure());
-    }
-
-    protected updateCommissionInstitution(value: string | null): void {
-        this.structureController.updateCommissionInstitution(value, this.contextFactory.structure());
-    }
-
-    protected updateCommissionDecentralizedBody(value: string | null): void {
-        this.structureController.updateCommissionDecentralizedBody(value, this.contextFactory.structure());
-    }
-
-    protected updateCommissionAdministrativeUnit(value: string | null): void {
-        this.structureController.updateCommissionAdministrativeUnit(value, this.contextFactory.structure());
-    }
-
-    protected toggleProfile(profile: string): void {
-        if (this.isFormDisabled() || this.isSubmitting()) {
-            return;
-        }
-
-        this.form.update((current) => {
-            const exists = current.profiles.includes(profile);
-
-            return {
-                ...current,
-                profiles: exists
-                    ? current.profiles.filter((item) => item !== profile)
-                    : [...current.profiles, profile],
-            };
-        });
-    }
-
-    protected isFirstStep(): boolean {
-        return this.activeIndex() === 0;
-    }
-
-    protected isLastStep(): boolean {
-        return this.activeIndex() === this.stepOrder().length - 1;
-    }
-
-    protected updateSelectedSystem(value: string | null): void {
-        this.profileController.updateSelectedSystem(value, this.contextFactory.profile());
-    }
-
-    protected updateSelectedRole(value: string | null): void {
-        this.profileController.updateSelectedRole(value, this.contextFactory.profile());
-    }
-
-    protected addAssignedProfile(): void {
-        this.profileController.addAssignedProfile(this.contextFactory.profile());
-    }
-
-    protected removeAssignedProfile(id: string): void {
-        this.profileController.removeAssignedProfile(id, this.contextFactory.profile());
-    }
-
-    private saveDraftAfterProfileChange(): void {
-        this.draftCoordinator.saveAfterProfileChange(this.contextFactory.draft());
-    }
-
-    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean {
-        return this.profileController.canRemoveAssignedProfile(profile, this.contextFactory.profile());
-    }
-
-    private clearProfilesAfterAssignmentInstitutionChange(
-        previousInstitution: string | null | undefined,
-        nextInstitution: string | null | undefined,
-    ): void {
-        this.profileController.clearAfterAssignmentInstitutionChange(
-            previousInstitution,
-            nextInstitution,
-            this.contextFactory.profile(),
-        );
-    }
-
-    private clearProfilesAfterCommissionInstitutionChange(
-        previousInstitution: string | null | undefined,
-        nextInstitution: string | null | undefined,
-    ): void {
-        this.profileController.clearAfterCommissionInstitutionChange(
-            previousInstitution,
-            nextInstitution,
-            this.contextFactory.profile(),
-        );
-    }
-
-    private clearAllProfilesAfterCreationContextChange(message: string): void {
-        this.profileController.clearAllAfterCreationContextChange(message, this.contextFactory.profile());
-    }
-
-    private clearProfilesForOrigin(origin: ProfileOrigin, message: string): void {
-        this.profileController.clearForOrigin(origin, message, this.contextFactory.profile());
-    }
-
-    protected togglePasswordVisibility(): void {
-        this.showPassword.update((value) => !value);
-    }
-
-    protected toggleConfirmPasswordVisibility(): void {
-        this.showConfirmPassword.update((value) => !value);
-    }
-
-    protected isAccountStatusDisabled(_status: AccountStatus): boolean {
-        return true;
-    }
-
-    protected setAccountStatus(_status: AccountStatus): void {
-        return;
-    }
-
-    protected getReadonlyModeTitle(): string {
-        return this.form().accountStatus === 'blocked'
-            ? 'Vista de usuario bloqueado'
-            : 'Vista de usuario suspendido';
-    }
-
-    protected getReadonlyModeDescription(): string {
-        return this.form().accountStatus === 'blocked'
-            ? 'El usuario está bloqueado por seguridad. Solo puedes consultar su detalle.'
-            : 'El usuario está suspendido. Solo puedes consultar su detalle.';
-    }
-
-    protected getStepIcon(step: SiauStep): string {
-        return step.completed ? 'check' : step.icon;
-    }
-
-    protected getStepClass(step: SiauStep, index: number): string {
-        const isActive = index === this.activeIndex();
-
-        return [
-            'registration-wizard__step',
-            isActive ? 'registration-wizard__step--active' : '',
-            step.completed ? 'registration-wizard__step--completed' : '',
-        ]
-            .join(' ')
-            .trim();
-    }
-
-    protected getCurpValidationStatusLabel(status: CurpValidationStatus): string {
-        return this.formRules.toText(status) || 'Sin información';
-    }
-
-    protected getCurpValidationStatusClass(status: CurpValidationStatus): string {
-        const normalizedStatus = this.formRules.normalizeText(status);
-        const dangerStatuses = ['inactivo', 'reprobado', 'rechazado', 'vencido', 'no vigente'];
-        const successStatuses = ['activo', 'aprobado', 'vigente'];
-        const isDanger = dangerStatuses.some((value) => normalizedStatus.includes(value));
-        const isSuccess =
-            !isDanger && successStatuses.some((value) => normalizedStatus.includes(value));
-        const tone = isDanger ? 'danger' : isSuccess ? 'success' : 'neutral';
-
-        return `registration-wizard__curp-validation-pill registration-wizard__curp-validation-pill--${tone}`;
-    }
-
-    protected getCurpValidationMessageClass(tone: CurpValidationMessageTone): string {
-        return `registration-wizard__curp-validation-message registration-wizard__curp-validation-message--${tone}`;
-    }
-
-    private consultEcccAndPersonal(): void {
-        this.identityCoordinator.consultEcccAndPersonal(this.form);
-    }
-
-    private resetRenapoLookupState(): void {
-        this.identityCoordinator.resetRenapoLookupState();
-    }
-
-    private resetEcccPersonalLookupState(): void {
-        this.identityCoordinator.resetEcccPersonalLookupState();
-    }
-
-    private hydrateEditForm(detail: UserDetailRecord, user: UserRecord | null): void {
-        this.contextFactory.bumpAssignmentCatalogGeneration();
-        this.contextFactory.bumpCommissionCatalogGeneration();
-        this.resetRenapoLookupState();
-        this.resetEcccPersonalLookupState();
-
-        const hydration = this.editMapper.hydrate(
-            detail,
-            user,
-            {
-                gender: this.genderOptions,
-                civilStatus: this.civilStatusOptions,
-                institutionType: this.institutionTypeOptions,
-                state: this.stateOptions,
-                municipality: this.municipalityOptions,
-                institution: this.institutionOptions,
-                decentralizedBody: this.decentralizedBodyOptions,
-                administrativeUnit: this.administrativeUnitOptions,
-                commissionMunicipality: this.commissionMunicipalityOptions,
-                commissionInstitution: this.commissionInstitutionOptions,
-                commissionDecentralizedBody: this.commissionDecentralizedBodyOptions,
-                commissionAdministrativeUnit: this.commissionAdministrativeUnitOptions,
-            },
-            this.presenter.knownSystemOptions(),
-        );
-
-        this.detailCurpValidated.set(hydration.persistedCurpValidated);
-        if (hydration.persistedCurpValidated) {
-            this.renapoLookupStatus.set('success');
-            this.renapoMessage.set(
-                'La CURP de este usuario ya fue validada en RENAPO. En edición no se permite volver a consultar RENAPO ni modificar CURP, nombre(s), apellidos o fecha de nacimiento.',
-            );
-            this.renapoMessageVisible.set(true);
-            this.curpLocked.set(true);
-            this.curpUnlockChecked.set(false);
-        }
-
-        const nextForm = hydration.form;
-        const assignedProfiles = [...hydration.assignedProfiles];
-
-        this.activeStepId.set('personal-data');
-        this.completedSteps.set([...this.stepOrder()]);
-        this.editEnabled.set(false);
-        this.form.set(nextForm);
-        this.initialIdentitySnapshot = this.formRules.toIdentitySnapshot(nextForm);
-        this.initialEditFormSnapshot = this.formRules.toEditFormSnapshot(nextForm);
-        this.initialStructureEmailSnapshot = this.contextFactory.toStructureEmailSnapshot(nextForm);
-        this.selectedSystem.set('');
-        this.selectedRole.set('');
-        this.roleOptions.set([]);
-        this.assignedSystemProfiles.set(assignedProfiles);
-        this.assignmentProfileCarouselIndex.set(0);
-        this.commissionProfileCarouselIndex.set(0);
-        this.selectedProfileOrigin.set(nextForm.commissionEnabled ? 'comision' : 'adscripcion');
-        this.profileResetNotice.set(null);
-        this.editStructureScope.set(null);
-        this.initialAssignedProfiles = [...assignedProfiles];
-        this.detailRoleOptionsBySystem.set(hydration.roleOptionsBySystem);
-        this.contextFactory.loadHydratedAssignmentCatalogs(nextForm);
-    }
-
-    protected deleteRegistrationDraft(): void {
-        this.contextFactory.requestDeleteDraft();
-    }
-
-    protected closeDeleteDraftConfirmation(): void {
-        this.contextFactory.closeDeleteDraftConfirmation();
-    }
-
-    protected confirmDeleteRegistrationDraft(): void {
-        this.contextFactory.confirmDeleteDraft();
-    }
-
-    private isWizardStep(value: string): value is WizardStepId {
-        return ALL_WIZARD_STEPS.includes(value as WizardStepId);
-    }
-
-    private clearFieldError(key: string): void {
-        this.fieldController.clearFieldError(key);
-    }
-
-    protected minimumBirthDate(): string {
-        return MINIMUM_BIRTH_DATE;
-    }
-
-    protected maximumBirthDate(): string {
-        return getAdultCutoffDateInput();
-    }
-
-    /** Error vivo del campo, para pintarlo bajo el input mientras se escribe. */
-    protected fieldError(key: string): string | null {
-        return this.formErrors()[key] ?? null;
-    }
-
-    protected maximumTodayDate(): string {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        return this.formRules.formatDateInputValue(today);
-    }
-
+    protected dismissRenapoMessage(): void { this.view.dismissRenapoMessage(); }
+    protected dismissSubmitError(): void { this.view.dismissSubmitError(); }
+    protected dismissCurrentStepErrors(): void { this.view.dismissCurrentStepErrors(); }
+    protected dismissStructureProfileError(): void { this.view.dismissStructureProfileError(); }
+    protected dismissProfileResetNotice(): void { this.view.dismissProfileResetNotice(); }
+    protected selectProfileOrigin(origin: ProfileOrigin): void { this.view.selectProfileOrigin(origin); }
+    protected previousProfile(origin: ProfileOrigin): void { this.view.previousProfile(origin); }
+    protected nextProfile(origin: ProfileOrigin): void { this.view.nextProfile(origin); }
+    protected getProfileCarouselIndex(origin: ProfileOrigin): number { return this.view.getProfileCarouselIndex(origin); }
+    protected enableEditing(): void { this.view.enableEditing(this.readonlyMode()); }
+    protected goToStep(stepId: string): void { this.view.goToStep(stepId); }
+    protected nextStep(): void { this.view.nextStep(); }
+    protected previousStep(): void { this.view.previousStep(); }
+    protected closeWizard(): void { this.view.closeWizard(() => this.closed.emit()); }
+    protected closeSaveSuccessModal(): void { this.view.closeSaveSuccessModal(() => this.saved.emit(), () => this.closed.emit()); }
+    protected submit(): void { this.view.submit(); }
+    protected updateForm<K extends keyof UserRegistrationForm>(key: K, value: UserRegistrationForm[K] | string | null): void { this.view.updateForm(key, value); }
+    protected updateCurp(value: string): void { this.view.updateCurp(value); }
+    protected updateRfc(value: string): void { this.view.updateRfc(value); }
+    protected toggleCurpUnlock(checked: boolean): void { this.view.toggleCurpUnlock(checked); }
+    protected toggleCommissionSection(checked: boolean): void { this.view.toggleCommissionSection(checked); }
+    protected updateAssignmentInstitutionType(value: string | null): void { this.view.updateAssignmentInstitutionType(value); }
+    protected updateAssignmentEntity(value: string | null): void { this.view.updateAssignmentEntity(value); }
+    protected updateAssignmentMunicipality(value: string | null): void { this.view.updateAssignmentMunicipality(value); }
+    protected updateAssignmentInstitution(value: string | null): void { this.view.updateAssignmentInstitution(value); }
+    protected updateAssignmentDecentralizedBody(value: string | null): void { this.view.updateAssignmentDecentralizedBody(value); }
+    protected updateAssignmentAdministrativeUnit(value: string | null): void { this.view.updateAssignmentAdministrativeUnit(value); }
+    protected updateCommissionInstitutionType(value: string | null): void { this.view.updateCommissionInstitutionType(value); }
+    protected updateCommissionEntity(value: string | null): void { this.view.updateCommissionEntity(value); }
+    protected updateCommissionMunicipality(value: string | null): void { this.view.updateCommissionMunicipality(value); }
+    protected updateCommissionInstitution(value: string | null): void { this.view.updateCommissionInstitution(value); }
+    protected updateCommissionDecentralizedBody(value: string | null): void { this.view.updateCommissionDecentralizedBody(value); }
+    protected updateCommissionAdministrativeUnit(value: string | null): void { this.view.updateCommissionAdministrativeUnit(value); }
+    protected toggleProfile(profile: string): void { this.view.toggleProfile(profile); }
+    protected isFirstStep(): boolean { return this.view.isFirstStep(); }
+    protected isLastStep(): boolean { return this.view.isLastStep(); }
+    protected updateSelectedSystem(value: string | null): void { this.view.updateSelectedSystem(value); }
+    protected updateSelectedRole(value: string | null): void { this.view.updateSelectedRole(value); }
+    protected addAssignedProfile(): void { this.view.addAssignedProfile(); }
+    protected removeAssignedProfile(id: string): void { this.view.removeAssignedProfile(id); }
+    protected canRemoveAssignedProfile(profile: AssignedSystemProfile): boolean { return this.view.canRemoveAssignedProfile(profile); }
+    protected togglePasswordVisibility(): void { this.view.togglePasswordVisibility(); }
+    protected toggleConfirmPasswordVisibility(): void { this.view.toggleConfirmPasswordVisibility(); }
+    protected isAccountStatusDisabled(status: AccountStatus): boolean { return this.view.isAccountStatusDisabled(status); }
+    protected setAccountStatus(status: AccountStatus): void { this.view.setAccountStatus(status); }
+    protected getReadonlyModeTitle(): string { return this.view.getReadonlyModeTitle(); }
+    protected getReadonlyModeDescription(): string { return this.view.getReadonlyModeDescription(); }
+    protected getStepIcon(step: SiauStep): string { return this.view.getStepIcon(step); }
+    protected getStepClass(step: SiauStep, index: number): string { return this.view.getStepClass(step, index); }
+    protected getCurpValidationStatusLabel(status: CurpValidationStatus): string { return this.view.getCurpValidationStatusLabel(status); }
+    protected getCurpValidationStatusClass(status: CurpValidationStatus): string { return this.view.getCurpValidationStatusClass(status); }
+    protected getCurpValidationMessageClass(tone: CurpValidationMessageTone): string { return this.view.getCurpValidationMessageClass(tone); }
+    protected deleteRegistrationDraft(): void { this.view.deleteRegistrationDraft(); }
+    protected closeDeleteDraftConfirmation(): void { this.view.closeDeleteDraftConfirmation(); }
+    protected confirmDeleteRegistrationDraft(): void { this.view.confirmDeleteRegistrationDraft(); }
+    protected minimumBirthDate(): string { return this.view.minimumBirthDate(); }
+    protected maximumBirthDate(): string { return this.view.maximumBirthDate(); }
+    protected fieldError(key: string): string | null { return this.view.fieldError(key); }
+    protected maximumTodayDate(): string { return this.view.maximumTodayDate(); }
 }
