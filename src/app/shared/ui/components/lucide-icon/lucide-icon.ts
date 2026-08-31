@@ -393,6 +393,41 @@ const LUCIDE_ICONS: Record<string, string> = {
     <line x1="6" x2="6.01" y1="18" y2="18"></line>
   `,
 
+  'external-link': `
+    <path d="M15 3h6v6"></path>
+    <path d="M10 14 21 3"></path>
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+  `,
+
+  'file-search': `
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h7.5"></path>
+    <path d="M14 2v6h6"></path>
+    <circle cx="16" cy="16" r="3"></circle>
+    <path d="m18.5 18.5 2.5 2.5"></path>
+  `,
+
+  'scan-eye': `
+    <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+    <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+    <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+    <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+    <path d="M7 12s2-3 5-3 5 3 5 3-2 3-5 3-5-3-5-3Z"></path>
+    <circle cx="12" cy="12" r="1"></circle>
+  `,
+
+  'zoom-in': `
+    <circle cx="11" cy="11" r="8"></circle>
+    <path d="m21 21-4.3-4.3"></path>
+    <path d="M11 8v6"></path>
+    <path d="M8 11h6"></path>
+  `,
+
+  'zoom-out': `
+    <circle cx="11" cy="11" r="8"></circle>
+    <path d="m21 21-4.3-4.3"></path>
+    <path d="M8 11h6"></path>
+  `,
+
   clock: `
     <circle cx="12" cy="12" r="10"></circle>
     <polyline points="12 6 12 12 16 14"></polyline>

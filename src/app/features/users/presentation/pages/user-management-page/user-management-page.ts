@@ -1,9 +1,14 @@
-import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { SiauModal } from '../../../../../shared/ui';
-import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
+import { ChangeDetectionStrategy, Component, HostListener, ViewEncapsulation, inject } from '@angular/core';
 import { BorradorItem, UserRecord } from '../../../domain/models/user-record.model';
 import { UserRegistrationWizard } from '../../components/user-registration-wizard/user-registration-wizard';
+import { PageHeader } from './view/page-header/page-header';
+import { PageActions } from './view/page-actions/page-actions';
+import { FilterWorkspace } from './filters/filter-workspace/filter-workspace';
+import { UsersTable } from './data/users-table/users-table';
+import { DraftsModal } from './drafts/drafts-modal/drafts-modal';
+import { BajaUserModal } from './accounts/baja-user-modal/baja-user-modal';
+import { StatusUserModal } from './accounts/status-user-modal/status-user-modal';
+import { OperationSuccessModal } from './accounts/operation-success-modal/operation-success-modal';
 import { UserAccountOperationsController } from './accounts/user-account-operations.controller';
 import { UserManagementDataController } from './data/user-management-data.controller';
 import { UserManagementFilterController } from './filters/user-management-filter.controller';
@@ -24,7 +29,18 @@ import {
     selector: 'app-user-management-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, SiauLucideIcon, SiauModal, UserRegistrationWizard],
+    encapsulation: ViewEncapsulation.None,
+    imports: [
+        UserRegistrationWizard,
+        PageHeader,
+        PageActions,
+        FilterWorkspace,
+        UsersTable,
+        DraftsModal,
+        BajaUserModal,
+        StatusUserModal,
+        OperationSuccessModal,
+    ],
     providers: [...USER_MANAGEMENT_PROVIDERS],
     templateUrl: './user-management-page.html',
     styleUrl: './user-management-page.scss',

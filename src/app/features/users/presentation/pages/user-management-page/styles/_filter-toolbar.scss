@@ -1,0 +1,109 @@
+/* =========================================================
+   CONSTRUCTOR ESCALABLE DE FILTROS DE USUARIOS
+   En escritorio funciona como un modal de trabajo con catálogo
+   y criterios seleccionados. En móvil ocupa toda la pantalla.
+========================================================= */
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.users-table-card__search-row {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto auto;
+  align-items: center;
+}
+
+.users-table-card__search input {
+  padding-right: 2.65rem;
+}
+
+.users-table-card__search-clear {
+  position: absolute;
+  right: 0.45rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(27, 31, 74, 0.6);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.users-table-card__search-clear:hover {
+  color: #1b1f4a;
+  background: rgba(27, 31, 74, 0.08);
+}
+
+.users-table-card__filter-button {
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(27, 31, 74, 0.16);
+  border-radius: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  color: #1b1f4a;
+  background: rgba(255, 255, 255, 0.56);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.users-table-card__filter-button:hover,
+.users-table-card__filter-button[aria-expanded='true'] {
+  border-color: rgba(27, 31, 74, 0.28);
+  background: rgba(255, 255, 255, 0.8);
+  transform: translateY(-1px);
+}
+
+.users-table-card__filter-button--active {
+  color: #ffffff;
+  border-color: #1b1f4a;
+  background: #1b1f4a;
+  box-shadow: 0 6px 14px rgba(27, 31, 74, 0.18);
+}
+
+.users-table-card__filter-button--active:hover,
+.users-table-card__filter-button--active[aria-expanded='true'] {
+  color: #ffffff;
+  border-color: #292f68;
+  background: #292f68;
+}
+
+.users-table-card__filter-button strong {
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1b1f4a;
+  background: #ffffff;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+

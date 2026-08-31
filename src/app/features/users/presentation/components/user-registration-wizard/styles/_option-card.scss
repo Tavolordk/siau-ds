@@ -1,0 +1,131 @@
+/* =========================================================
+   TARJETA DE OPCIÓN
+========================================================= */
+
+.registration-wizard__option-card {
+  flex: none;
+  margin: 12px 22px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 178, 187, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.registration-wizard__option-card--active {
+  border-color: rgba(27, 31, 74, 0.24);
+  background: rgba(27, 31, 74, 0.06);
+}
+
+.registration-wizard__option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.registration-wizard__option-toggle input[type='checkbox'] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.registration-wizard__option-check {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 7px;
+  border: 1px solid rgba(160, 178, 187, 0.75);
+  background: rgba(255, 255, 255, 0.85);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-wizard__option-card--active .registration-wizard__option-check {
+  border-color: rgb(27, 31, 74);
+  background: rgb(27, 31, 74);
+}
+
+.registration-wizard__option-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.registration-wizard__option-copy strong {
+  color: rgb(27, 31, 74);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.registration-wizard__option-copy small {
+  color: rgb(98, 116, 142);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.registration-wizard__info-box--compact {
+  min-height: 42px;
+  margin-top: 14px;
+}
+
+.registration-wizard__field--full {
+  width: 100%;
+}
+
+.registration-wizard__textarea {
+  width: 100% !important;
+  min-height: 88px !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgb(160, 178, 187) !important;
+  background-color: rgb(255, 255, 255) !important;
+  color: rgb(27, 31, 74) !important;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  resize: vertical;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.registration-wizard__textarea::placeholder {
+  color: rgba(27, 31, 74, 0.3) !important;
+  opacity: 1 !important;
+}
+
+.registration-wizard__textarea:focus {
+  border-color: rgb(27, 31, 74) !important;
+  box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.1) !important;
+}
+
+.registration-wizard__field-help {
+  margin: 6px 0 0;
+  color: rgba(27, 31, 74, 0.42);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.registration-wizard__field-help strong {
+  color: rgb(27, 31, 74);
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__option-card {
+    margin: 10px 14px 0 !important;
+  }
+
+  .registration-wizard__option-toggle {
+    align-items: flex-start;
+  }
+}
+

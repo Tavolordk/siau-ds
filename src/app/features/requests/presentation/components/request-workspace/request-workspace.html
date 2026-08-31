@@ -1,0 +1,197 @@
+@if (request(); as current) {
+<section class="workspace" [class.workspace--embedded]="embedded()" aria-label="Expediente de solicitud">
+  @if (!embedded()) {
+  <header class="workspace__header">
+    <div>
+      <span class="workspace__eyebrow">Expediente de solicitud</span>
+      <div class="workspace__title-line">
+        <h2>{{ current.folio }}</h2>
+        <span class="status" [class]="'status status--' + (current.status === 'Aprobada' ? 'approved' : current.status === 'Rechazada' ? 'rejected' : current.status === 'Corrección solicitada' ? 'correction' : current.status === 'En revisión' ? 'review' : 'pending')">
+          {{ current.status }}
+        </span>
+        <span class="meta-pill">{{ current.profiles?.length || 0 }} perfiles</span>
+        <span class="meta-pill meta-pill--documents">{{ documents().length }} documentos</span>
+      </div>
+    </div>
+  </header>
+  }
+
+  <div class="workspace__body">
+    <section class="request-info" aria-label="Datos de la solicitud">
+      <h3>Datos de la solicitud</h3>
+
+      <div class="info-item">
+        <span class="info-item__icon"><siau-lucide-icon name="user" size="17" /></span>
+        <div><small>Solicitante</small><strong>{{ current.applicant }}</strong></div>
+      </div>
+      <div class="info-item">
+        <span class="info-item__icon"><siau-lucide-icon name="file-text" size="17" /></span>
+        <div><small>CURP</small><strong>{{ current.curp || 'No disponible' }}</strong></div>
+      </div>
+      <div class="info-item">
+        <span class="info-item__icon"><siau-lucide-icon name="building-2" size="17" /></span>
+        <div><small>Institución</small><strong>{{ current.institution }}</strong></div>
+      </div>
+      <div class="info-item">
+        <span class="info-item__icon"><siau-lucide-icon name="briefcase" size="17" /></span>
+        <div><small>Adscripción</small><strong>{{ current.department || 'No disponible' }}</strong></div>
+      </div>
+      <div class="info-item">
+        <span class="info-item__icon"><siau-lucide-icon name="clipboard-list" size="17" /></span>
+        <div><small>Tipo de solicitud</small><strong>{{ current.type }}</strong></div>
+      </div>
+      <div class="info-item">
+        <span class="info-item__icon"><siau-lucide-icon name="clock" size="17" /></span>
+        <div><small>Fecha de solicitud</small><strong>{{ current.createdAt }}</strong></div>
+      </div>
+
+      @if (current.profiles?.length) {
+      <div class="profiles">
+        <small>Perfiles solicitados</small>
+        <div class="profiles__list">
+          @for (profile of current.profiles; track profile) {
+          <span>{{ profile }}</span>
+          }
+        </div>
+      </div>
+      }
+    </section>
+
+    <section class="documents" aria-label="Documentos adjuntos">
+      <div class="section-heading">
+        <div>
+          <h3>Documentos adjuntos</h3>
+          <p>Carga libre, sin catálogo de documentos.</p>
+        </div>
+        <label class="upload-button">
+          <siau-lucide-icon name="upload" size="16" />
+          <span>Subir documento</span>
+          <input type="file" multiple accept="application/pdf,image/jpeg,image/png" (change)="handleFiles($event)" />
+        </label>
+      </div>
+
+      @if (uploadError()) {
+      <div class="upload-error"><siau-lucide-icon name="triangle-alert" size="15" /> {{ uploadError() }}</div>
+      }
+
+      <div class="document-layout">
+        <div class="document-list">
+          @if (documents().length === 0) {
+          <label class="empty-upload">
+            <siau-lucide-icon name="upload" size="25" />
+            <strong>Adjuntar documentos</strong>
+            <span>PDF, JPG o PNG · máximo 10 MB por archivo</span>
+            <input type="file" multiple accept="application/pdf,image/jpeg,image/png" (change)="handleFiles($event)" />
+          </label>
+          } @else {
+            @for (document of documents(); track document.id) {
+            <div class="document-row" [class.document-row--active]="selectedDocumentId() === document.id" role="button" tabindex="0" (click)="selectDocument(document.id)" (keydown.enter)="selectDocument(document.id)" (keydown.space)="selectDocument(document.id); $event.preventDefault()">
+              <span class="document-row__type" [class.document-row__type--image]="document.mimeType !== 'application/pdf'">{{ fileLabel(document) }}</span>
+              <span class="document-row__copy">
+                <strong>{{ document.name }}</strong>
+                <small>{{ formatBytes(document.sizeBytes) }} · {{ document.uploadedAt }}</small>
+              </span>
+              <span class="document-row__actions">
+                <span class="icon-action" title="Vista previa"><siau-lucide-icon name="eye" size="15" /></span>
+                <button type="button" class="icon-action" title="Descargar" [disabled]="!document.objectUrl" (click)="downloadDocument(document, $event)"><siau-lucide-icon name="download" size="15" /></button>
+                <button type="button" class="icon-action icon-action--danger" title="Eliminar" (click)="removeDocument(document, $event)"><siau-lucide-icon name="trash-2" size="15" /></button>
+              </span>
+            </div>
+            }
+          }
+          <div class="document-total">{{ documents().length }} documentos · {{ formatBytes(totalSize()) }}</div>
+        </div>
+
+        <div class="preview-card">
+          @if (selectedDocument(); as document) {
+          <div class="preview-card__toolbar">
+            <div><strong>{{ document.name }}</strong><small>{{ fileLabel(document) }}</small></div>
+            @if (document.objectUrl) {
+            <button type="button" class="preview-card__download" (click)="downloadDocument(document, $event)"><siau-lucide-icon name="download" size="15" /></button>
+            }
+          </div>
+
+          <div class="preview-card__canvas">
+            @if (document.objectUrl && document.mimeType !== 'application/pdf') {
+              <img [src]="document.objectUrl" [alt]="'Vista previa de ' + document.name" />
+            } @else if (document.objectUrl && document.mimeType === 'application/pdf') {
+              <iframe [src]="previewSafeUrl()" [title]="'Vista previa de ' + document.name"></iframe>
+            } @else {
+              <div class="preview-placeholder">
+                <span class="preview-placeholder__icon"><siau-lucide-icon name="file-text" size="34" /></span>
+                <strong>{{ document.name }}</strong>
+                <span>Vista de demostración. Los archivos reales cargados aquí se previsualizan automáticamente.</span>
+              </div>
+            }
+          </div>
+          } @else {
+          <div class="preview-placeholder preview-placeholder--empty">
+            <span class="preview-placeholder__icon"><siau-lucide-icon name="eye" size="34" /></span>
+            <strong>Vista previa</strong>
+            <span>Selecciona un documento para revisarlo sin salir del expediente.</span>
+          </div>
+          }
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="review-panel" aria-label="Acciones de revisión">
+    <div class="review-panel__heading">
+      <div>
+        <h3>Acciones de revisión</h3>
+        <p>Selecciona una resolución y registra el comentario que recibirá el solicitante.</p>
+      </div>
+      <div class="mail-note"><siau-lucide-icon name="info" size="15" /> Se enviará un correo al ejecutar la acción.</div>
+    </div>
+
+    <div class="action-grid">
+      <button type="button" class="action-card action-card--approve" [class.action-card--selected]="selectedAction() === 'approve'" (click)="selectAction('approve')">
+        <span><siau-lucide-icon name="circle-check" size="20" /></span>
+        <div><strong>Aprobar</strong><small>La solicitud cumple con la revisión.</small></div>
+      </button>
+      <button type="button" class="action-card action-card--reject" [class.action-card--selected]="selectedAction() === 'reject'" (click)="selectAction('reject')">
+        <span><siau-lucide-icon name="circle-x" size="20" /></span>
+        <div><strong>Rechazar</strong><small>No procede la solicitud.</small></div>
+      </button>
+      <button type="button" class="action-card action-card--correction" [class.action-card--selected]="selectedAction() === 'request-correction'" (click)="selectAction('request-correction')">
+        <span><siau-lucide-icon name="pencil" size="20" /></span>
+        <div><strong>Solicitar corrección</strong><small>Requiere información o ajustes.</small></div>
+      </button>
+    </div>
+
+    <div class="comment-area">
+      <label for="review-comment">Comentario <b>*</b></label>
+      <textarea id="review-comment" rows="3" maxlength="1000" [ngModel]="comment()" (ngModelChange)="updateComment($event)" placeholder="Escribe el motivo u observaciones de tu decisión. Este comentario se incluirá en el correo al solicitante."></textarea>
+      <div class="comment-area__footer">
+        <span [class.comment-area__hint--error]="comment().length > 0 && !commentValid()">Mínimo 5 caracteres.</span>
+        <span>{{ comment().length }}/1000</span>
+      </div>
+    </div>
+
+    @if (resultMessage()) {
+    <div class="result-message" [class.result-message--error]="resultTone() === 'error'">
+      <siau-lucide-icon [name]="resultTone() === 'error' ? 'triangle-alert' : 'circle-check'" size="16" />
+      {{ resultMessage() }}
+    </div>
+    }
+
+    <div class="review-panel__submit">
+      <button type="button" class="submit-action" [disabled]="!canSubmit()" (click)="submitAction()">
+        @if (busy()) {
+          <span class="spinner" aria-hidden="true"></span> Procesando y notificando…
+        } @else {
+          <siau-lucide-icon name="check" size="17" />
+          {{ actionTitle(selectedAction()) }} y notificar
+        }
+      </button>
+    </div>
+  </section>
+</section>
+} @else {
+<section class="workspace workspace--empty">
+  <span class="workspace-empty__icon"><siau-lucide-icon name="clipboard-list" size="34" /></span>
+  <h2>Selecciona una solicitud</h2>
+  <p>Revisa el expediente, sus documentos y registra la resolución desde un mismo espacio.</p>
+</section>
+}

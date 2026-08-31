@@ -1,0 +1,370 @@
+/* =========================================================
+   RESTORE: sección Perfiles
+========================================================= */
+
+.registration-wizard__profiles-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.registration-wizard__profiles-field-title {
+  margin: 0;
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.registration-wizard__profiles-field-title span {
+  color: rgb(155, 34, 71);
+}
+
+.registration-wizard__profiles-field-help {
+  margin: -8px 0 0;
+  color: rgba(27, 31, 74, 0.42);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+
+.registration-wizard__profiles-origin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.registration-wizard__profiles-origin-card {
+  min-width: 0;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.58);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.registration-wizard__profiles-origin-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.registration-wizard__profiles-origin-header > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.registration-wizard__profiles-origin-header strong {
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.registration-wizard__profiles-origin-kicker {
+  color: rgb(122, 38, 69);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.registration-wizard__profiles-origin-count {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(122, 38, 69, 0.08);
+  color: rgb(97, 18, 50);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.registration-wizard__profiles-carousel {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.registration-wizard__profiles-item--carousel {
+  min-height: 58px;
+}
+
+.registration-wizard__profiles-carousel-nav {
+  display: grid;
+  grid-template-columns: 30px auto 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgb(98, 116, 142);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.registration-wizard__profiles-carousel-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(160, 178, 187, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  color: rgb(97, 18, 50);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.registration-wizard__profiles-carousel-button:hover {
+  border-color: rgba(97, 18, 50, 0.3);
+  background: rgba(97, 18, 50, 0.06);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__profiles-empty--origin {
+  min-height: 58px;
+}
+
+.registration-wizard__profiles-empty {
+  min-height: 48px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(160, 178, 187, 0.55);
+  background: rgba(255, 255, 255, 0.45);
+  color: rgba(27, 31, 74, 0.42);
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.registration-wizard__profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.registration-wizard__profiles-item {
+  min-height: 42px;
+  padding: 9px 10px 9px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 178, 187, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 18px rgba(27, 31, 74, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.registration-wizard__profiles-item-content {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.registration-wizard__profiles-item-system {
+  color: rgb(27, 31, 74);
+  font-weight: 700;
+}
+
+.registration-wizard__profiles-item-separator {
+  color: rgba(27, 31, 74, 0.38);
+  font-weight: 700;
+}
+
+.registration-wizard__profiles-item-role {
+  color: rgb(98, 116, 142);
+  font-weight: 600;
+}
+
+.registration-wizard__profiles-remove {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(97, 18, 50, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+
+.registration-wizard__profiles-remove:hover:not(:disabled) {
+  background: rgba(97, 18, 50, 0.09);
+  color: rgb(97, 18, 50);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__profiles-remove:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.registration-wizard__profiles-add-card {
+  margin-top: 4px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 178, 187, 0.32);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.registration-wizard__profiles-add-header {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.registration-wizard__profiles-add-header > div:first-child {
+  min-width: 0;
+}
+
+.registration-wizard__profiles-add-header p {
+  margin: 3px 0 0;
+  color: rgba(27, 31, 74, 0.48);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.registration-wizard__profiles-add-title {
+  margin-bottom: 0;
+  color: rgb(27, 31, 74);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+
+.registration-wizard__profiles-origin-selector {
+  flex: none;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(160, 178, 187, 0.32);
+  background: rgba(245, 247, 249, 0.82);
+  display: inline-flex;
+  gap: 3px;
+}
+
+.registration-wizard__profiles-origin-option {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(98, 116, 142);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.registration-wizard__profiles-origin-option--active {
+  background: rgb(255, 255, 255);
+  color: rgb(97, 18, 50);
+  box-shadow: 0 3px 10px rgba(27, 31, 74, 0.08);
+}
+
+.registration-wizard__profiles-origin-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.registration-wizard__profiles-add-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.registration-wizard__profiles-add-action {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--siau-space-2);
+}
+
+.registration-wizard__profiles-add-action::before {
+  content: 'Acción';
+  visibility: hidden;
+  color: var(--siau-color-primary-500);
+  font-size: var(--siau-text-sm);
+  font-weight: var(--siau-font-weight-semibold);
+  line-height: normal;
+}
+
+.registration-wizard__button--add {
+  min-width: 96px;
+  height: 2.65rem;
+}
+
+.registration-wizard__button--add:disabled {
+  border-color: rgba(160, 178, 187, 0.24);
+  background: rgba(255, 255, 255, 0.32);
+  color: rgba(98, 116, 142, 0.36);
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__profiles-origin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-wizard__profiles-add-header {
+    flex-direction: column;
+  }
+
+  .registration-wizard__profiles-origin-selector {
+    width: 100%;
+  }
+
+  .registration-wizard__profiles-origin-option {
+    flex: 1;
+  }
+
+  .registration-wizard__profiles-add-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-wizard__profiles-add-action {
+    width: 100%;
+  }
+
+  .registration-wizard__profiles-add-action::before {
+    display: none;
+  }
+
+  .registration-wizard__button--add {
+    width: 100%;
+  }
+
+  .registration-wizard__profiles-item {
+    align-items: flex-start;
+  }
+
+  .registration-wizard__profiles-item-content {
+    flex-wrap: wrap;
+  }
+}
+

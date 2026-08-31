@@ -1,0 +1,125 @@
+@media (max-width: 992px) {
+  .requests-page__content {
+    padding-inline: 1rem;
+  }
+
+  .requests-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .requests-page__header {
+    padding: 0.85rem 1rem;
+  }
+
+  .requests-table-card__toolbar {
+    align-items: stretch;
+  }
+
+  .requests-table-card__search,
+  .requests-table-card__filter,
+  .requests-table-card__total {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .requests-table-card__total {
+    justify-content: flex-end;
+  }
+
+  .requests-table-card__scroll {
+    overflow: visible;
+  }
+
+  .requests-table {
+    min-width: 0;
+    display: block;
+  }
+
+  .requests-table thead {
+    display: none;
+  }
+
+  .requests-table tbody {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .requests-table tr {
+    display: grid;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.48);
+    background: rgba(255, 255, 255, 0.44);
+    overflow: hidden;
+  }
+
+  .requests-table td {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  }
+
+  .requests-table td::before {
+    content: attr(data-label);
+    color: rgba(27, 31, 74, 0.58);
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .requests-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .requests-table__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .requests-page__content {
+    padding: 0.85rem;
+  }
+
+  .requests-summary {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .summary-card {
+    min-height: 4.75rem;
+  }
+
+  .requests-table-card {
+    border-radius: 0.9rem;
+  }
+
+  .requests-table-card__toolbar {
+    padding: 0.75rem;
+  }
+
+  .requests-table tbody {
+    padding: 0.75rem;
+  }
+
+  .requests-table td {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .requests-table__actions {
+    justify-content: space-between;
+  }
+
+  .requests-table__action {
+    width: 100%;
+    max-width: 5rem;
+    background: rgba(255, 255, 255, 0.36);
+  }
+}

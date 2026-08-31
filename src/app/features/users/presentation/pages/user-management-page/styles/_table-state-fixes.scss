@@ -1,0 +1,11 @@
+.users-table-card__message--info {
+  border: 1px solid rgba(62, 92, 118, 0.22);
+  background: rgba(62, 92, 118, 0.08);
+  color: #3e5c76;
+}
+
+.users-table__action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}

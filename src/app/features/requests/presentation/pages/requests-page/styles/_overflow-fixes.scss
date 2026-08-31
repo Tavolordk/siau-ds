@@ -1,0 +1,43 @@
+/* =========================================================
+   FIX: dropdown de filtro no debe cortarse dentro de la card
+========================================================= */
+
+.requests-table-card {
+  overflow: visible !important;
+}
+
+.requests-table-card__toolbar {
+  position: relative;
+  z-index: 30;
+  overflow: visible !important;
+}
+
+.requests-table-card__filter-wrap {
+  position: relative;
+  z-index: 80;
+}
+
+.requests-table-card__filter-menu {
+  z-index: 999;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* La tabla sí conserva su recorte/scroll propio */
+.requests-table-card__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 0 0 1rem 1rem;
+}
+
+/* Evita que la card pierda el redondeo visual inferior */
+.requests-table-card {
+  border-radius: 1rem;
+}
+
+/* Si el menú queda encima de la tabla, que tenga sombra suficiente */
+.requests-table-card__filter-menu {
+  box-shadow:
+    0 20px 42px rgba(5, 8, 24, 0.2),
+    0 6px 14px rgba(5, 8, 24, 0.1);
+}

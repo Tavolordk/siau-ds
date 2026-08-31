@@ -1,0 +1,138 @@
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="briefcase" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Comisión</h3>
+                        <p>Datos de comisión interinstitucional, solo si aplica</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">
+                        {{ activeStepNumber() }} / {{ stepOrder().length }}
+                    </span>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                @if (commissionEditLocked()) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact" role="status">
+                    <siau-lucide-icon name="lock" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>La comisión fue deshabilitada porque esta actualización está modificando la adscripción. No
+                        puedes agregar una comisión en esta operación.</span>
+                </div>
+                }
+
+                @if (showCommissionProfilesChangeWarning()) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>
+                        Si cambias cualquier nivel de la comisión o la desactivas, se eliminarán los perfiles de
+                        comisión
+                        actuales y se recargarán los sistemas y perfiles disponibles para la nueva estructura.
+                    </span>
+                </div>
+                }
+
+                @if (profileResetNotice(); as notice) {
+                @if (notice.origin === 'comision') {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ notice.message }}</span>
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
+                }
+
+                <div class="registration-wizard__option-card"
+                    [class.registration-wizard__option-card--active]="form().commissionEnabled">
+                    <label class="registration-wizard__option-toggle">
+                        <input type="checkbox" [checked]="form().commissionEnabled"
+                            [disabled]="isFormDisabled() || commissionEditLocked() || isSubmitting() || !canConfigureCommission()"
+                            (change)="toggleCommissionSection($any($event.target).checked)" />
+
+                        <span class="registration-wizard__option-check" aria-hidden="true">
+                            @if (form().commissionEnabled) {
+                            <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" />
+                            }
+                        </span>
+
+                        <span class="registration-wizard__option-copy">
+                            <strong>Agregar comisión</strong>
+                            <small>
+                                Actívala únicamente si el usuario tendrá una comisión distinta a su adscripción.
+                                Si la dejas apagada, el usuario se registra sin comisión.
+                            </small>
+                        </span>
+                    </label>
+                </div>
+
+                @if (!canConfigureCommission()) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>Completa una adscripción válida antes de capturar una comisión.</span>
+                </div>
+                }
+
+                @if (!form().commissionEnabled) {
+                <div class="registration-wizard__info-box">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>
+                        La comisión es opcional. Puedes continuar sin capturar esta sección.
+                    </span>
+                </div>
+                }
+
+                @if (form().commissionEnabled) {
+                <div class="registration-wizard__grid registration-wizard__grid--commission">
+                    <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
+                        [options]="institutionTypeOptions()" [value]="form().commissionInstitutionType"
+                        (valueChange)="updateCommissionInstitutionType($event)"
+                        [disabled]="isFormDisabled() || commissionEditLocked()" />
+
+                    <siau-select label="Entidad" placeholder="Selecciona la entidad"
+                        [required]="commissionRequiresEntity()" [options]="stateOptions()"
+                        [value]="form().commissionEntity"
+                        [disabled]="isFormDisabled() || commissionEditLocked() || !commissionRequiresEntity()"
+                        (valueChange)="updateCommissionEntity($event)" />
+
+                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
+                        [required]="commissionRequiresMunicipality()" [options]="commissionMunicipalityOptions()"
+                        [value]="form().commissionMunicipality"
+                        [disabled]="isFormDisabled() || commissionEditLocked() || !commissionRequiresMunicipality() || !form().commissionEntity"
+                        (valueChange)="updateCommissionMunicipality($event)" />
+
+                    <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
+                        [options]="commissionInstitutionOptions()" [value]="form().commissionInstitution"
+                        [disabled]="isFormDisabled() || commissionEditLocked() || !form().commissionInstitutionType || (commissionRequiresEntity() && !form().commissionEntity)"
+                        (valueChange)="updateCommissionInstitution($event)" />
+
+                    <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
+                        [options]="commissionDecentralizedBodyChoices()" [value]="form().commissionDecentralizedBody"
+                        [hint]="commissionDecentralizedBodyHint()"
+                        [disabled]="isFormDisabled() || commissionEditLocked() || !form().commissionInstitution || commissionDecentralizedBodyLocked()"
+                        (valueChange)="updateCommissionDecentralizedBody($event)" />
+
+                    <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
+                        [options]="commissionAdministrativeUnitChoices()" [value]="form().commissionAdministrativeUnit"
+                        [hint]="commissionAdministrativeUnitHint()"
+                        [disabled]="isFormDisabled() || commissionEditLocked() || !commissionAdministrativeUnitEnabled()"
+                        (valueChange)="updateCommissionAdministrativeUnit($event)" />
+
+                    <siau-input label="Fecha de Inicio" type="date" [required]="true" [min]="form().admissionDate"
+                        [max]="maximumTodayDate()" [value]="form().commissionAdmissionDate"
+                        (valueChange)="updateForm('commissionAdmissionDate', $event)"
+                        [disabled]="isFormDisabled() || commissionEditLocked()" />
+                </div>
+                }
+            </section>

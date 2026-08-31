@@ -26,6 +26,7 @@ export class SiauShell implements OnDestroy {
 
   protected readonly navItems: SidebarItem[] = [
     { id: 'usuarios', label: 'Usuarios', icon: 'users', route: '/usuarios' },
+    { id: 'solicitudes', label: 'Solicitudes', icon: 'clipboard-list', route: '/solicitudes' },
   ];
 
   protected readonly activeItemId = computed(() => {

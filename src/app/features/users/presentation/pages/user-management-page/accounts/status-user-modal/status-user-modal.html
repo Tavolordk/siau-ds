@@ -1,0 +1,67 @@
+<siau-modal [open]="isStatusModalOpen()" [title]="getStatusModalTitle()" [subtitle]="getStatusModalSubtitle()"
+    [icon]="getStatusModalIcon()" size="md" [headerBadge]="getStatusModalBadge()" (close)="closeStatusModal()">
+    <section class="user-action-modal">
+        @if (statusTargetUser(); as user) {
+        <div class="user-action-modal__summary">
+            <span class="user-action-modal__summary-icon">
+                <siau-lucide-icon [name]="getStatusModalIcon()" size="20" strokeWidth="2" aria-hidden="true" />
+            </span>
+
+            <div>
+                <h3>{{ user.fullName }}</h3>
+                <p>{{ user.username }} · {{ user.email }}</p>
+            </div>
+        </div>
+        }
+
+        <div class="user-action-modal__warning">
+            <siau-lucide-icon name="triangle-alert" size="17" strokeWidth="2" aria-hidden="true" />
+            <span>{{ getStatusModalWarning() }}</span>
+        </div>
+
+        @if (statusOperationRequiresComment()) {
+        <div class="user-action-modal__field">
+            <label for="status-comment">
+                Comentario <span>*</span>
+            </label>
+
+            <textarea id="status-comment" rows="5" minlength="5" maxlength="1000" class="user-action-modal__textarea"
+                [placeholder]="getStatusCommentPlaceholder()" [value]="statusComment()"
+                [disabled]="isStatusSubmitting()" (input)="updateStatusComment($any($event.target).value)"></textarea>
+
+            <small>
+                De 5 a 1,000 caracteres. Sólo letras A-Z, números, espacios y los signos -.,!#$%&/()=?¿¡+@:;_&quot;.
+            </small>
+        </div>
+        } @else {
+        <div class="user-action-modal__confirmation-note">
+            <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>El desbloqueo solo requiere confirmar la operación.</span>
+        </div>
+        }
+
+        @if (statusCommentError(); as error) {
+        <div class="user-action-modal__error" role="alert">
+            <siau-lucide-icon name="circle-x" size="16" strokeWidth="2" aria-hidden="true" />
+            <span>{{ error }}</span>
+        </div>
+        }
+
+        <footer class="user-action-modal__footer">
+            <button type="button" class="user-action-modal__button user-action-modal__button--secondary"
+                [disabled]="isStatusSubmitting()" (click)="closeStatusModal()">
+                Cancelar
+            </button>
+
+            <button type="button" class="user-action-modal__button"
+                [class.user-action-modal__button--success]="isStatusReactivateOperation()"
+                [class.user-action-modal__button--danger]="!isStatusReactivateOperation()"
+                [disabled]="isStatusSubmitting()" (click)="confirmToggleUserStatus()">
+                <siau-lucide-icon [name]="isStatusSubmitting() ? 'loader-circle' : getStatusModalIcon()" size="15"
+                    strokeWidth="2" aria-hidden="true" />
+
+                {{ isStatusSubmitting() ? 'Procesando...' : getStatusConfirmLabel() }}
+            </button>
+        </footer>
+    </section>
+</siau-modal>

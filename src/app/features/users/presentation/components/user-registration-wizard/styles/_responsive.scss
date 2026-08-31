@@ -1,0 +1,79 @@
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-height: 760px) {
+  .registration-wizard {
+    height: calc(100dvh - 98px);
+    min-height: 0;
+    max-height: calc(100dvh - 98px);
+  }
+}
+
+@media (max-width: 920px) {
+  .registration-wizard {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .registration-wizard__sidebar {
+    width: 100%;
+    max-height: 86px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .registration-wizard__sidebar-title,
+  .registration-wizard__sidebar-progress {
+    display: none;
+  }
+
+  .registration-wizard__steps {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .registration-wizard__step {
+    min-width: 160px;
+  }
+
+  .registration-wizard__section-header {
+    position: relative;
+  }
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__validation-area {
+    height: auto;
+    max-height: none;
+    padding: 10px 16px;
+    overflow: visible;
+  }
+
+  .registration-wizard__grid,
+  .registration-wizard__documents-grid,
+  .registration-wizard__account-grid,
+  .registration-wizard__account-status-grid,
+  .registration-wizard__profiles-add-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-wizard__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .registration-wizard__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .registration-wizard__button {
+    width: 100%;
+  }
+}
+

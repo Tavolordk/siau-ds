@@ -1,8 +1,19 @@
-import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
-import { SiauInput, SiauModal, SiauSelect, SiauStep } from '../../../../../shared/ui';
-import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/lucide-icon';
+import { ChangeDetectionStrategy, Component, ViewEncapsulation, inject, input, output } from '@angular/core';
+import { SiauModal, SiauStep } from '../../../../../shared/ui';
 import { BorradorItem, UserDetailRecord, UserRecord } from '../../../domain/models/user-record.model';
 import { UserRegistrationLifecycleCoordinator } from './lifecycle/user-registration-lifecycle.coordinator';
+import { PersonalDataStep } from './identity/personal-data-step/personal-data-step';
+import { AssignmentStep } from './structure/assignment-step/assignment-step';
+import { CommissionStep } from './structure/commission-step/commission-step';
+import { DocumentsStep } from './documents/documents-step/documents-step';
+import { ContactStep } from './contact/contact-step/contact-step';
+import { ProfilesStep } from './profiles/profiles-step/profiles-step';
+import { AccountStep } from './account/account-step/account-step';
+import { WizardSidebar } from './view/wizard-sidebar/wizard-sidebar';
+import { WizardFeedback } from './view/wizard-feedback/wizard-feedback';
+import { WizardFooter } from './navigation/wizard-footer/wizard-footer';
+import { DeleteDraftModal } from './drafts/delete-draft-modal/delete-draft-modal';
+import { SuccessModal } from './submission/success-modal/success-modal';
 import { USER_REGISTRATION_PROVIDERS } from './configuration/user-registration.providers';
 import { UserRegistrationPresenter } from './view/user-registration.presenter';
 import { UserRegistrationState } from './state/user-registration.state';
@@ -21,7 +32,22 @@ import {
     selector: 'app-user-registration-wizard',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [SiauModal, SiauInput, SiauSelect, SiauLucideIcon],
+    encapsulation: ViewEncapsulation.None,
+    imports: [
+        SiauModal,
+        WizardSidebar,
+        WizardFeedback,
+        PersonalDataStep,
+        AssignmentStep,
+        CommissionStep,
+        DocumentsStep,
+        ContactStep,
+        ProfilesStep,
+        AccountStep,
+        WizardFooter,
+        DeleteDraftModal,
+        SuccessModal,
+    ],
     providers: [...USER_REGISTRATION_PROVIDERS],
     templateUrl: './user-registration-wizard.html',
     styleUrl: './user-registration-wizard.scss',

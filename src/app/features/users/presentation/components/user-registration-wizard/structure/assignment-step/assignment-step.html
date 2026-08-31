@@ -1,0 +1,117 @@
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="building-2" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Adscripción</h3>
+                        <p>Centro de trabajo y datos laborales del usuario</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                @if (assignmentEditLocked()) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact" role="status">
+                    <siau-lucide-icon name="lock" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>La adscripción está en modo sólo lectura porque esta actualización ya está modificando la
+                        comisión.</span>
+                </div>
+                }
+
+                @if (showAssignmentProfilesChangeWarning()) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>
+                        Si modificas la adscripción, se eliminará la comisión existente junto con sus perfiles y no
+                        podrás agregar una nueva comisión durante esta actualización. Los perfiles de adscripción
+                        también
+                        se limpiarán cuando cambie su estructura y se recargará su catálogo.
+                    </span>
+                </div>
+                }
+
+                @if (profileResetNotice(); as notice) {
+                @if (notice.origin === 'adscripcion') {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ notice.message }}</span>
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
+                }
+
+                <div class="registration-wizard__grid registration-wizard__grid--assignment">
+                    <siau-select label="Tipo de Institución" placeholder="Selecciona el tipo" [required]="true"
+                        [options]="institutionTypeOptions()" [value]="form().institutionType"
+                        (valueChange)="updateAssignmentInstitutionType($event)"
+                        [disabled]="isFormDisabled() || assignmentEditLocked()" />
+
+                    <siau-select label="Entidad" placeholder="Selecciona la entidad"
+                        [required]="assignmentRequiresEntity()" [options]="stateOptions()" [value]="form().entity"
+                        [disabled]="isFormDisabled() || assignmentEditLocked() || !assignmentRequiresEntity()"
+                        (valueChange)="updateAssignmentEntity($event)" />
+
+                    <siau-select label="Municipio / Alcaldía" placeholder="Selecciona el municipio"
+                        [required]="assignmentRequiresMunicipality()" [options]="municipalityOptions()"
+                        [value]="form().municipality"
+                        [disabled]="isFormDisabled() || assignmentEditLocked() || !assignmentRequiresMunicipality() || !form().entity"
+                        (valueChange)="updateAssignmentMunicipality($event)" />
+
+                    <siau-select label="Institución" placeholder="Selecciona la institución" [required]="true"
+                        [options]="institutionOptions()" [value]="form().institution"
+                        [disabled]="isFormDisabled() || assignmentEditLocked() || !form().institutionType || (assignmentRequiresEntity() && !form().entity)"
+                        (valueChange)="updateAssignmentInstitution($event)" />
+
+                    <siau-select label="Órgano desconcentrado" placeholder="Selecciona el órgano"
+                        [options]="assignmentDecentralizedBodyChoices()" [value]="form().decentralizedBody"
+                        [hint]="assignmentDecentralizedBodyHint()"
+                        [disabled]="isFormDisabled() || assignmentEditLocked() || !form().institution || assignmentDecentralizedBodyLocked()"
+                        (valueChange)="updateAssignmentDecentralizedBody($event)" />
+
+                    <siau-select label="Unidad administrativa" placeholder="Selecciona la unidad"
+                        [options]="assignmentAdministrativeUnitChoices()" [value]="form().administrativeUnit"
+                        [hint]="assignmentAdministrativeUnitHint()"
+                        [disabled]="isFormDisabled() || assignmentEditLocked() || !assignmentAdministrativeUnitEnabled()"
+                        (valueChange)="updateAssignmentAdministrativeUnit($event)" />
+
+                    <siau-input label="Cargo" placeholder="Ej. Analista" [maxLength]="150" [safeTextOnly]="true"
+                        hint="De 2 a 150 caracteres. Letras, números, espacios y signos autorizados."
+                        [value]="form().position" (valueChange)="updateForm('position', $event)"
+                        [disabled]="isFormDisabled() || assignmentEditLocked()" [error]="fieldError('position')" />
+
+                    <siau-input label="Funciones" placeholder="Descripción de funciones" [maxLength]="500"
+                        [safeTextOnly]="true"
+                        hint="De 5 a 500 caracteres. Letras, números, espacios y signos autorizados."
+                        [value]="form().functions" (valueChange)="updateForm('functions', $event)"
+                        [disabled]="isFormDisabled() || assignmentEditLocked()" [error]="fieldError('functions')" />
+
+                    <siau-input label="Fecha de Ingreso" type="date" [required]="true" [max]="maximumTodayDate()"
+                        [value]="form().admissionDate" (valueChange)="updateForm('admissionDate', $event)"
+                        [clampOnBlur]="true" [disabled]="isFormDisabled() || assignmentEditLocked()"
+                        [error]="fieldError('admissionDate')" />
+
+                    <siau-input label="Número de Empleado" placeholder="Ej. EMP-0042" [required]="true" [maxLength]="20"
+                        [employeeNumberOnly]="true" hint="De 3 a 20 caracteres: letras, números, espacios y guion"
+                        [value]="form().employeeNumber" (valueChange)="updateForm('employeeNumber', $event)"
+                        [disabled]="isFormDisabled() || assignmentEditLocked()"
+                        [error]="fieldError('employeeNumber')" />
+                </div>
+            </section>

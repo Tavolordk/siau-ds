@@ -1,0 +1,140 @@
+/* ==============================================================
+   Barra de búsqueda avanzada: sin campo rápido redundante
+   ============================================================== */
+
+.users-table-card__toolbar {
+  min-height: 4.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0.25));
+}
+
+.users-table-card__toolbar-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.users-table-card__toolbar-copy > span {
+  color: #1b1f4a;
+  font-size: 0.82rem;
+  font-weight: 850;
+  letter-spacing: 0.015em;
+}
+
+.users-table-card__toolbar-copy > p {
+  margin: 0;
+  color: rgba(27, 31, 74, 0.58);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.users-table-card__toolbar-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.users-table-card__toolbar .users-table-card__filter-button,
+.users-table-card__toolbar .users-table-card__reload {
+  min-height: 2.65rem;
+  border-radius: 0.72rem;
+}
+
+.users-table-card__toolbar .users-table-card__filter-button {
+  min-width: 10.5rem;
+  border-color: #1b1f4a;
+  color: #ffffff;
+  background: #1b1f4a;
+  box-shadow: 0 5px 12px rgba(27, 31, 74, 0.18);
+}
+
+.users-table-card__toolbar .users-table-card__filter-button:hover,
+.users-table-card__toolbar .users-table-card__filter-button[aria-expanded='true'] {
+  border-color: #272d68;
+  color: #ffffff;
+  background: #272d68;
+}
+
+.users-table-card__toolbar .users-table-card__filter-button--active,
+.users-table-card__toolbar .users-table-card__filter-button--active:hover,
+.users-table-card__toolbar .users-table-card__filter-button--active[aria-expanded='true'] {
+  border-color: #611232;
+  background: #611232;
+  box-shadow: 0 5px 12px rgba(97, 18, 50, 0.2);
+}
+
+.users-table-card__toolbar .users-table-card__filter-button strong {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1b1f4a;
+  background: #ffffff;
+  font-size: 0.66rem;
+  line-height: 1;
+}
+
+.users-table-card__toolbar .users-table-card__reload {
+  min-width: 7.5rem;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+@media (max-width: 760px) {
+  .users-table-card__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .users-table-card__toolbar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(7rem, 0.45fr);
+  }
+
+  .users-table-card__toolbar .users-table-card__filter-button,
+  .users-table-card__toolbar .users-table-card__reload {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .users-table-card__toolbar {
+    min-height: 0;
+    padding: 0.75rem;
+  }
+
+  .users-table-card__toolbar-copy > p {
+    display: none;
+  }
+
+  .users-table-card__toolbar-actions {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .users-table-card__toolbar .users-table-card__filter-button,
+  .users-table-card__toolbar .users-table-card__reload {
+    min-height: 2.55rem;
+    padding-inline: 0.65rem;
+  }
+
+  .users-table-card__toolbar .users-table-card__filter-button span,
+  .users-table-card__toolbar .users-table-card__reload span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+

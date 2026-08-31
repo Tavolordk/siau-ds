@@ -1,0 +1,179 @@
+/* =========================================================
+   RESPONSIVE FIX SEGURO: altura + scroll sin romper estilos
+========================================================= */
+
+@media (max-width: 920px) {
+  .registration-wizard {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .registration-wizard__sidebar {
+    width: 100% !important;
+    flex: none !important;
+    min-height: 82px !important;
+    max-height: 92px !important;
+    padding: 10px 8px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+    overflow: hidden !important;
+  }
+
+  .registration-wizard__sidebar-title,
+  .registration-wizard__sidebar-progress {
+    display: none !important;
+  }
+
+  .registration-wizard__steps {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+  }
+
+  .registration-wizard__step {
+    min-width: 152px !important;
+    width: auto !important;
+    flex: 0 0 auto !important;
+    min-height: 46px !important;
+  }
+
+  .registration-wizard__content {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .registration-wizard__section {
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .registration-wizard__section-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+  }
+
+  .registration-wizard__footer {
+    flex: none !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 6 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__section-header {
+    min-height: auto !important;
+    padding: 12px 14px 10px !important;
+  }
+
+  .registration-wizard__section-meta {
+    width: 100% !important;
+    margin-top: 8px !important;
+    justify-content: space-between !important;
+  }
+
+  .registration-wizard__progress-strip {
+    margin-top: 10px !important;
+  }
+
+  .registration-wizard__grid,
+  .registration-wizard__documents-grid,
+  .registration-wizard__account-grid,
+  .registration-wizard__account-status-grid,
+  .registration-wizard__profiles-add-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .registration-wizard__grid,
+  .registration-wizard__documents-grid,
+  .registration-wizard__profiles-panel,
+  .registration-wizard__account-panel {
+    padding: 16px 14px 18px !important;
+  }
+
+  .registration-wizard__info-box {
+    width: calc(100% - 28px) !important;
+    margin: 14px 14px 0 !important;
+  }
+
+  .registration-wizard__footer {
+    min-height: auto !important;
+    padding: 10px 12px !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .registration-wizard__dots {
+    order: -1 !important;
+    width: 100% !important;
+  }
+
+  .registration-wizard__actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .registration-wizard__button {
+    width: 100% !important;
+    min-height: 38px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .registration-wizard__sidebar {
+    min-height: 74px !important;
+    max-height: 82px !important;
+    padding: 8px !important;
+  }
+
+  .registration-wizard__step {
+    min-width: 138px !important;
+    min-height: 42px !important;
+    padding: 8px 10px !important;
+  }
+
+  .registration-wizard__step-icon {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .registration-wizard__step-label {
+    font-size: 11px !important;
+  }
+
+  .registration-wizard__section-header {
+    padding: 11px 12px 9px !important;
+  }
+
+  .registration-wizard__grid,
+  .registration-wizard__documents-grid,
+  .registration-wizard__profiles-panel,
+  .registration-wizard__account-panel {
+    padding: 14px 12px 16px !important;
+  }
+
+  .registration-wizard__info-box {
+    width: calc(100% - 24px) !important;
+    margin: 12px 12px 0 !important;
+  }
+}
+

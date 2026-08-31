@@ -1,0 +1,68 @@
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Archivos</h3>
+                        <p>Carga de documentos de identidad y laborales</p>
+                    </div>
+
+                    <span class="registration-wizard__section-count">
+                        {{ activeStepNumber() }} / {{ stepOrder().length }}
+                    </span>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__info-box registration-wizard__info-box--documents">
+                    <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>
+                        Carga los documentos de identidad del nuevo usuario. Formatos aceptados:
+                        PDF, JPG y PNG con un tamaño máximo de 5 MB por archivo.
+                    </span>
+                </div>
+
+                <div class="registration-wizard__documents-grid">
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">
+                            INE <span>*</span>
+                        </div>
+
+                        <input id="document-ine" type="file" class="registration-wizard__file-input"
+                            accept=".pdf,.jpg,.jpeg,.png" [disabled]="isFormDisabled()" />
+
+                        <label for="document-ine" class="registration-wizard__upload-box">
+                            <span class="registration-wizard__upload-icon">
+                                <siau-lucide-icon name="upload" size="18" strokeWidth="2" aria-hidden="true" />
+                            </span>
+
+                            <span class="registration-wizard__upload-title">Haz clic para cargar</span>
+                            <span class="registration-wizard__upload-text">PDF, JPG o PNG · Máx. 5 MB</span>
+                        </label>
+                    </div>
+
+                    <div class="registration-wizard__document-field">
+                        <div class="registration-wizard__document-label">
+                            Credencial Laboral <span>*</span>
+                        </div>
+
+                        <input id="document-laboral" type="file" class="registration-wizard__file-input"
+                            accept=".pdf,.jpg,.jpeg,.png" [disabled]="isFormDisabled()" />
+
+                        <label for="document-laboral" class="registration-wizard__upload-box">
+                            <span class="registration-wizard__upload-icon">
+                                <siau-lucide-icon name="upload" size="18" strokeWidth="2" aria-hidden="true" />
+                            </span>
+
+                            <span class="registration-wizard__upload-title">Haz clic para cargar</span>
+                            <span class="registration-wizard__upload-text">PDF, JPG o PNG · Máx. 5 MB</span>
+                        </label>
+                    </div>
+                </div>
+            </section>

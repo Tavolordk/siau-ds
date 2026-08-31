@@ -1,0 +1,77 @@
+/* =========================
+   FOOTER
+========================= */
+
+.registration-wizard__footer {
+  flex: none;
+  min-height: 51px;
+  padding: 9px 16px;
+  background: rgb(234, 241, 248);
+  border-top: 1px solid rgba(160, 178, 187, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.registration-wizard__dots {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.registration-wizard__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 10px;
+  background: rgba(160, 178, 187, 0.35);
+}
+
+.registration-wizard__dots .registration-wizard__dot--active {
+  width: 20px;
+  background: rgb(27, 31, 74);
+}
+
+.registration-wizard__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.registration-wizard__button {
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(160, 178, 187, 0.45);
+  background: rgba(255, 255, 255, 0.82);
+  color: rgb(98, 116, 142);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.registration-wizard__button:disabled {
+  border-color: rgba(160, 178, 187, 0.2);
+  background: transparent;
+  color: rgba(160, 178, 187, 0.38);
+  cursor: not-allowed;
+}
+
+.registration-wizard__button--primary {
+  border-color: rgb(27, 31, 74);
+  background: rgb(27, 31, 74);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.registration-wizard__button--ghost {
+  border-color: rgba(160, 178, 187, 0.45);
+  background: rgba(255, 255, 255, 0.82);
+  color: rgb(98, 116, 142);
+}
+

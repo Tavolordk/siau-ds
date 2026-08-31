@@ -1,0 +1,679 @@
+<siau-modal
+  [open]="open()"
+  [title]="modalTitle()"
+  [subtitle]="modalSubtitle()"
+  [icon]="modalIcon()"
+  size="xl"
+  [headerBadge]="headerBadge()"
+  (close)="closeModal()">
+
+  @if (view() === 'form' || view() === 'detail') {
+  <section
+    class="request-creation-wizard"
+    [class.request-creation-wizard--readonly]="isDetailMode()">
+    <aside class="request-creation-wizard__sidebar" aria-label="Secciones de la solicitud">
+      <span class="request-creation-wizard__sidebar-title">SECCIONES</span>
+
+      <nav class="request-creation-wizard__steps">
+        @for (step of steps; track step.id; let index = $index) {
+        <button
+          type="button"
+          class="request-create-step"
+          [class.request-create-step--active]="activeStep() === step.id"
+          [class.request-create-step--complete]="isStepComplete(step.id)"
+          (click)="selectStep(step.id)">
+          <span class="request-create-step__icon">
+            <siau-lucide-icon [name]="step.icon" size="16" strokeWidth="2" aria-hidden="true" />
+          </span>
+          <span class="request-create-step__copy">
+            <strong>{{ index + 1 }}. {{ step.label }}</strong>
+            <small>{{ step.helper }}</small>
+          </span>
+          @if (isStepComplete(step.id)) {
+          <span class="request-create-step__check" aria-label="Sección completa">
+            <siau-lucide-icon name="check" size="12" strokeWidth="2.5" aria-hidden="true" />
+          </span>
+          }
+        </button>
+        }
+      </nav>
+
+      @if (!isDetailMode()) {
+      <div class="request-creation-wizard__drafts-access">
+        <button type="button" class="request-drafts-button" (click)="showDrafts()">
+          <span class="request-drafts-button__icon">
+            <siau-lucide-icon name="clipboard-list" size="16" strokeWidth="2" aria-hidden="true" />
+          </span>
+          <span>
+            <strong>Ver borradores</strong>
+            <small>Continuar registros</small>
+          </span>
+          <span class="request-drafts-button__count">{{ drafts().length }}</span>
+        </button>
+      </div>
+      } @else {
+      <div class="request-creation-wizard__detail-meta">
+        <span>EXPEDIENTE</span>
+        <strong>{{ detailFolio() }}</strong>
+        <small>{{ detailStatus() }}</small>
+      </div>
+      }
+
+      <div class="request-creation-wizard__progress">
+        <div class="request-creation-wizard__progress-copy">
+          <span>{{ isDetailMode() ? 'SECCIÓN' : 'PROGRESO' }}</span>
+          <strong>{{ stepIndex() + 1 }} / {{ steps.length }}</strong>
+        </div>
+        <div class="request-creation-wizard__progress-track" aria-hidden="true">
+          <span [style.width.%]="progressPercent()"></span>
+        </div>
+      </div>
+    </aside>
+
+    <section class="request-creation-wizard__main">
+      <div class="request-creation-wizard__content">
+        @if (isDetailMode()) {
+        <div class="request-detail-banner">
+          <span class="request-detail-banner__icon">
+            <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
+          </span>
+          <span class="request-detail-banner__copy">
+            <strong>Modo consulta</strong>
+            <small>{{ detailFolio() }} · Registrada {{ detailCreatedAt() }} · Los datos del expediente son de solo lectura.</small>
+          </span>
+          <span class="request-detail-banner__status">{{ detailStatus() }}</span>
+        </div>
+        }
+
+        @if (!isDetailMode() && currentDraftId()) {
+        <div class="request-create-draft-banner">
+          <span>
+            <siau-lucide-icon name="file-text" size="15" strokeWidth="2" aria-hidden="true" />
+            Estás editando un borrador guardado
+          </span>
+          <button type="button" (click)="startBlankRequest()">Iniciar nueva</button>
+        </div>
+        }
+
+        @if (feedback(); as message) {
+        <div
+          class="request-create-feedback"
+          [class.request-create-feedback--success]="message.tone === 'success'"
+          [class.request-create-feedback--error]="message.tone === 'error'"
+          [class.request-create-feedback--info]="message.tone === 'info'"
+          role="status">
+          <siau-lucide-icon
+            [name]="message.tone === 'success' ? 'circle-check' : message.tone === 'error' ? 'triangle-alert' : 'info'"
+            size="16"
+            strokeWidth="2"
+            aria-hidden="true" />
+          <span>{{ message.text }}</span>
+        </div>
+        }
+
+        @switch (activeStep()) {
+          @case ('requester') {
+          <section class="request-section">
+            <header class="request-section__header">
+              <span class="request-section__eyebrow">SECCIÓN 01</span>
+              <h3>Datos del solicitante</h3>
+              <p>{{ isDetailMode() ? 'Información registrada para la persona relacionada con esta solicitud.' : 'Identifica a la persona relacionada con la solicitud y el medio de contacto para notificaciones.' }}</p>
+            </header>
+
+            <div class="request-form-grid">
+              <label class="request-field request-field--wide">
+                <span>Nombre completo <strong>*</strong></span>
+                <input type="text" [(ngModel)]="applicant" [readonly]="isDetailMode()" placeholder="Ej. María Fernanda López García" />
+              </label>
+
+              <label class="request-field">
+                <span>Usuario <strong>*</strong></span>
+                <input type="text" [(ngModel)]="username" [readonly]="isDetailMode()" placeholder="maria.lopez" />
+              </label>
+
+              <label class="request-field">
+                <span>CURP <strong>*</strong></span>
+                <input type="text" maxlength="18" [(ngModel)]="curp" [readonly]="isDetailMode()" placeholder="18 caracteres" />
+              </label>
+
+              <label class="request-field request-field--wide">
+                <span>Correo electrónico <strong>*</strong></span>
+                <input type="email" [(ngModel)]="email" [readonly]="isDetailMode()" placeholder="usuario@sspc.gob.mx" />
+                <small>{{ isDetailMode() ? 'Correo registrado para notificaciones de la solicitud.' : 'Este correo recibirá las notificaciones de aprobación, rechazo o corrección.' }}</small>
+              </label>
+            </div>
+          </section>
+          }
+
+          @case ('request') {
+          <section class="request-section">
+            <header class="request-section__header">
+              <span class="request-section__eyebrow">SECCIÓN 02</span>
+              <h3>Información de la solicitud</h3>
+              <p>{{ isDetailMode() ? 'Movimiento, prioridad y adscripción registrados en el expediente.' : 'Define el movimiento solicitado y la unidad administrativa relacionada con el expediente.' }}</p>
+            </header>
+
+            <div class="request-form-grid">
+              <label class="request-field request-field--wide">
+                <span>Tipo de solicitud <strong>*</strong></span>
+                <select [(ngModel)]="type" [disabled]="isDetailMode()">
+                  @for (option of typeOptions; track option) {
+                  <option [ngValue]="option">{{ option }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="request-field">
+                <span>Institución <strong>*</strong></span>
+                <input type="text" [(ngModel)]="institution" [readonly]="isDetailMode()" placeholder="SSPC" />
+              </label>
+
+              <label class="request-field">
+                <span>Prioridad</span>
+                <select [(ngModel)]="priority" [disabled]="isDetailMode()">
+                  @for (option of priorityOptions; track option) {
+                  <option [ngValue]="option">{{ option }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="request-field request-field--wide">
+                <span>Adscripción / unidad administrativa <strong>*</strong></span>
+                <input type="text" [(ngModel)]="department" [readonly]="isDetailMode()" placeholder="Dirección, unidad o departamento" />
+              </label>
+
+              <label class="request-field request-field--wide">
+                <span>Descripción u observaciones</span>
+                <textarea
+                  rows="5"
+                  [(ngModel)]="comments"
+                  [readonly]="isDetailMode()"
+                  placeholder="Describe el motivo de la solicitud o cualquier información que ayude a revisarla."></textarea>
+              </label>
+            </div>
+          </section>
+          }
+
+          @case ('profiles') {
+          <section class="request-section">
+            <header class="request-section__header">
+              <span class="request-section__eyebrow">SECCIÓN 03</span>
+              <h3>Perfiles y accesos solicitados</h3>
+              <p>{{ isDetailMode() ? 'Perfiles asociados al expediente.' : 'Indica los perfiles relacionados con la solicitud. Para altas y cambios de rol se requiere al menos uno.' }}</p>
+            </header>
+
+            <div class="profiles-editor">
+              <label class="request-field request-field--wide">
+                <span>Perfiles solicitados @if (requiresProfiles()) { <strong>*</strong> }</span>
+                <input
+                  type="text"
+                  [(ngModel)]="profiles"
+                  [readonly]="isDetailMode()"
+                  placeholder="Ej. SIAU · Consulta, SIAU · Captura" />
+                @if (!isDetailMode()) {
+                <small>Separa múltiples perfiles con comas.</small>
+                }
+              </label>
+
+              <div class="profiles-preview">
+                <span class="profiles-preview__label">Perfiles del expediente</span>
+                <div class="profiles-preview__chips">
+                  @for (profile of profileList(); track profile) {
+                  <span class="profile-chip">
+                    <siau-lucide-icon name="shield-check" size="13" strokeWidth="2" aria-hidden="true" />
+                    {{ profile }}
+                  </span>
+                  } @empty {
+                  <span class="profiles-preview__empty">No hay perfiles capturados.</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </section>
+          }
+
+          @case ('documents') {
+          <section class="request-section request-section--documents">
+            <header class="request-section__header request-section__header--with-meta">
+              <div>
+                <span class="request-section__eyebrow">SECCIÓN 04</span>
+                <h3>Documentos adjuntos</h3>
+                <p>{{ isDetailMode() ? 'Documentos que forman parte del expediente de esta solicitud.' : 'Carga los archivos y verifícalos aquí mismo antes de continuar. No dependen de un catálogo.' }}</p>
+              </div>
+              <span class="documents-counter">{{ documents().length }} archivos</span>
+            </header>
+
+            @if (!isDetailMode()) {
+            <label class="request-document-dropzone">
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                (change)="onFilesSelected($event)" />
+              <span class="request-document-dropzone__icon">
+                <siau-lucide-icon name="upload" size="24" strokeWidth="1.8" aria-hidden="true" />
+              </span>
+              <strong>Arrastra archivos aquí o haz clic para seleccionarlos</strong>
+              <small>PDF, JPG, JPEG y PNG · Máximo 10 MB por archivo</small>
+            </label>
+            }
+
+            <div class="request-document-workspace" [class.request-document-workspace--empty]="documents().length === 0">
+              <div class="request-documents-list" [class.request-documents-list--readonly]="isDetailMode()">
+                @for (document of documents(); track document.id) {
+                <article
+                  class="request-document-row"
+                  [class.request-document-row--selected]="selectedDocumentId() === document.id">
+                  <span class="request-document-row__type">{{ fileType(document) }}</span>
+                  <button
+                    type="button"
+                    class="request-document-row__select"
+                    [attr.aria-label]="'Visualizar ' + document.name"
+                    (click)="selectDocument(document)">
+                    <span class="request-document-row__copy">
+                      <strong>{{ document.name }}</strong>
+                      <small>{{ formatSize(document.sizeBytes) }} · {{ document.uploadedAt }}</small>
+                    </span>
+                  </button>
+
+                  @if (!document.objectUrl && !isDetailMode()) {
+                  <span class="request-document-row__restore" title="Vuelve a seleccionar este archivo antes de enviar">
+                    metadata
+                  </span>
+                  }
+
+                  <div class="request-document-row__actions">
+                    <button
+                      type="button"
+                      title="Previsualizar documento"
+                      [class.request-document-row__action--active]="selectedDocumentId() === document.id"
+                      (click)="selectDocument(document)">
+                      <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Abrir documento"
+                      [disabled]="!document.objectUrl"
+                      (click)="openDocument(document)">
+                      <siau-lucide-icon name="external-link" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                    @if (isDetailMode()) {
+                    <button
+                      type="button"
+                      title="Descargar documento"
+                      [disabled]="!document.objectUrl"
+                      (click)="downloadDocument(document)">
+                      <siau-lucide-icon name="download" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                    } @else {
+                    <button
+                      type="button"
+                      class="request-document-row__delete"
+                      title="Eliminar documento"
+                      (click)="removeDocument(document.id)">
+                      <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                    }
+                  </div>
+                </article>
+                } @empty {
+                <div class="request-documents-empty">
+                  <siau-lucide-icon name="file-text" size="24" strokeWidth="1.8" aria-hidden="true" />
+                  <strong>Sin documentos por el momento</strong>
+                  <span>{{ isDetailMode() ? 'El expediente no tiene documentos adjuntos.' : 'Selecciona un PDF o una imagen para visualizarlo aquí antes de registrar la solicitud.' }}</span>
+                </div>
+                }
+              </div>
+
+              <section class="request-document-viewer" aria-label="Visualizador de documentos">
+                @if (selectedDocument(); as selected) {
+                <header class="request-document-viewer__header">
+                  <div class="request-document-viewer__identity">
+                    <span class="request-document-viewer__badge">{{ fileType(selected) }}</span>
+                    <span>
+                      <strong>{{ selected.name }}</strong>
+                      <small>{{ formatSize(selected.sizeBytes) }} · Vista previa</small>
+                    </span>
+                  </div>
+
+                  <div class="request-document-viewer__tools">
+                    @if (isImageDocument(selected) && selected.objectUrl) {
+                    <button type="button" title="Alejar" (click)="zoomImage(-10)">
+                      <siau-lucide-icon name="zoom-out" size="15" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                    <button type="button" class="request-document-viewer__zoom" title="Restablecer zoom" (click)="resetImageZoom()">
+                      {{ imageZoom() }}%
+                    </button>
+                    <button type="button" title="Acercar" (click)="zoomImage(10)">
+                      <siau-lucide-icon name="zoom-in" size="15" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                    }
+                    <button type="button" title="Abrir en otra pestaña" [disabled]="!selected.objectUrl" (click)="openDocument(selected)">
+                      <siau-lucide-icon name="external-link" size="15" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                  </div>
+                </header>
+
+                <div class="request-document-viewer__canvas">
+                  @if (!selected.objectUrl) {
+                  <div class="request-document-viewer__unavailable">
+                    <span class="request-document-viewer__unavailable-icon">
+                      <siau-lucide-icon name="file-search" size="28" strokeWidth="1.7" aria-hidden="true" />
+                    </span>
+                    <strong>Vista previa no disponible</strong>
+                    <p>{{ isDetailMode() ? 'Este archivo es parte del mock. El backend entregará la URL real del documento.' : 'El borrador conserva la metadata, pero debes volver a seleccionar el archivo para revisarlo.' }}</p>
+                  </div>
+                  } @else if (selected.mimeType === 'application/pdf') {
+                  <iframe
+                    class="request-document-viewer__pdf"
+                    [src]="selectedPdfUrl()"
+                    [title]="'Vista previa de ' + selected.name">
+                  </iframe>
+                  } @else {
+                  <div class="request-document-viewer__image-stage">
+                    <img
+                      class="request-document-viewer__image"
+                      [src]="selected.objectUrl"
+                      [alt]="'Vista previa de ' + selected.name"
+                      [style.transform]="'scale(' + (imageZoom() / 100) + ')'" />
+                  </div>
+                  }
+                </div>
+
+                <footer class="request-document-viewer__footer">
+                  <span>
+                    <siau-lucide-icon name="shield-check" size="14" strokeWidth="2" aria-hidden="true" />
+                    Verifica que el archivo corresponda a la solicitud y sea legible.
+                  </span>
+                  @if (selected.objectUrl) {
+                  <button type="button" (click)="downloadDocument(selected)">
+                    <siau-lucide-icon name="download" size="14" strokeWidth="2" aria-hidden="true" />
+                    Descargar
+                  </button>
+                  }
+                </footer>
+                } @else {
+                <div class="request-document-viewer__placeholder">
+                  <span class="request-document-viewer__placeholder-icon">
+                    <siau-lucide-icon name="scan-eye" size="30" strokeWidth="1.7" aria-hidden="true" />
+                  </span>
+                  <strong>Visualizador de documentos</strong>
+                  <p>Cuando selecciones un archivo aparecerá aquí para que compruebes su contenido antes de continuar.</p>
+                </div>
+                }
+              </section>
+            </div>
+          </section>
+          }
+
+          @case ('review') {
+          <section class="request-section request-section--review">
+            <header class="request-section__header">
+              <span class="request-section__eyebrow">SECCIÓN 05</span>
+              <h3>{{ isDetailMode() ? 'Revisión y resolución' : 'Revisa antes de registrar' }}</h3>
+              <p>{{ isDetailMode() ? 'Consulta el resumen del expediente y registra la resolución que será notificada al solicitante.' : 'Confirma la información que formará parte del expediente de la solicitud.' }}</p>
+            </header>
+
+            <div class="request-review-grid">
+              <article class="request-review-card">
+                <span>Solicitante</span>
+                <strong>{{ applicant || 'Pendiente' }}</strong>
+                <small>{{ username || 'Sin usuario' }} · {{ email || 'Sin correo' }}</small>
+              </article>
+
+              <article class="request-review-card">
+                <span>Solicitud</span>
+                <strong>{{ type }}</strong>
+                <small>{{ institution || 'Sin institución' }} · {{ priority }}</small>
+              </article>
+
+              <article class="request-review-card">
+                <span>Adscripción</span>
+                <strong>{{ department || 'Pendiente' }}</strong>
+                <small>{{ curp || 'CURP pendiente' }}</small>
+              </article>
+
+              <article class="request-review-card">
+                <span>Expediente</span>
+                <strong>{{ documents().length }} documentos</strong>
+                <small>{{ profileList().length }} perfiles solicitados</small>
+              </article>
+            </div>
+
+            <div class="request-review-observation">
+              <span>Descripción / observaciones</span>
+              <p>{{ comments || 'Sin observaciones adicionales.' }}</p>
+            </div>
+
+            @if (isDetailMode()) {
+            <div class="request-resolution-panel">
+              <div class="request-resolution-panel__heading">
+                <div>
+                  <span class="request-section__eyebrow">RESOLUCIÓN</span>
+                  <h4>Acciones de revisión</h4>
+                  <p>Selecciona una acción. El comentario es obligatorio y se incluirá en el correo enviado al solicitante.</p>
+                </div>
+                <span class="request-resolution-panel__mail">
+                  <siau-lucide-icon name="mail" size="15" strokeWidth="2" aria-hidden="true" />
+                  Notificación por correo
+                </span>
+              </div>
+
+              <div class="request-resolution-actions">
+                <button
+                  type="button"
+                  class="request-resolution-action request-resolution-action--approve"
+                  [class.request-resolution-action--selected]="selectedReviewAction() === 'approve'"
+                  (click)="selectReviewAction('approve')">
+                  <span><siau-lucide-icon name="circle-check" size="20" strokeWidth="2" /></span>
+                  <div><strong>Aprobar</strong><small>La solicitud cumple con la revisión.</small></div>
+                </button>
+
+                <button
+                  type="button"
+                  class="request-resolution-action request-resolution-action--reject"
+                  [class.request-resolution-action--selected]="selectedReviewAction() === 'reject'"
+                  (click)="selectReviewAction('reject')">
+                  <span><siau-lucide-icon name="circle-x" size="20" strokeWidth="2" /></span>
+                  <div><strong>Rechazar</strong><small>La solicitud no procede.</small></div>
+                </button>
+
+                <button
+                  type="button"
+                  class="request-resolution-action request-resolution-action--correction"
+                  [class.request-resolution-action--selected]="selectedReviewAction() === 'request-correction'"
+                  (click)="selectReviewAction('request-correction')">
+                  <span><siau-lucide-icon name="pencil" size="20" strokeWidth="2" /></span>
+                  <div><strong>Solicitar corrección</strong><small>Requiere información o ajustes.</small></div>
+                </button>
+              </div>
+
+              <label class="request-resolution-comment">
+                <span>Comentario <strong>*</strong></span>
+                <textarea
+                  rows="3"
+                  maxlength="1000"
+                  [ngModel]="reviewComment()"
+                  (ngModelChange)="updateReviewComment($event)"
+                  placeholder="Escribe el motivo u observaciones de tu decisión. Este comentario se incluirá en el correo al solicitante."></textarea>
+                <small [class.request-resolution-comment__error]="reviewComment().length > 0 && !reviewCommentValid()">
+                  Mínimo 5 caracteres · {{ reviewComment().length }}/1000
+                </small>
+              </label>
+
+              @if (resultMessage()) {
+              <div class="request-resolution-result" [class.request-resolution-result--error]="resultTone() === 'error'">
+                <siau-lucide-icon [name]="resultTone() === 'error' ? 'triangle-alert' : 'circle-check'" size="16" strokeWidth="2" />
+                <span>{{ resultMessage() }}</span>
+              </div>
+              }
+
+              <div class="request-resolution-panel__submit">
+                <button type="button" [disabled]="!canSubmitReview()" (click)="submitReview()">
+                  @if (busy()) {
+                  <span class="request-resolution-spinner" aria-hidden="true"></span>
+                  Procesando y notificando…
+                  } @else {
+                  <siau-lucide-icon name="send" size="16" strokeWidth="2" aria-hidden="true" />
+                  {{ reviewActionTitle() }}
+                  }
+                </button>
+              </div>
+            </div>
+            } @else {
+            <div class="request-review-notice">
+              <siau-lucide-icon name="info" size="17" strokeWidth="2" aria-hidden="true" />
+              <span>Al registrar, la solicitud aparecerá con estado <strong>Pendiente</strong> en el listado principal.</span>
+            </div>
+            }
+          </section>
+          }
+        }
+      </div>
+
+      <footer class="request-creation-wizard__footer">
+        @if (!isDetailMode()) {
+        <button type="button" class="request-footer-button request-footer-button--draft" (click)="saveDraft()">
+          <siau-lucide-icon name="file-text" size="16" strokeWidth="2" aria-hidden="true" />
+          Guardar borrador
+        </button>
+        } @else {
+        <button type="button" class="request-footer-button request-footer-button--secondary" (click)="closeModal()">
+          <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+          Cerrar
+        </button>
+        }
+
+        <div class="request-creation-wizard__footer-nav">
+          <button
+            type="button"
+            class="request-footer-button request-footer-button--secondary"
+            [disabled]="stepIndex() === 0"
+            (click)="previousStep()">
+            <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2" aria-hidden="true" />
+            Anterior
+          </button>
+
+          @if (activeStep() !== 'review') {
+          <button type="button" class="request-footer-button request-footer-button--primary" (click)="nextStep()">
+            Siguiente
+            <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2" aria-hidden="true" />
+          </button>
+          } @else if (!isDetailMode()) {
+          <button type="button" class="request-footer-button request-footer-button--submit" (click)="createRequest()">
+            <siau-lucide-icon name="circle-check" size="16" strokeWidth="2" aria-hidden="true" />
+            Registrar solicitud
+          </button>
+          } @else {
+          <span class="request-footer-detail-hint">Fin del expediente</span>
+          }
+        </div>
+      </footer>
+    </section>
+  </section>
+  }
+
+  @if (view() === 'drafts') {
+  <section class="request-drafts-view">
+    <header class="request-drafts-view__toolbar">
+      <button type="button" class="request-drafts-view__back" (click)="returnToForm()">
+        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2" aria-hidden="true" />
+        Volver al formulario
+      </button>
+      <button type="button" class="request-drafts-view__new" (click)="startBlankRequest()">
+        <siau-lucide-icon name="plus" size="16" strokeWidth="2" aria-hidden="true" />
+        Nueva solicitud
+      </button>
+    </header>
+
+    <div class="request-drafts-view__content">
+      <div class="request-drafts-view__intro">
+        <span class="request-drafts-view__intro-icon">
+          <siau-lucide-icon name="clipboard-list" size="22" strokeWidth="1.8" aria-hidden="true" />
+        </span>
+        <div>
+          <h3>Solicitudes en borrador</h3>
+          <p>Selecciona una para continuar exactamente en la sección donde la guardaste.</p>
+        </div>
+      </div>
+
+      @if (drafts().length) {
+      <div class="request-drafts-list">
+        @for (draft of drafts(); track draft.id) {
+        <article class="request-draft-card">
+          <button type="button" class="request-draft-card__open" (click)="resumeDraft(draft)">
+            <span class="request-draft-card__icon">
+              <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
+            </span>
+            <span class="request-draft-card__copy">
+              <strong>{{ draftTitle(draft) }}</strong>
+              <small>{{ draftSubtitle(draft) }}</small>
+              <span class="request-draft-card__meta">
+                <span>Actualizado {{ draftUpdatedAt(draft) }}</span>
+                <span>{{ draft.documents.length }} documentos</span>
+                <span>Paso {{ draftProgress(draft) }} de {{ steps.length }}</span>
+              </span>
+            </span>
+            <span class="request-draft-card__continue">
+              Continuar
+              <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2" aria-hidden="true" />
+            </span>
+          </button>
+          <button
+            type="button"
+            class="request-draft-card__delete"
+            title="Eliminar borrador"
+            aria-label="Eliminar borrador"
+            (click)="deleteDraft($event, draft.id)">
+            <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
+          </button>
+        </article>
+        }
+      </div>
+      } @else {
+      <div class="request-drafts-empty">
+        <span class="request-drafts-empty__icon">
+          <siau-lucide-icon name="file-text" size="28" strokeWidth="1.8" aria-hidden="true" />
+        </span>
+        <h3>No hay borradores guardados</h3>
+        <p>Inicia una solicitud y utiliza “Guardar borrador” para continuarla después.</p>
+        <button type="button" (click)="startBlankRequest()">
+          <siau-lucide-icon name="plus" size="16" strokeWidth="2" aria-hidden="true" />
+          Crear nueva solicitud
+        </button>
+      </div>
+      }
+    </div>
+  </section>
+  }
+
+  @if (view() === 'success') {
+  <section class="request-create-success">
+    <div class="request-create-success__halo">
+      <span>
+        <siau-lucide-icon name="circle-check" size="34" strokeWidth="1.9" aria-hidden="true" />
+      </span>
+    </div>
+    <span class="request-create-success__eyebrow">SOLICITUD REGISTRADA</span>
+    <h3>{{ createdFolio() }}</h3>
+    <p>El expediente se agregó al listado de Solicitudes con estado <strong>Pendiente</strong>.</p>
+
+    <div class="request-create-success__summary">
+      <span>
+        <small>Solicitante</small>
+        <strong>{{ applicant }}</strong>
+      </span>
+      <span>
+        <small>Tipo</small>
+        <strong>{{ type }}</strong>
+      </span>
+      <span>
+        <small>Documentos</small>
+        <strong>{{ documents().length }}</strong>
+      </span>
+    </div>
+
+    <button type="button" (click)="closeModal()">Cerrar y ver solicitudes</button>
+  </section>
+  }
+</siau-modal>

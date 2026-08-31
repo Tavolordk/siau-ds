@@ -1,0 +1,35 @@
+<siau-modal [open]="deleteDraftConfirmationOpen()" title="Eliminar borrador"
+    subtitle="Confirma si deseas descartar el avance guardado" icon="triangle-alert" size="sm"
+    headerBadge="Confirmación" (close)="closeDeleteDraftConfirmation()">
+    <section class="registration-wizard__draft-confirmation">
+        <div class="registration-wizard__draft-confirmation-icon" aria-hidden="true">
+            <siau-lucide-icon name="trash-2" size="26" strokeWidth="1.9" />
+        </div>
+
+        <div class="registration-wizard__draft-confirmation-copy">
+            <h3>¿Eliminar este borrador?</h3>
+            <p>
+                Se eliminará el avance guardado de este registro. Esta acción no elimina usuarios ya registrados.
+            </p>
+        </div>
+
+        <div class="registration-wizard__draft-confirmation-note">
+            <siau-lucide-icon name="info" size="15" strokeWidth="2" aria-hidden="true" />
+            <span>Después de eliminarlo, el formulario quedará listo para iniciar un registro nuevo.</span>
+        </div>
+
+        <footer class="registration-wizard__draft-confirmation-actions">
+            <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
+                [disabled]="isDraftDeleting()" (click)="closeDeleteDraftConfirmation()">
+                Cancelar
+            </button>
+
+            <button type="button" class="registration-wizard__button registration-wizard__button--danger"
+                [disabled]="isDraftDeleting()" (click)="confirmDeleteRegistrationDraft()">
+                <siau-lucide-icon [name]="isDraftDeleting() ? 'loader-circle' : 'trash-2'" size="14" strokeWidth="2"
+                    aria-hidden="true" />
+                {{ isDraftDeleting() ? 'Eliminando...' : 'Sí, eliminar borrador' }}
+            </button>
+        </footer>
+    </section>
+</siau-modal>
