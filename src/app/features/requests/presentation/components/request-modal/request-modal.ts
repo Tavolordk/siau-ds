@@ -20,9 +20,9 @@ import {
 import {
   RequestDocument,
   RequestDocumentMimeType,
-  RequestPriority,
   RequestRecord,
   RequestType,
+  RequestUserData,
 } from '../../../domain/models/request-record.model';
 import type {
   RequestReviewAction,
@@ -35,8 +35,10 @@ export type RequestModalInitialView = 'form' | 'drafts' | 'detail';
 type ModalView = RequestModalInitialView | 'success';
 type FeedbackTone = 'success' | 'error' | 'info';
 
+type CurrentRequestStepId = Exclude<RequestCreationStepId, 'requester' | 'request'>;
+
 interface StepDefinition {
-  readonly id: RequestCreationStepId;
+  readonly id: CurrentRequestStepId;
   readonly label: string;
   readonly helper: string;
   readonly icon: string;
@@ -82,43 +84,42 @@ export class RequestModal implements OnDestroy {
 
   protected readonly drafts = this.draftStore.drafts;
   protected readonly view = signal<ModalView>('form');
-  protected readonly activeStep = signal<RequestCreationStepId>('requester');
+  protected readonly activeStep = signal<CurrentRequestStepId>('personal-data');
   protected readonly currentDraftId = signal<string | null>(null);
   protected readonly documents = signal<readonly RequestDocument[]>([]);
   protected readonly selectedDocumentId = signal<string | null>(null);
   protected readonly imageZoom = signal(100);
-  protected readonly selectedDocument = computed(() => {
-    const selectedId = this.selectedDocumentId();
-    if (!selectedId) return null;
-    return this.documents().find((document) => document.id === selectedId) ?? null;
-  });
-  protected readonly selectedPdfUrl = computed<SafeResourceUrl | null>(() => {
-    const document = this.selectedDocument();
-    if (!document?.objectUrl || document.mimeType !== 'application/pdf') return null;
-    return this.sanitizer.bypassSecurityTrustResourceUrl(document.objectUrl);
-  });
   protected readonly feedback = signal<FeedbackMessage | null>(null);
   protected readonly createdFolio = signal<string | null>(null);
   protected readonly selectedReviewAction = signal<RequestReviewAction | null>(null);
   protected readonly reviewComment = signal('');
 
+  protected userData: RequestUserData = this.emptyUserData();
   protected type: RequestType = 'Alta de usuario';
-  protected applicant = '';
-  protected username = '';
-  protected email = '';
-  protected curp = '';
-  protected institution = 'SSPC';
-  protected department = '';
-  protected priority: RequestPriority = 'Media';
-  protected profiles = 'SIAU · Consulta';
-  protected comments = '';
+  protected requestReason = '';
+  protected profileSystem = '';
+  protected profileRole = '';
+
+  protected readonly selectedDocument = computed(() => {
+    const selectedId = this.selectedDocumentId();
+    if (!selectedId) return null;
+    return this.documents().find((document) => document.id === selectedId) ?? null;
+  });
+
+  protected readonly selectedPdfUrl = computed<SafeResourceUrl | null>(() => {
+    const document = this.selectedDocument();
+    if (!document?.objectUrl || document.mimeType !== 'application/pdf') return null;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(document.objectUrl);
+  });
 
   protected readonly steps: readonly StepDefinition[] = [
-    { id: 'requester', label: 'Solicitante', helper: 'Identificación y contacto', icon: 'user' },
-    { id: 'request', label: 'Solicitud', helper: 'Movimiento y adscripción', icon: 'clipboard-list' },
-    { id: 'profiles', label: 'Perfiles', helper: 'Accesos solicitados', icon: 'layers' },
-    { id: 'documents', label: 'Documentos', helper: 'Carga libre de archivos', icon: 'file-text' },
-    { id: 'review', label: 'Revisión', helper: 'Confirmación y resolución', icon: 'circle-check' },
+    { id: 'personal-data', label: 'Datos Personales', helper: 'Identidad oficial', icon: 'user' },
+    { id: 'assignment', label: 'Adscripción', helper: 'Centro de trabajo', icon: 'building-2' },
+    { id: 'commission', label: 'Comisión', helper: 'Si aplica', icon: 'briefcase' },
+    { id: 'contact', label: 'Medio de Contacto', helper: 'Correo y celular', icon: 'phone' },
+    { id: 'profiles', label: 'Perfiles', helper: 'Sistemas y roles', icon: 'shield' },
+    { id: 'documents', label: 'Documentos', helper: 'Expediente y vista previa', icon: 'file-text' },
+    { id: 'review', label: 'Revisión', helper: 'Motivo y resolución', icon: 'circle-check' },
   ];
 
   protected readonly typeOptions: readonly RequestType[] = [
@@ -128,7 +129,16 @@ export class RequestModal implements OnDestroy {
     'Desbloqueo de cuenta',
     'Restablecimiento de contraseña',
   ];
-  protected readonly priorityOptions: readonly RequestPriority[] = ['Alta', 'Media', 'Baja'];
+
+  protected readonly genderOptions = ['Masculino', 'Femenino'];
+  protected readonly civilStatusOptions = ['Soltero(a)', 'Casado(a)', 'Divorciado(a)', 'Viudo(a)', 'Unión libre'];
+  protected readonly institutionTypeOptions = ['Federal', 'Estatal', 'Municipal'];
+  protected readonly profileSystemOptions = ['SIAU', 'SAU', 'ECCC', 'Consulta Institucional'];
+  protected readonly profileRoleOptions = ['Consulta', 'Captura', 'Supervisor', 'Administrador'];
+
+  protected readonly maximumTodayDate = this.toDateInput(new Date());
+  protected readonly maximumBirthDate = this.computeAdultBirthDate();
+  protected readonly minimumBirthDate = '1900-01-01';
 
   constructor() {
     effect(() => {
@@ -181,13 +191,11 @@ export class RequestModal implements OnDestroy {
   protected modalSubtitle(): string {
     if (this.view() === 'detail') {
       const current = this.request();
-      return current
-        ? `${current.folio} · Consulta del expediente por secciones`
-        : 'Consulta del expediente por secciones';
+      return current ? `${current.folio} · Consulta del expediente por secciones` : 'Consulta del expediente por secciones';
     }
     if (this.view() === 'drafts') return 'Continúa una solicitud guardada sin salir del módulo';
     if (this.view() === 'success') return 'El expediente quedó registrado correctamente';
-    return 'Captura la información por secciones y adjunta los documentos correspondientes';
+    return 'Mismos datos del registro de Usuario, más documentos, motivo y flujo de revisión';
   }
 
   protected modalIcon(): string {
@@ -204,19 +212,11 @@ export class RequestModal implements OnDestroy {
     return 'Expediente nuevo';
   }
 
-  protected detailFolio(): string {
-    return this.request()?.folio ?? '';
-  }
+  protected detailFolio(): string { return this.request()?.folio ?? ''; }
+  protected detailCreatedAt(): string { return this.request()?.createdAt ?? ''; }
+  protected detailStatus(): string { return this.request()?.status ?? ''; }
 
-  protected detailCreatedAt(): string {
-    return this.request()?.createdAt ?? '';
-  }
-
-  protected detailStatus(): string {
-    return this.request()?.status ?? '';
-  }
-
-  protected selectStep(stepId: RequestCreationStepId): void {
+  protected selectStep(stepId: CurrentRequestStepId): void {
     this.activeStep.set(stepId);
     this.feedback.set(null);
   }
@@ -229,26 +229,15 @@ export class RequestModal implements OnDestroy {
     return Math.round(((this.stepIndex() + 1) / this.steps.length) * 100);
   }
 
-  protected isStepComplete(stepId: RequestCreationStepId): boolean {
-    if (this.isDetailMode()) return true;
+  protected sectionNumber(): string {
+    return String(this.stepIndex() + 1).padStart(2, '0');
+  }
 
-    switch (stepId) {
-      case 'requester':
-        return Boolean(
-          this.applicant.trim() &&
-          this.username.trim() &&
-          this.email.trim() &&
-          this.curp.trim().length === 18,
-        );
-      case 'request':
-        return Boolean(this.institution.trim() && this.department.trim() && this.type);
-      case 'profiles':
-        return !this.requiresProfiles() || this.profileList().length > 0;
-      case 'documents':
-        return this.documents().length > 0;
-      case 'review':
-        return this.isFormValid();
-    }
+  protected isStepComplete(stepId: CurrentRequestStepId): boolean {
+    if (this.isDetailMode()) return true;
+    if (stepId === 'documents') return this.documents().length > 0;
+    if (stepId === 'review') return this.isFormValid();
+    return this.validateStep(stepId) === null;
   }
 
   protected nextStep(): void {
@@ -297,38 +286,28 @@ export class RequestModal implements OnDestroy {
 
     const draft = this.draftStore.save(this.draftPayload(), this.currentDraftId());
     this.currentDraftId.set(draft.id);
-    this.feedback.set({
-      tone: 'success',
-      text: 'Borrador guardado. Puedes cerrar el modal y continuar más tarde.',
-    });
+    this.feedback.set({ tone: 'success', text: 'Borrador guardado. Puedes cerrar el modal y continuar más tarde.' });
   }
 
   protected resumeDraft(draft: RequestDraft): void {
     this.loadedDetailFolio = null;
     this.revokeTemporaryDocuments();
     this.type = draft.type;
-    this.applicant = draft.applicant;
-    this.username = draft.username;
-    this.email = draft.email;
-    this.curp = draft.curp;
-    this.institution = draft.institution;
-    this.department = draft.department;
-    this.priority = draft.priority;
-    this.profiles = draft.profiles;
-    this.comments = draft.comments;
+    this.requestReason = draft.comments ?? '';
+    this.userData = draft.userData ? this.cloneUserData(draft.userData) : this.legacyDraftUserData(draft);
+
     const restoredDocuments = draft.documents.map((document) => ({ ...document, objectUrl: null }));
     this.documents.set(restoredDocuments);
     this.selectedDocumentId.set(restoredDocuments[0]?.id ?? null);
     this.imageZoom.set(100);
     this.currentDraftId.set(draft.id);
-    this.activeStep.set(draft.activeStep);
+    this.activeStep.set(this.normalizeStep(draft.activeStep));
     this.view.set('form');
+    this.profileSystem = '';
+    this.profileRole = '';
     this.feedback.set(
       draft.documents.length
-        ? {
-            tone: 'info',
-            text: 'Se recuperó la metadata de los documentos. Si recargaste el navegador, vuelve a seleccionar los archivos antes de enviar la solicitud.',
-          }
+        ? { tone: 'info', text: 'Se recuperó la metadata de los documentos. Si recargaste el navegador, vuelve a seleccionar los archivos antes de enviar la solicitud.' }
         : null,
     );
   }
@@ -340,28 +319,86 @@ export class RequestModal implements OnDestroy {
   }
 
   protected draftTitle(draft: RequestDraft): string {
-    return draft.applicant.trim() || 'Solicitud sin solicitante';
+    const data = draft.userData;
+    const name = data ? this.fullName(data) : draft.applicant.trim();
+    return name || 'Solicitud sin usuario';
   }
 
   protected draftSubtitle(draft: RequestDraft): string {
-    const type = draft.type || 'Tipo pendiente';
-    const institution = draft.institution.trim() || 'Institución pendiente';
-    return `${type} · ${institution}`;
+    const institution = draft.userData?.institution?.trim() || draft.institution.trim() || 'Institución pendiente';
+    return `${draft.type || 'Tipo pendiente'} · ${institution}`;
   }
 
   protected draftUpdatedAt(draft: RequestDraft): string {
     return new Intl.DateTimeFormat('es-MX', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     }).format(new Date(draft.updatedAt));
   }
 
   protected draftProgress(draft: RequestDraft): number {
-    const index = this.steps.findIndex((step) => step.id === draft.activeStep);
+    const normalized = this.normalizeStep(draft.activeStep);
+    const index = this.steps.findIndex((step) => step.id === normalized);
     return Math.max(1, index + 1);
+  }
+
+  protected toggleCommission(enabled: boolean): void {
+    if (this.isDetailMode()) return;
+    this.userData.commissionEnabled = enabled;
+    if (!enabled) {
+      this.userData.commissionInstitutionType = '';
+      this.userData.commissionEntity = '';
+      this.userData.commissionMunicipality = '';
+      this.userData.commissionInstitution = '';
+      this.userData.commissionDecentralizedBody = '';
+      this.userData.commissionAdministrativeUnit = '';
+      this.userData.commissionAdmissionDate = '';
+    }
+  }
+
+  protected addProfile(): void {
+    if (this.isDetailMode()) return;
+    const system = this.profileSystem.trim();
+    const role = this.profileRole.trim();
+    if (!system || !role) {
+      this.feedback.set({ tone: 'error', text: 'Selecciona un sistema y un perfil/rol antes de agregarlo.' });
+      return;
+    }
+
+    const label = `${system} · ${role}`;
+    if (this.userData.profiles.includes(label)) {
+      this.feedback.set({ tone: 'info', text: 'Ese sistema y perfil ya está agregado.' });
+      return;
+    }
+
+    this.userData.profiles = [...this.userData.profiles, label];
+    this.profileSystem = '';
+    this.profileRole = '';
+    this.feedback.set(null);
+  }
+
+  protected removeProfile(profile: string): void {
+    if (this.isDetailMode()) return;
+    this.userData.profiles = this.userData.profiles.filter((item) => item !== profile);
+  }
+
+  protected profileList(): readonly string[] {
+    return this.userData.profiles;
+  }
+
+  protected requiresProfiles(): boolean {
+    return this.type === 'Alta de usuario' || this.type === 'Cambio de rol';
+  }
+
+  protected applicantName(): string {
+    return this.fullName(this.userData) || 'Pendiente';
+  }
+
+  protected primaryInstitution(): string {
+    return this.userData.institution.trim() || 'Pendiente';
+  }
+
+  protected primaryDepartment(): string {
+    return this.userData.administrativeUnit.trim() || this.userData.decentralizedBody.trim() || 'Pendiente';
   }
 
   protected onFilesSelected(event: Event): void {
@@ -372,23 +409,15 @@ export class RequestModal implements OnDestroy {
     input.value = '';
     if (!files.length) return;
 
-    const invalidType = files.find(
-      (file) => !ACCEPTED_TYPES.includes(file.type as RequestDocumentMimeType),
-    );
+    const invalidType = files.find((file) => !ACCEPTED_TYPES.includes(file.type as RequestDocumentMimeType));
     if (invalidType) {
-      this.feedback.set({
-        tone: 'error',
-        text: `El archivo “${invalidType.name}” no tiene un formato permitido.`,
-      });
+      this.feedback.set({ tone: 'error', text: `El archivo “${invalidType.name}” no tiene un formato permitido.` });
       return;
     }
 
     const invalidSize = files.find((file) => file.size > MAX_FILE_SIZE);
     if (invalidSize) {
-      this.feedback.set({
-        tone: 'error',
-        text: `El archivo “${invalidSize.name}” supera el máximo de 10 MB.`,
-      });
+      this.feedback.set({ tone: 'error', text: `El archivo “${invalidSize.name}” supera el máximo de 10 MB.` });
       return;
     }
 
@@ -453,19 +482,13 @@ export class RequestModal implements OnDestroy {
     this.imageZoom.update((current) => Math.min(200, Math.max(50, current + delta)));
   }
 
-  protected resetImageZoom(): void {
-    this.imageZoom.set(100);
-  }
+  protected resetImageZoom(): void { this.imageZoom.set(100); }
 
   protected openDocument(document: RequestDocument): void {
     if (!document.objectUrl) {
-      this.feedback.set({
-        tone: 'info',
-        text: `“${document.name}” es un documento mock. Al conectar el backend, el botón abrirá el archivo real.`,
-      });
+      this.feedback.set({ tone: 'info', text: `“${document.name}” es un documento mock. Al conectar el backend, el botón abrirá el archivo real.` });
       return;
     }
-
     window.open(document.objectUrl, '_blank', 'noopener,noreferrer');
   }
 
@@ -488,17 +511,6 @@ export class RequestModal implements OnDestroy {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  protected profileList(): readonly string[] {
-    return this.profiles
-      .split(',')
-      .map((profile) => profile.trim())
-      .filter(Boolean);
-  }
-
-  protected requiresProfiles(): boolean {
-    return this.type === 'Alta de usuario' || this.type === 'Cambio de rol';
-  }
-
   protected selectReviewAction(action: RequestReviewAction): void {
     if (!this.isDetailMode() || this.busy()) return;
     this.selectedReviewAction.set(action);
@@ -514,13 +526,7 @@ export class RequestModal implements OnDestroy {
   }
 
   protected canSubmitReview(): boolean {
-    return Boolean(
-      this.isDetailMode() &&
-      this.request() &&
-      this.selectedReviewAction() &&
-      this.reviewCommentValid() &&
-      !this.busy(),
-    );
+    return Boolean(this.isDetailMode() && this.request() && this.selectedReviewAction() && this.reviewCommentValid() && !this.busy());
   }
 
   protected reviewActionTitle(): string {
@@ -535,9 +541,7 @@ export class RequestModal implements OnDestroy {
     const current = this.request();
     const action = this.selectedReviewAction();
     const comment = this.reviewComment().trim();
-
     if (!current || !action || !this.reviewCommentValid() || this.busy()) return;
-
     this.actionRequested.emit({ request: current, action, comment });
   }
 
@@ -551,18 +555,22 @@ export class RequestModal implements OnDestroy {
       return;
     }
 
+    const applicant = this.fullName(this.userData);
+    const username = this.legacyUsername();
+
     const record = this.requestStore.create({
       type: this.type,
-      applicant: this.applicant,
-      username: this.username,
-      email: this.email,
-      curp: this.curp,
-      institution: this.institution,
-      department: this.department,
-      priority: this.priority,
-      profiles: this.profileList(),
+      applicant,
+      username,
+      email: this.userData.email,
+      curp: this.userData.curp,
+      institution: this.userData.institution,
+      department: this.primaryDepartment(),
+      priority: 'Media',
+      profiles: this.userData.profiles,
       documents: this.documents(),
-      description: this.comments,
+      description: this.requestReason,
+      userData: this.cloneUserData(this.userData),
     });
 
     const draftId = this.currentDraftId();
@@ -589,49 +597,74 @@ export class RequestModal implements OnDestroy {
   private hydrateFromRequest(current: RequestRecord): void {
     this.revokeTemporaryDocuments();
     this.type = current.type;
-    this.applicant = current.applicant;
-    this.username = current.applicantUsername;
-    this.email = current.applicantEmail ?? '';
-    this.curp = current.curp ?? '';
-    this.institution = current.institution;
-    this.department = current.department ?? '';
-    this.priority = current.priority;
-    this.profiles = (current.profiles ?? []).join(', ');
-    this.comments = current.description ?? '';
+    this.requestReason = current.description ?? '';
+    this.userData = current.userData ? this.cloneUserData(current.userData) : this.legacyRecordUserData(current);
+
     const detailDocuments = (current.documents ?? []).map((document) => ({ ...document }));
     this.documents.set(detailDocuments);
     this.selectedDocumentId.set(detailDocuments[0]?.id ?? null);
     this.imageZoom.set(100);
     this.currentDraftId.set(null);
-    this.activeStep.set('requester');
+    this.activeStep.set('personal-data');
     this.feedback.set(null);
     this.selectedReviewAction.set(null);
     this.reviewComment.set('');
     this.createdFolio.set(null);
+    this.profileSystem = '';
+    this.profileRole = '';
   }
 
-  private validateStep(stepId: RequestCreationStepId): string | null {
-    if (stepId === 'requester') {
-      if (!this.applicant.trim()) return 'Captura el nombre completo del solicitante.';
-      if (!this.username.trim()) return 'Captura el usuario asociado a la solicitud.';
-      if (!/^\S+@\S+\.\S+$/.test(this.email.trim())) return 'Captura un correo electrónico válido.';
-      if (this.curp.trim().length !== 18) return 'La CURP debe contener 18 caracteres.';
+  private validateStep(stepId: CurrentRequestStepId): string | null {
+    if (stepId === 'personal-data') {
+      if (this.userData.curp.trim().length !== 18) return 'La CURP debe contener 18 caracteres.';
+      if (this.userData.rfc.trim().length !== 13) return 'El RFC debe contener 13 caracteres.';
+      if (!this.userData.firstName.trim()) return 'Captura el nombre del usuario.';
+      if (!this.userData.lastName.trim()) return 'Captura el primer apellido.';
+      if (!this.userData.gender.trim()) return 'Selecciona el sexo.';
+      if (!this.userData.birthDate) return 'Captura la fecha de nacimiento.';
     }
 
-    if (stepId === 'request') {
-      if (!this.institution.trim()) return 'Captura la institución.';
-      if (!this.department.trim()) return 'Captura la adscripción o unidad administrativa.';
+    if (stepId === 'assignment') {
+      if (!this.userData.institutionType.trim()) return 'Captura el tipo de institución.';
+      if (!this.userData.entity.trim()) return 'Captura la entidad.';
+      if (!this.userData.municipality.trim()) return 'Captura el municipio o alcaldía.';
+      if (!this.userData.institution.trim()) return 'Captura la institución.';
+      if (!this.userData.administrativeUnit.trim() && !this.userData.decentralizedBody.trim()) return 'Captura el órgano desconcentrado o la unidad administrativa.';
+      if (!this.userData.position.trim()) return 'Captura el cargo.';
+      if (!this.userData.functions.trim()) return 'Captura las funciones.';
+      if (!this.userData.admissionDate) return 'Captura la fecha de ingreso.';
+      if (!this.userData.employeeNumber.trim()) return 'Captura el número de empleado.';
     }
 
-    if (stepId === 'profiles' && this.requiresProfiles() && !this.profileList().length) {
-      return 'Agrega al menos un perfil para este tipo de solicitud.';
+    if (stepId === 'commission' && this.userData.commissionEnabled) {
+      if (!this.userData.commissionInstitutionType.trim()) return 'Captura el tipo de institución de la comisión.';
+      if (!this.userData.commissionInstitution.trim()) return 'Captura la institución de la comisión.';
+      if (!this.userData.commissionAdmissionDate) return 'Captura la fecha de inicio de la comisión.';
+    }
+
+    if (stepId === 'contact') {
+      if (!/^\S+@\S+\.\S+$/.test(this.userData.email.trim())) return 'Captura un correo electrónico válido.';
+      if (!/^\d{10}$/.test(this.userData.phone.trim())) return 'El teléfono celular debe contener 10 dígitos.';
+    }
+
+    if (stepId === 'profiles' && this.requiresProfiles() && !this.userData.profiles.length) {
+      return 'Agrega al menos un sistema y perfil para este tipo de solicitud.';
+    }
+
+    if (stepId === 'review') {
+      const reasonLength = this.requestReason.trim().length;
+      if (!this.type) return 'Selecciona el tipo de solicitud.';
+      if (reasonLength < 5) return 'Captura el motivo de la solicitud con al menos 5 caracteres.';
     }
 
     return null;
   }
 
-  private validateForm(): { readonly step: RequestCreationStepId; readonly message: string } | null {
-    for (const step of ['requester', 'request', 'profiles'] as const) {
+  private validateForm(): { readonly step: CurrentRequestStepId; readonly message: string } | null {
+    const requiredSteps: readonly CurrentRequestStepId[] = [
+      'personal-data', 'assignment', 'commission', 'contact', 'profiles', 'review',
+    ];
+    for (const step of requiredSteps) {
       const message = this.validateStep(step);
       if (message) return { step, message };
     }
@@ -643,18 +676,20 @@ export class RequestModal implements OnDestroy {
   }
 
   private draftPayload() {
+    const applicant = this.fullName(this.userData);
     return {
       activeStep: this.activeStep(),
       type: this.type,
-      applicant: this.applicant,
-      username: this.username,
-      email: this.email,
-      curp: this.curp,
-      institution: this.institution,
-      department: this.department,
-      priority: this.priority,
-      profiles: this.profiles,
-      comments: this.comments,
+      applicant,
+      username: this.legacyUsername(),
+      email: this.userData.email,
+      curp: this.userData.curp,
+      institution: this.userData.institution,
+      department: this.primaryDepartment(),
+      priority: 'Media' as const,
+      profiles: this.userData.profiles.join(', '),
+      comments: this.requestReason,
+      userData: this.cloneUserData(this.userData),
       documents: this.documents(),
     } as const;
   }
@@ -662,25 +697,79 @@ export class RequestModal implements OnDestroy {
   private resetForm(revokeDocuments: boolean): void {
     if (revokeDocuments) this.revokeTemporaryDocuments();
     this.type = 'Alta de usuario';
-    this.applicant = '';
-    this.username = '';
-    this.email = '';
-    this.curp = '';
-    this.institution = 'SSPC';
-    this.department = '';
-    this.priority = 'Media';
-    this.profiles = 'SIAU · Consulta';
-    this.comments = '';
+    this.requestReason = '';
+    this.userData = this.emptyUserData();
+    this.profileSystem = '';
+    this.profileRole = '';
     this.documents.set([]);
     this.selectedDocumentId.set(null);
     this.imageZoom.set(100);
     this.currentDraftId.set(null);
-    this.activeStep.set('requester');
+    this.activeStep.set('personal-data');
     this.view.set('form');
     this.feedback.set(null);
     this.createdFolio.set(null);
     this.selectedReviewAction.set(null);
     this.reviewComment.set('');
+  }
+
+  private emptyUserData(): RequestUserData {
+    return {
+      cuip: '', curp: '', rfc: '', firstName: '', lastName: '', secondLastName: '', gender: '', civilStatus: '', birthDate: '',
+      institutionType: '', entity: '', municipality: '', institution: '', decentralizedBody: '', administrativeUnit: '', position: '', functions: '', admissionDate: '', employeeNumber: '',
+      commissionEnabled: false, commissionInstitutionType: '', commissionEntity: '', commissionMunicipality: '', commissionInstitution: '', commissionDecentralizedBody: '', commissionAdministrativeUnit: '', commissionAdmissionDate: '',
+      email: '', phone: '', profiles: [],
+    };
+  }
+
+  private cloneUserData(data: RequestUserData): RequestUserData {
+    return { ...data, profiles: [...(data.profiles ?? [])] };
+  }
+
+  private legacyDraftUserData(draft: RequestDraft): RequestUserData {
+    const parts = draft.applicant.trim().split(/\s+/).filter(Boolean);
+    const data = this.emptyUserData();
+    data.firstName = parts[0] ?? '';
+    data.lastName = parts[1] ?? '';
+    data.secondLastName = parts.slice(2).join(' ');
+    data.curp = draft.curp ?? '';
+    data.institution = draft.institution ?? '';
+    data.administrativeUnit = draft.department ?? '';
+    data.email = draft.email ?? '';
+    data.profiles = (draft.profiles ?? '').split(',').map((item) => item.trim()).filter(Boolean);
+    return data;
+  }
+
+  private legacyRecordUserData(current: RequestRecord): RequestUserData {
+    const parts = current.applicant.trim().split(/\s+/).filter(Boolean);
+    const data = this.emptyUserData();
+    data.firstName = parts[0] ?? '';
+    data.lastName = parts[1] ?? '';
+    data.secondLastName = parts.slice(2).join(' ');
+    data.curp = current.curp ?? '';
+    data.institution = current.institution ?? '';
+    data.administrativeUnit = current.department ?? '';
+    data.email = current.applicantEmail ?? '';
+    data.profiles = [...(current.profiles ?? [])];
+    return data;
+  }
+
+  private normalizeStep(step: RequestCreationStepId): CurrentRequestStepId {
+    if (step === 'requester') return 'personal-data';
+    if (step === 'request') return 'assignment';
+    return step;
+  }
+
+  private fullName(data: RequestUserData): string {
+    return [data.firstName, data.lastName, data.secondLastName].map((part) => part.trim()).filter(Boolean).join(' ');
+  }
+
+  private legacyUsername(): string {
+    const emailUser = this.userData.email.split('@')[0]?.trim();
+    if (emailUser) return emailUser;
+    const first = this.userData.firstName.trim().split(/\s+/)[0]?.toLowerCase() ?? 'usuario';
+    const last = this.userData.lastName.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+    return [first, last].filter(Boolean).join('.');
   }
 
   private revokeTemporaryDocuments(): void {
@@ -691,12 +780,20 @@ export class RequestModal implements OnDestroy {
 
   private formatNow(): string {
     return new Intl.DateTimeFormat('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
     }).format(new Date()).replace(',', '');
+  }
+
+  private computeAdultBirthDate(): string {
+    const date = new Date();
+    date.setFullYear(date.getFullYear() - 18);
+    return this.toDateInput(date);
+  }
+
+  private toDateInput(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }

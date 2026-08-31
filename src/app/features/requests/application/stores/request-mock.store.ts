@@ -4,6 +4,7 @@ import {
   RequestRecord,
   RequestStatus,
   RequestType,
+  RequestUserData,
 } from '../../domain/models/request-record.model';
 
 export interface CreateMockRequestInput {
@@ -18,6 +19,7 @@ export interface CreateMockRequestInput {
   readonly profiles: readonly string[];
   readonly documents: readonly RequestDocument[];
   readonly description: string;
+  readonly userData?: RequestUserData;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -62,6 +64,7 @@ export class RequestMockStore {
       status: 'Pendiente',
       profiles: input.profiles,
       documents: input.documents,
+      userData: input.userData,
     };
 
     this.requests.update((current) => [record, ...current]);
@@ -128,6 +131,47 @@ export class RequestMockStore {
       objectUrl: null,
     }));
 
+    const nameParts = applicant.trim().split(/\s+/);
+    const secondLastName = nameParts.at(-1) ?? '';
+    const lastName = nameParts.length > 1 ? (nameParts.at(-2) ?? '') : '';
+    const firstName = nameParts.slice(0, Math.max(1, nameParts.length - 2)).join(' ');
+    const curp = `${initials}OG900101MDFPRR07`;
+    const profiles = type === 'Alta de usuario' ? ['SIAU · Consulta', 'SIAU · Captura'] : ['SIAU · Consulta'];
+    const department = 'Dirección de Administración · Departamento de Recursos Humanos';
+    const email = `${username}@siau.local`;
+    const userData: RequestUserData = {
+      cuip: `CUIP${folio.replace(/\D/g, '').slice(-10)}`,
+      curp,
+      rfc: `${curp.slice(0, 10)}A01`,
+      firstName,
+      lastName,
+      secondLastName,
+      gender: 'Femenino',
+      civilStatus: 'Soltero(a)',
+      birthDate: '1990-01-01',
+      institutionType: 'Federal',
+      entity: 'Ciudad de México',
+      municipality: 'Cuauhtémoc',
+      institution,
+      decentralizedBody: 'Órgano Administrativo Desconcentrado',
+      administrativeUnit: department,
+      position: 'Analista',
+      functions: 'Funciones operativas y administrativas relacionadas con el perfil solicitado.',
+      admissionDate: '2024-01-15',
+      employeeNumber: `EMP-${folio.slice(-3)}`,
+      commissionEnabled: false,
+      commissionInstitutionType: '',
+      commissionEntity: '',
+      commissionMunicipality: '',
+      commissionInstitution: '',
+      commissionDecentralizedBody: '',
+      commissionAdministrativeUnit: '',
+      commissionAdmissionDate: '',
+      email,
+      phone: '5512345678',
+      profiles: [...profiles],
+    };
+
     return {
       folio,
       type,
@@ -135,16 +179,17 @@ export class RequestMockStore {
       applicantUsername: username,
       applicantInitials: initials,
       applicantAvatarColor: color,
-      applicantEmail: `${username}@siau.local`,
-      curp: `${initials}OG900101MDFPRR07`,
+      applicantEmail: email,
+      curp,
       institution,
-      department: 'Dirección de Administración · Departamento de Recursos Humanos',
+      department,
       description: `Solicitud ${type.toLowerCase()} para ${applicant}. Información de demostración del expediente.`,
       createdAt,
       priority,
       status,
-      profiles: type === 'Alta de usuario' ? ['SIAU · Consulta', 'SIAU · Captura'] : ['SIAU · Consulta'],
+      profiles,
       documents,
+      userData,
     };
   }
 }

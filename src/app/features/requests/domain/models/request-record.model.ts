@@ -25,6 +25,47 @@ export interface RequestDocument {
   readonly objectUrl?: string | null;
 }
 
+/**
+ * Mismos datos funcionales que se capturan en el modal de alta de Usuario.
+ * Solicitudes reutiliza estos campos y agrega únicamente expediente documental,
+ * motivo de la solicitud y resolución/revisión.
+ */
+export interface RequestUserData {
+  cuip: string;
+  curp: string;
+  rfc: string;
+  firstName: string;
+  lastName: string;
+  secondLastName: string;
+  gender: string;
+  civilStatus: string;
+  birthDate: string;
+
+  institutionType: string;
+  entity: string;
+  municipality: string;
+  institution: string;
+  decentralizedBody: string;
+  administrativeUnit: string;
+  position: string;
+  functions: string;
+  admissionDate: string;
+  employeeNumber: string;
+
+  commissionEnabled: boolean;
+  commissionInstitutionType: string;
+  commissionEntity: string;
+  commissionMunicipality: string;
+  commissionInstitution: string;
+  commissionDecentralizedBody: string;
+  commissionAdministrativeUnit: string;
+  commissionAdmissionDate: string;
+
+  email: string;
+  phone: string;
+  profiles: string[];
+}
+
 export interface RequestRecord {
   readonly folio: string;
   readonly type: RequestType;
@@ -42,4 +83,5 @@ export interface RequestRecord {
   readonly status: RequestStatus;
   readonly profiles?: readonly string[];
   readonly documents?: readonly RequestDocument[];
+  readonly userData?: RequestUserData;
 }

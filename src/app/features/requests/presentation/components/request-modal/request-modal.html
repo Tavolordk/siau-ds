@@ -8,9 +8,7 @@
   (close)="closeModal()">
 
   @if (view() === 'form' || view() === 'detail') {
-  <section
-    class="request-creation-wizard"
-    [class.request-creation-wizard--readonly]="isDetailMode()">
+  <section class="request-creation-wizard" [class.request-creation-wizard--readonly]="isDetailMode()">
     <aside class="request-creation-wizard__sidebar" aria-label="Secciones de la solicitud">
       <span class="request-creation-wizard__sidebar-title">SECCIONES</span>
 
@@ -44,10 +42,7 @@
           <span class="request-drafts-button__icon">
             <siau-lucide-icon name="clipboard-list" size="16" strokeWidth="2" aria-hidden="true" />
           </span>
-          <span>
-            <strong>Ver borradores</strong>
-            <small>Continuar registros</small>
-          </span>
+          <span><strong>Ver borradores</strong><small>Continuar registros</small></span>
           <span class="request-drafts-button__count">{{ drafts().length }}</span>
         </button>
       </div>
@@ -74,9 +69,7 @@
       <div class="request-creation-wizard__content">
         @if (isDetailMode()) {
         <div class="request-detail-banner">
-          <span class="request-detail-banner__icon">
-            <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
-          </span>
+          <span class="request-detail-banner__icon"><siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" /></span>
           <span class="request-detail-banner__copy">
             <strong>Modo consulta</strong>
             <small>{{ detailFolio() }} · Registrada {{ detailCreatedAt() }} · Los datos del expediente son de solo lectura.</small>
@@ -87,10 +80,7 @@
 
         @if (!isDetailMode() && currentDraftId()) {
         <div class="request-create-draft-banner">
-          <span>
-            <siau-lucide-icon name="file-text" size="15" strokeWidth="2" aria-hidden="true" />
-            Estás editando un borrador guardado
-          </span>
+          <span><siau-lucide-icon name="file-text" size="15" strokeWidth="2" aria-hidden="true" /> Estás editando un borrador guardado</span>
           <button type="button" (click)="startBlankRequest()">Iniciar nueva</button>
         </div>
         }
@@ -104,91 +94,235 @@
           role="status">
           <siau-lucide-icon
             [name]="message.tone === 'success' ? 'circle-check' : message.tone === 'error' ? 'triangle-alert' : 'info'"
-            size="16"
-            strokeWidth="2"
-            aria-hidden="true" />
+            size="16" strokeWidth="2" aria-hidden="true" />
           <span>{{ message.text }}</span>
         </div>
         }
 
         @switch (activeStep()) {
-          @case ('requester') {
+          @case ('personal-data') {
           <section class="request-section">
             <header class="request-section__header">
               <span class="request-section__eyebrow">SECCIÓN 01</span>
-              <h3>Datos del solicitante</h3>
-              <p>{{ isDetailMode() ? 'Información registrada para la persona relacionada con esta solicitud.' : 'Identifica a la persona relacionada con la solicitud y el medio de contacto para notificaciones.' }}</p>
+              <h3>Datos Personales</h3>
+              <p>Información de identidad oficial del usuario, con los mismos campos del modal de Usuario.</p>
             </header>
 
             <div class="request-form-grid">
-              <label class="request-field request-field--wide">
-                <span>Nombre completo <strong>*</strong></span>
-                <input type="text" [(ngModel)]="applicant" [readonly]="isDetailMode()" placeholder="Ej. María Fernanda López García" />
-              </label>
-
               <label class="request-field">
-                <span>Usuario <strong>*</strong></span>
-                <input type="text" [(ngModel)]="username" [readonly]="isDetailMode()" placeholder="maria.lopez" />
+                <span>CUIP</span>
+                <input type="text" maxlength="20" [(ngModel)]="userData.cuip" [readonly]="isDetailMode()" placeholder="Ej. GARC910515H094569875" />
+                <small>Formato: 4 letras, 6 números, H/M y 9 números.</small>
               </label>
 
               <label class="request-field">
                 <span>CURP <strong>*</strong></span>
-                <input type="text" maxlength="18" [(ngModel)]="curp" [readonly]="isDetailMode()" placeholder="18 caracteres" />
+                <input type="text" maxlength="18" [(ngModel)]="userData.curp" [readonly]="isDetailMode()" placeholder="Ej. UPL010923HOCZRSA3" />
               </label>
 
-              <label class="request-field request-field--wide">
-                <span>Correo electrónico <strong>*</strong></span>
-                <input type="email" [(ngModel)]="email" [readonly]="isDetailMode()" placeholder="usuario@sspc.gob.mx" />
-                <small>{{ isDetailMode() ? 'Correo registrado para notificaciones de la solicitud.' : 'Este correo recibirá las notificaciones de aprobación, rechazo o corrección.' }}</small>
+              <label class="request-field">
+                <span>RFC <strong>*</strong></span>
+                <input type="text" maxlength="13" [(ngModel)]="userData.rfc" [readonly]="isDetailMode()" placeholder="Ej. UPL010923SK0" />
+              </label>
+
+              <label class="request-field">
+                <span>Nombre(s) <strong>*</strong></span>
+                <input type="text" maxlength="100" [(ngModel)]="userData.firstName" [readonly]="isDetailMode()" placeholder="Nombre(s)" />
+              </label>
+
+              <label class="request-field">
+                <span>Primer Apellido <strong>*</strong></span>
+                <input type="text" maxlength="100" [(ngModel)]="userData.lastName" [readonly]="isDetailMode()" placeholder="Primer apellido" />
+              </label>
+
+              <label class="request-field">
+                <span>Segundo Apellido</span>
+                <input type="text" maxlength="100" [(ngModel)]="userData.secondLastName" [readonly]="isDetailMode()" placeholder="Opcional" />
+              </label>
+
+              <label class="request-field">
+                <span>Sexo <strong>*</strong></span>
+                <select [(ngModel)]="userData.gender" [disabled]="isDetailMode()">
+                  <option value="">Seleccione sexo</option>
+                  @for (option of genderOptions; track option) { <option [value]="option">{{ option }}</option> }
+                </select>
+              </label>
+
+              <label class="request-field">
+                <span>Estado civil</span>
+                <select [(ngModel)]="userData.civilStatus" [disabled]="isDetailMode()">
+                  <option value="">Selecciona el estado civil (opcional)</option>
+                  @for (option of civilStatusOptions; track option) { <option [value]="option">{{ option }}</option> }
+                </select>
+              </label>
+
+              <label class="request-field">
+                <span>Fecha de Nacimiento <strong>*</strong></span>
+                <input type="date" [min]="minimumBirthDate" [max]="maximumBirthDate" [(ngModel)]="userData.birthDate" [readonly]="isDetailMode()" />
+                <small>Desde 01/01/1900 y mínimo 18 años.</small>
               </label>
             </div>
           </section>
           }
 
-          @case ('request') {
+          @case ('assignment') {
           <section class="request-section">
             <header class="request-section__header">
               <span class="request-section__eyebrow">SECCIÓN 02</span>
-              <h3>Información de la solicitud</h3>
-              <p>{{ isDetailMode() ? 'Movimiento, prioridad y adscripción registrados en el expediente.' : 'Define el movimiento solicitado y la unidad administrativa relacionada con el expediente.' }}</p>
+              <h3>Adscripción</h3>
+              <p>Centro de trabajo y datos laborales del usuario.</p>
             </header>
 
             <div class="request-form-grid">
-              <label class="request-field request-field--wide">
-                <span>Tipo de solicitud <strong>*</strong></span>
-                <select [(ngModel)]="type" [disabled]="isDetailMode()">
-                  @for (option of typeOptions; track option) {
-                  <option [ngValue]="option">{{ option }}</option>
-                  }
+              <label class="request-field">
+                <span>Tipo de Institución <strong>*</strong></span>
+                <select [(ngModel)]="userData.institutionType" [disabled]="isDetailMode()">
+                  <option value="">Selecciona el tipo</option>
+                  @for (option of institutionTypeOptions; track option) { <option [value]="option">{{ option }}</option> }
                 </select>
+              </label>
+
+              <label class="request-field">
+                <span>Entidad <strong>*</strong></span>
+                <input type="text" [(ngModel)]="userData.entity" [readonly]="isDetailMode()" placeholder="Selecciona o captura la entidad" />
+              </label>
+
+              <label class="request-field">
+                <span>Municipio / Alcaldía <strong>*</strong></span>
+                <input type="text" [(ngModel)]="userData.municipality" [readonly]="isDetailMode()" placeholder="Municipio o alcaldía" />
               </label>
 
               <label class="request-field">
                 <span>Institución <strong>*</strong></span>
-                <input type="text" [(ngModel)]="institution" [readonly]="isDetailMode()" placeholder="SSPC" />
+                <input type="text" [(ngModel)]="userData.institution" [readonly]="isDetailMode()" placeholder="Institución" />
               </label>
 
               <label class="request-field">
-                <span>Prioridad</span>
-                <select [(ngModel)]="priority" [disabled]="isDetailMode()">
-                  @for (option of priorityOptions; track option) {
-                  <option [ngValue]="option">{{ option }}</option>
-                  }
+                <span>Órgano desconcentrado</span>
+                <input type="text" [(ngModel)]="userData.decentralizedBody" [readonly]="isDetailMode()" placeholder="Órgano desconcentrado" />
+              </label>
+
+              <label class="request-field">
+                <span>Unidad administrativa</span>
+                <input type="text" [(ngModel)]="userData.administrativeUnit" [readonly]="isDetailMode()" placeholder="Unidad administrativa" />
+              </label>
+
+              <label class="request-field">
+                <span>Cargo <strong>*</strong></span>
+                <input type="text" [(ngModel)]="userData.position" [readonly]="isDetailMode()" placeholder="Cargo" />
+              </label>
+
+              <label class="request-field request-field--wide">
+                <span>Funciones <strong>*</strong></span>
+                <textarea rows="3" maxlength="1000" [(ngModel)]="userData.functions" [readonly]="isDetailMode()" placeholder="Describe las funciones del usuario"></textarea>
+              </label>
+
+              <label class="request-field">
+                <span>Fecha de Ingreso <strong>*</strong></span>
+                <input type="date" [max]="maximumTodayDate" [(ngModel)]="userData.admissionDate" [readonly]="isDetailMode()" />
+              </label>
+
+              <label class="request-field">
+                <span>Número de Empleado <strong>*</strong></span>
+                <input type="text" maxlength="20" [(ngModel)]="userData.employeeNumber" [readonly]="isDetailMode()" placeholder="Ej. EMP-0042" />
+              </label>
+            </div>
+          </section>
+          }
+
+          @case ('commission') {
+          <section class="request-section">
+            <header class="request-section__header">
+              <span class="request-section__eyebrow">SECCIÓN 03</span>
+              <h3>Comisión</h3>
+              <p>Datos de comisión interinstitucional, únicamente si aplica.</p>
+            </header>
+
+            <label class="request-toggle-card" [class.request-toggle-card--active]="userData.commissionEnabled">
+              <input
+                type="checkbox"
+                [checked]="userData.commissionEnabled"
+                [disabled]="isDetailMode()"
+                (change)="toggleCommission($any($event.target).checked)" />
+              <span class="request-toggle-card__check">
+                @if (userData.commissionEnabled) { <siau-lucide-icon name="check" size="13" strokeWidth="2.6" aria-hidden="true" /> }
+              </span>
+              <span><strong>Agregar comisión</strong><small>Actívala únicamente si el usuario tendrá una comisión distinta a su adscripción.</small></span>
+            </label>
+
+            @if (!userData.commissionEnabled) {
+            <div class="request-review-notice">
+              <siau-lucide-icon name="info" size="17" strokeWidth="2" aria-hidden="true" />
+              <span>La comisión es opcional. Puedes continuar sin capturar esta sección.</span>
+            </div>
+            }
+
+            @if (userData.commissionEnabled) {
+            <div class="request-form-grid request-form-grid--spaced">
+              <label class="request-field">
+                <span>Tipo de Institución <strong>*</strong></span>
+                <select [(ngModel)]="userData.commissionInstitutionType" [disabled]="isDetailMode()">
+                  <option value="">Selecciona el tipo</option>
+                  @for (option of institutionTypeOptions; track option) { <option [value]="option">{{ option }}</option> }
                 </select>
               </label>
 
-              <label class="request-field request-field--wide">
-                <span>Adscripción / unidad administrativa <strong>*</strong></span>
-                <input type="text" [(ngModel)]="department" [readonly]="isDetailMode()" placeholder="Dirección, unidad o departamento" />
+              <label class="request-field">
+                <span>Entidad</span>
+                <input type="text" [(ngModel)]="userData.commissionEntity" [readonly]="isDetailMode()" placeholder="Entidad" />
               </label>
 
-              <label class="request-field request-field--wide">
-                <span>Descripción u observaciones</span>
-                <textarea
-                  rows="5"
-                  [(ngModel)]="comments"
-                  [readonly]="isDetailMode()"
-                  placeholder="Describe el motivo de la solicitud o cualquier información que ayude a revisarla."></textarea>
+              <label class="request-field">
+                <span>Municipio / Alcaldía</span>
+                <input type="text" [(ngModel)]="userData.commissionMunicipality" [readonly]="isDetailMode()" placeholder="Municipio o alcaldía" />
+              </label>
+
+              <label class="request-field">
+                <span>Institución <strong>*</strong></span>
+                <input type="text" [(ngModel)]="userData.commissionInstitution" [readonly]="isDetailMode()" placeholder="Institución" />
+              </label>
+
+              <label class="request-field">
+                <span>Órgano desconcentrado</span>
+                <input type="text" [(ngModel)]="userData.commissionDecentralizedBody" [readonly]="isDetailMode()" placeholder="Órgano desconcentrado" />
+              </label>
+
+              <label class="request-field">
+                <span>Unidad administrativa</span>
+                <input type="text" [(ngModel)]="userData.commissionAdministrativeUnit" [readonly]="isDetailMode()" placeholder="Unidad administrativa" />
+              </label>
+
+              <label class="request-field">
+                <span>Fecha de Inicio <strong>*</strong></span>
+                <input type="date" [min]="userData.admissionDate" [max]="maximumTodayDate" [(ngModel)]="userData.commissionAdmissionDate" [readonly]="isDetailMode()" />
+              </label>
+            </div>
+            }
+          </section>
+          }
+
+          @case ('contact') {
+          <section class="request-section">
+            <header class="request-section__header">
+              <span class="request-section__eyebrow">SECCIÓN 04</span>
+              <h3>Medio de Contacto</h3>
+              <p>Correo institucional y teléfono celular del usuario.</p>
+            </header>
+
+            <div class="request-review-notice request-review-notice--compact">
+              <siau-lucide-icon name="info" size="17" strokeWidth="2" aria-hidden="true" />
+              <span>El <strong>correo electrónico y el teléfono celular son obligatorios</strong>. El correo también recibirá las notificaciones de la solicitud.</span>
+            </div>
+
+            <div class="request-form-grid request-form-grid--spaced">
+              <label class="request-field">
+                <span>Correo Electrónico <strong>*</strong></span>
+                <input type="email" maxlength="254" [(ngModel)]="userData.email" [readonly]="isDetailMode()" placeholder="usuario@sspc.gob.mx" />
+              </label>
+
+              <label class="request-field">
+                <span>Teléfono Celular <strong>*</strong></span>
+                <input type="tel" maxlength="10" inputmode="numeric" [(ngModel)]="userData.phone" [readonly]="isDetailMode()" placeholder="Ej. 5512345678" />
               </label>
             </div>
           </section>
@@ -197,46 +331,61 @@
           @case ('profiles') {
           <section class="request-section">
             <header class="request-section__header">
-              <span class="request-section__eyebrow">SECCIÓN 03</span>
-              <h3>Perfiles y accesos solicitados</h3>
-              <p>{{ isDetailMode() ? 'Perfiles asociados al expediente.' : 'Indica los perfiles relacionados con la solicitud. Para altas y cambios de rol se requiere al menos uno.' }}</p>
+              <span class="request-section__eyebrow">SECCIÓN 05</span>
+              <h3>Perfiles</h3>
+              <p>Sistemas y perfiles de acceso asociados a la solicitud.</p>
             </header>
 
-            <div class="profiles-editor">
-              <label class="request-field request-field--wide">
-                <span>Perfiles solicitados @if (requiresProfiles()) { <strong>*</strong> }</span>
-                <input
-                  type="text"
-                  [(ngModel)]="profiles"
-                  [readonly]="isDetailMode()"
-                  placeholder="Ej. SIAU · Consulta, SIAU · Captura" />
-                @if (!isDetailMode()) {
-                <small>Separa múltiples perfiles con comas.</small>
-                }
+            @if (!isDetailMode()) {
+            <div class="request-profile-builder">
+              <label class="request-field">
+                <span>Sistema</span>
+                <select [(ngModel)]="profileSystem">
+                  <option value="">Seleccione sistema</option>
+                  @for (option of profileSystemOptions; track option) { <option [value]="option">{{ option }}</option> }
+                </select>
               </label>
 
-              <div class="profiles-preview">
-                <span class="profiles-preview__label">Perfiles del expediente</span>
-                <div class="profiles-preview__chips">
-                  @for (profile of profileList(); track profile) {
-                  <span class="profile-chip">
-                    <siau-lucide-icon name="shield-check" size="13" strokeWidth="2" aria-hidden="true" />
-                    {{ profile }}
-                  </span>
-                  } @empty {
-                  <span class="profiles-preview__empty">No hay perfiles capturados.</span>
+              <label class="request-field">
+                <span>Perfil / Rol</span>
+                <select [(ngModel)]="profileRole">
+                  <option value="">Seleccione rol</option>
+                  @for (option of profileRoleOptions; track option) { <option [value]="option">{{ option }}</option> }
+                </select>
+              </label>
+
+              <button type="button" class="request-profile-builder__add" (click)="addProfile()">
+                <siau-lucide-icon name="plus" size="16" strokeWidth="2" aria-hidden="true" />
+                Agregar
+              </button>
+            </div>
+            }
+
+            <div class="profiles-preview request-profiles-list">
+              <span class="profiles-preview__label">Perfiles asignados</span>
+              <div class="profiles-preview__chips">
+                @for (profile of profileList(); track profile) {
+                <span class="profile-chip">
+                  <siau-lucide-icon name="shield-check" size="13" strokeWidth="2" aria-hidden="true" />
+                  {{ profile }}
+                  @if (!isDetailMode()) {
+                  <button type="button" class="profile-chip__remove" (click)="removeProfile(profile)" [attr.aria-label]="'Eliminar ' + profile">
+                    <siau-lucide-icon name="x" size="12" strokeWidth="2" aria-hidden="true" />
+                  </button>
                   }
-                </div>
+                </span>
+                } @empty {
+                <span class="profiles-preview__empty">No hay perfiles agregados.</span>
+                }
               </div>
             </div>
           </section>
           }
-
           @case ('documents') {
           <section class="request-section request-section--documents">
             <header class="request-section__header request-section__header--with-meta">
               <div>
-                <span class="request-section__eyebrow">SECCIÓN 04</span>
+                <span class="request-section__eyebrow">SECCIÓN 06</span>
                 <h3>Documentos adjuntos</h3>
                 <p>{{ isDetailMode() ? 'Documentos que forman parte del expediente de esta solicitud.' : 'Carga los archivos y verifícalos aquí mismo antes de continuar. No dependen de un catálogo.' }}</p>
               </div>
@@ -409,40 +558,55 @@
           @case ('review') {
           <section class="request-section request-section--review">
             <header class="request-section__header">
-              <span class="request-section__eyebrow">SECCIÓN 05</span>
-              <h3>{{ isDetailMode() ? 'Revisión y resolución' : 'Revisa antes de registrar' }}</h3>
-              <p>{{ isDetailMode() ? 'Consulta el resumen del expediente y registra la resolución que será notificada al solicitante.' : 'Confirma la información que formará parte del expediente de la solicitud.' }}</p>
+              <span class="request-section__eyebrow">SECCIÓN 07</span>
+              <h3>{{ isDetailMode() ? 'Revisión y resolución' : 'Motivo y revisión de la solicitud' }}</h3>
+              <p>{{ isDetailMode() ? 'Consulta el expediente completo y registra la resolución que será notificada al usuario.' : 'Indica el tipo y el motivo de la solicitud antes de registrar el expediente.' }}</p>
             </header>
+
+            <div class="request-form-grid request-review-request-data">
+              <label class="request-field request-field--wide">
+                <span>Tipo de solicitud <strong>*</strong></span>
+                <select [(ngModel)]="type" [disabled]="isDetailMode()">
+                  @for (option of typeOptions; track option) { <option [ngValue]="option">{{ option }}</option> }
+                </select>
+              </label>
+
+              <label class="request-field request-field--wide">
+                <span>Motivo de la solicitud <strong>*</strong></span>
+                <textarea
+                  rows="4"
+                  maxlength="1000"
+                  [(ngModel)]="requestReason"
+                  [readonly]="isDetailMode()"
+                  placeholder="Describe claramente por qué se genera esta solicitud y cualquier información que ayude a revisarla."></textarea>
+                <small>{{ requestReason.length }}/1000</small>
+              </label>
+            </div>
 
             <div class="request-review-grid">
               <article class="request-review-card">
-                <span>Solicitante</span>
-                <strong>{{ applicant || 'Pendiente' }}</strong>
-                <small>{{ username || 'Sin usuario' }} · {{ email || 'Sin correo' }}</small>
-              </article>
-
-              <article class="request-review-card">
-                <span>Solicitud</span>
-                <strong>{{ type }}</strong>
-                <small>{{ institution || 'Sin institución' }} · {{ priority }}</small>
+                <span>Usuario</span>
+                <strong>{{ applicantName() }}</strong>
+                <small>{{ userData.curp || 'CURP pendiente' }} · {{ userData.email || 'Sin correo' }}</small>
               </article>
 
               <article class="request-review-card">
                 <span>Adscripción</span>
-                <strong>{{ department || 'Pendiente' }}</strong>
-                <small>{{ curp || 'CURP pendiente' }}</small>
+                <strong>{{ primaryInstitution() }}</strong>
+                <small>{{ primaryDepartment() }}</small>
+              </article>
+
+              <article class="request-review-card">
+                <span>Comisión</span>
+                <strong>{{ userData.commissionEnabled ? (userData.commissionInstitution || 'Pendiente') : 'No aplica' }}</strong>
+                <small>{{ userData.commissionEnabled ? (userData.commissionAdministrativeUnit || userData.commissionDecentralizedBody || 'Sin unidad') : 'Sin comisión' }}</small>
               </article>
 
               <article class="request-review-card">
                 <span>Expediente</span>
                 <strong>{{ documents().length }} documentos</strong>
-                <small>{{ profileList().length }} perfiles solicitados</small>
+                <small>{{ profileList().length }} perfiles asociados</small>
               </article>
-            </div>
-
-            <div class="request-review-observation">
-              <span>Descripción / observaciones</span>
-              <p>{{ comments || 'Sin observaciones adicionales.' }}</p>
             </div>
 
             @if (isDetailMode()) {
@@ -451,7 +615,7 @@
                 <div>
                   <span class="request-section__eyebrow">RESOLUCIÓN</span>
                   <h4>Acciones de revisión</h4>
-                  <p>Selecciona una acción. El comentario es obligatorio y se incluirá en el correo enviado al solicitante.</p>
+                  <p>Selecciona aprobar, rechazar o solicitar corrección. El comentario es obligatorio y se incluirá en la notificación.</p>
                 </div>
                 <span class="request-resolution-panel__mail">
                   <siau-lucide-icon name="mail" size="15" strokeWidth="2" aria-hidden="true" />
@@ -460,27 +624,21 @@
               </div>
 
               <div class="request-resolution-actions">
-                <button
-                  type="button"
-                  class="request-resolution-action request-resolution-action--approve"
+                <button type="button" class="request-resolution-action request-resolution-action--approve"
                   [class.request-resolution-action--selected]="selectedReviewAction() === 'approve'"
                   (click)="selectReviewAction('approve')">
                   <span><siau-lucide-icon name="circle-check" size="20" strokeWidth="2" /></span>
                   <div><strong>Aprobar</strong><small>La solicitud cumple con la revisión.</small></div>
                 </button>
 
-                <button
-                  type="button"
-                  class="request-resolution-action request-resolution-action--reject"
+                <button type="button" class="request-resolution-action request-resolution-action--reject"
                   [class.request-resolution-action--selected]="selectedReviewAction() === 'reject'"
                   (click)="selectReviewAction('reject')">
                   <span><siau-lucide-icon name="circle-x" size="20" strokeWidth="2" /></span>
                   <div><strong>Rechazar</strong><small>La solicitud no procede.</small></div>
                 </button>
 
-                <button
-                  type="button"
-                  class="request-resolution-action request-resolution-action--correction"
+                <button type="button" class="request-resolution-action request-resolution-action--correction"
                   [class.request-resolution-action--selected]="selectedReviewAction() === 'request-correction'"
                   (click)="selectReviewAction('request-correction')">
                   <span><siau-lucide-icon name="pencil" size="20" strokeWidth="2" /></span>
@@ -489,13 +647,9 @@
               </div>
 
               <label class="request-resolution-comment">
-                <span>Comentario <strong>*</strong></span>
-                <textarea
-                  rows="3"
-                  maxlength="1000"
-                  [ngModel]="reviewComment()"
-                  (ngModelChange)="updateReviewComment($event)"
-                  placeholder="Escribe el motivo u observaciones de tu decisión. Este comentario se incluirá en el correo al solicitante."></textarea>
+                <span>Comentario de revisión <strong>*</strong></span>
+                <textarea rows="3" maxlength="1000" [ngModel]="reviewComment()" (ngModelChange)="updateReviewComment($event)"
+                  placeholder="Escribe el motivo u observaciones de la aprobación, rechazo o solicitud de corrección. Este comentario se incluirá en el correo."></textarea>
                 <small [class.request-resolution-comment__error]="reviewComment().length > 0 && !reviewCommentValid()">
                   Mínimo 5 caracteres · {{ reviewComment().length }}/1000
                 </small>
@@ -523,7 +677,7 @@
             } @else {
             <div class="request-review-notice">
               <siau-lucide-icon name="info" size="17" strokeWidth="2" aria-hidden="true" />
-              <span>Al registrar, la solicitud aparecerá con estado <strong>Pendiente</strong> en el listado principal.</span>
+              <span>Al registrar, la solicitud aparecerá con estado <strong>Pendiente</strong> y conservará el motivo capturado para su revisión.</span>
             </div>
             }
           </section>
@@ -545,11 +699,7 @@
         }
 
         <div class="request-creation-wizard__footer-nav">
-          <button
-            type="button"
-            class="request-footer-button request-footer-button--secondary"
-            [disabled]="stepIndex() === 0"
-            (click)="previousStep()">
+          <button type="button" class="request-footer-button request-footer-button--secondary" [disabled]="stepIndex() === 0" (click)="previousStep()">
             <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2" aria-hidden="true" />
             Anterior
           </button>
@@ -661,7 +811,7 @@
     <div class="request-create-success__summary">
       <span>
         <small>Solicitante</small>
-        <strong>{{ applicant }}</strong>
+        <strong>{{ applicantName() }}</strong>
       </span>
       <span>
         <small>Tipo</small>

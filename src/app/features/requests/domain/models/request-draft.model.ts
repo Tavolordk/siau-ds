@@ -2,11 +2,16 @@ import {
   RequestDocument,
   RequestPriority,
   RequestType,
+  RequestUserData,
 } from './request-record.model';
 
 export type RequestCreationStepId =
   | 'requester'
   | 'request'
+  | 'personal-data'
+  | 'assignment'
+  | 'commission'
+  | 'contact'
   | 'profiles'
   | 'documents'
   | 'review';
@@ -16,6 +21,8 @@ export interface RequestDraft {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly activeStep: RequestCreationStepId;
+
+  /** Compatibilidad con borradores anteriores y componentes legacy. */
   readonly type: RequestType;
   readonly applicant: string;
   readonly username: string;
@@ -26,6 +33,8 @@ export interface RequestDraft {
   readonly priority: RequestPriority;
   readonly profiles: string;
   readonly comments: string;
+
+  readonly userData?: RequestUserData;
   readonly documents: readonly RequestDocument[];
 }
 
