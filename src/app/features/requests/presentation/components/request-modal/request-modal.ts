@@ -32,6 +32,7 @@ import { SiauLucideIcon } from '../../../../../shared/ui/components/lucide-icon/
 import { SiauModal } from '../../../../../shared/ui/components/modal/modal';
 
 export type RequestModalInitialView = 'form' | 'drafts' | 'detail';
+export type RequestModalContext = 'requests' | 'account-registration';
 type ModalView = RequestModalInitialView | 'success';
 type FeedbackTone = 'success' | 'error' | 'info';
 
@@ -73,6 +74,7 @@ export class RequestModal implements OnDestroy {
   readonly open = input<boolean>(false);
   readonly initialView = input<RequestModalInitialView>('form');
   readonly request = input<RequestRecord | null>(null);
+  readonly context = input<RequestModalContext>('requests');
   readonly busy = input(false);
   readonly resultMessage = input<string | null>(null);
   readonly resultTone = input<'success' | 'error' | null>(null);
@@ -82,7 +84,12 @@ export class RequestModal implements OnDestroy {
   readonly actionRequested = output<RequestReviewCommand>();
   readonly documentsChanged = output<readonly RequestDocument[]>();
 
-  protected readonly drafts = this.draftStore.drafts;
+  protected readonly drafts = computed(() => {
+    const drafts = this.draftStore.drafts();
+    return this.isAccountRegistration()
+      ? drafts.filter((draft) => draft.type === 'Alta de usuario')
+      : drafts;
+  });
   protected readonly view = signal<ModalView>('form');
   protected readonly activeStep = signal<CurrentRequestStepId>('personal-data');
   protected readonly currentDraftId = signal<string | null>(null);
@@ -148,6 +155,10 @@ export class RequestModal implements OnDestroy {
 
       if (!isOpen) return;
 
+      if (this.isAccountRegistration()) {
+        this.type = 'Alta de usuario';
+      }
+
       if (initialView === 'detail') {
         this.view.set('detail');
         if (currentRequest && this.loadedDetailFolio !== currentRequest.folio) {
@@ -181,10 +192,21 @@ export class RequestModal implements OnDestroy {
     return this.view() === 'detail';
   }
 
+  protected isAccountRegistration(): boolean {
+    return this.context() === 'account-registration';
+  }
+
   protected modalTitle(): string {
     if (this.view() === 'detail') return 'Detalle de solicitud';
-    if (this.view() === 'drafts') return 'Borradores de solicitudes';
-    if (this.view() === 'success') return 'Solicitud registrada';
+    if (this.view() === 'drafts') {
+      return this.isAccountRegistration() ? 'Borradores de nueva cuenta' : 'Borradores de solicitudes';
+    }
+    if (this.view() === 'success') {
+      return this.isAccountRegistration() ? 'Solicitud de nueva cuenta registrada' : 'Solicitud registrada';
+    }
+    if (this.isAccountRegistration()) {
+      return this.currentDraftId() ? 'Continuar solicitud de nueva cuenta' : 'Solicitud de nueva cuenta';
+    }
     return this.currentDraftId() ? 'Continuar solicitud' : 'Nueva solicitud';
   }
 
@@ -193,23 +215,33 @@ export class RequestModal implements OnDestroy {
       const current = this.request();
       return current ? `${current.folio} · Consulta del expediente por secciones` : 'Consulta del expediente por secciones';
     }
-    if (this.view() === 'drafts') return 'Continúa una solicitud guardada sin salir del módulo';
-    if (this.view() === 'success') return 'El expediente quedó registrado correctamente';
-    return 'Mismos datos del registro de Usuario, más documentos, motivo y flujo de revisión';
+    if (this.view() === 'drafts') {
+      return this.isAccountRegistration()
+        ? 'Continúa una solicitud de nueva cuenta guardada en este equipo'
+        : 'Continúa una solicitud guardada sin salir del módulo';
+    }
+    if (this.view() === 'success') {
+      return this.isAccountRegistration()
+        ? 'Tu solicitud fue registrada y quedó pendiente de revisión'
+        : 'El expediente quedó registrado correctamente';
+    }
+    return this.isAccountRegistration()
+      ? 'Completa tus datos, adjunta los documentos y explica el motivo para solicitar tu cuenta'
+      : 'Mismos datos del registro de Usuario, más documentos, motivo y flujo de revisión';
   }
 
   protected modalIcon(): string {
     if (this.view() === 'detail') return 'eye';
     if (this.view() === 'drafts') return 'clipboard-list';
     if (this.view() === 'success') return 'circle-check';
-    return 'file-text';
+    return this.isAccountRegistration() ? 'user-plus' : 'file-text';
   }
 
   protected headerBadge(): string {
     if (this.view() === 'detail') return this.request()?.status ?? 'Consulta';
     if (this.view() === 'drafts') return `${this.drafts().length} borradores`;
     if (this.currentDraftId()) return 'Borrador en edición';
-    return 'Expediente nuevo';
+    return this.isAccountRegistration() ? 'Alta de usuario' : 'Expediente nuevo';
   }
 
   protected detailFolio(): string { return this.request()?.folio ?? ''; }
@@ -290,6 +322,7 @@ export class RequestModal implements OnDestroy {
   }
 
   protected resumeDraft(draft: RequestDraft): void {
+    if (this.isAccountRegistration() && draft.type !== 'Alta de usuario') return;
     this.loadedDetailFolio = null;
     this.revokeTemporaryDocuments();
     this.type = draft.type;
@@ -547,6 +580,10 @@ export class RequestModal implements OnDestroy {
 
   protected createRequest(): void {
     if (this.isDetailMode()) return;
+
+    if (this.isAccountRegistration()) {
+      this.type = 'Alta de usuario';
+    }
 
     const issue = this.validateForm();
     if (issue) {

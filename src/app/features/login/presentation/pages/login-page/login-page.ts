@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { AuthFacade } from '../../../../../core/auth/application/auth.facade';
 import { CaptchaFacade } from '../../../../../core/captcha/application/captcha.facade';
 import { AnimatedAuthBackground } from '../../../../../shared/ui/components/animated-auth-background/animated-auth-background';
+import { RequestModal } from '../../../../requests/presentation/components/request-modal/request-modal';
 import {
     CONTACT_EMAIL_MAX_LENGTH,
     CONTACT_PHONE_LENGTH,
@@ -17,7 +17,7 @@ import {
     selector: 'siau-login-page',
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ReactiveFormsModule, RouterLink, AnimatedAuthBackground],
+    imports: [ReactiveFormsModule, AnimatedAuthBackground, RequestModal],
     templateUrl: './login-page.html',
     styleUrl: './login-page.scss',
 })
@@ -26,6 +26,8 @@ export class LoginPage implements OnDestroy {
 
     protected readonly auth = inject(AuthFacade);
     protected readonly captcha = inject(CaptchaFacade);
+
+    protected readonly accountRequestOpen = signal(false);
 
     protected readonly form = this.formBuilder.nonNullable.group({
         username: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]{14}$/)]],
@@ -51,6 +53,15 @@ export class LoginPage implements OnDestroy {
 
     ngOnDestroy(): void {
         this.captcha.deactivate();
+    }
+
+    protected openAccountRequest(): void {
+        this.auth.clearError();
+        this.accountRequestOpen.set(true);
+    }
+
+    protected closeAccountRequest(): void {
+        this.accountRequestOpen.set(false);
     }
 
     protected submit(): void {

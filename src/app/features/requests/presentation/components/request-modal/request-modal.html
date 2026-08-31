@@ -566,9 +566,12 @@
             <div class="request-form-grid request-review-request-data">
               <label class="request-field request-field--wide">
                 <span>Tipo de solicitud <strong>*</strong></span>
-                <select [(ngModel)]="type" [disabled]="isDetailMode()">
+                <select [(ngModel)]="type" [disabled]="isDetailMode() || isAccountRegistration()">
                   @for (option of typeOptions; track option) { <option [ngValue]="option">{{ option }}</option> }
                 </select>
+                @if (isAccountRegistration()) {
+                <small>Desde el inicio de sesión este flujo está limitado a solicitudes de alta de usuario.</small>
+                }
               </label>
 
               <label class="request-field request-field--wide">
@@ -806,7 +809,11 @@
     </div>
     <span class="request-create-success__eyebrow">SOLICITUD REGISTRADA</span>
     <h3>{{ createdFolio() }}</h3>
+    @if (isAccountRegistration()) {
+    <p>Tu solicitud de nueva cuenta quedó registrada con estado <strong>Pendiente</strong> para su revisión.</p>
+    } @else {
     <p>El expediente se agregó al listado de Solicitudes con estado <strong>Pendiente</strong>.</p>
+    }
 
     <div class="request-create-success__summary">
       <span>
@@ -823,7 +830,9 @@
       </span>
     </div>
 
-    <button type="button" (click)="closeModal()">Cerrar y ver solicitudes</button>
+    <button type="button" (click)="closeModal()">
+      {{ isAccountRegistration() ? 'Cerrar y volver al inicio de sesión' : 'Cerrar y ver solicitudes' }}
+    </button>
   </section>
   }
 </siau-modal>
