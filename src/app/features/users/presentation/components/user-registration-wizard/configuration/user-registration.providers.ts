@@ -14,11 +14,16 @@ import { UserRegistrationResetService } from '../lifecycle/user-registration-res
 import { UserRegistrationState } from '../state/user-registration.state';
 import { UserRegistrationStructureController } from '../structure/user-registration-structure.controller';
 import { UserRegistrationViewFacade } from '../view/user-registration-view.facade';
+import { UserEditLockFacade } from '../../../../edit-lock/application/user-edit-lock.facade';
+import { UserEditLockApiRepository } from '../../../../edit-lock/data-access/user-edit-lock-api.repository';
+import { UserEditLockRepository } from '../../../../edit-lock/domain/user-edit-lock.repository';
 
 /** Dependencias de alcance local al modal de registro/edición. */
 export const USER_REGISTRATION_PROVIDERS: readonly Provider[] = [
     UserRegistrationIdentityCoordinator,
     UserRegistrationState,
+    { provide: UserEditLockRepository, useClass: UserEditLockApiRepository },
+    UserEditLockFacade,
     UserRegistrationPresenter,
     UserRegistrationFieldController,
     UserRegistrationEditScopeController,

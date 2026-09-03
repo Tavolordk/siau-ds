@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import {
   RequestDocument,
   RequestRecord,
+  RequestOwnership,
   RequestStatus,
   RequestType,
   RequestUserData,
@@ -25,14 +26,14 @@ export interface CreateMockRequestInput {
 @Injectable({ providedIn: 'root' })
 export class RequestMockStore {
   readonly requests = signal<readonly RequestRecord[]>([
-    this.request('SOL-2026-001', 'Alta de usuario', 'María Fernanda López García', 'maria.lopez', 'ML', '#426094', 'SSPC', '06/05/2026 09:14', 'Alta', 'Pendiente', 4),
-    this.request('SOL-2026-002', 'Modificación de datos', 'Juan Pablo Ramírez Torres', 'juan.ramirez', 'JR', '#94426c', 'SSPC', '06/05/2026 08:32', 'Media', 'En revisión', 3),
-    this.request('SOL-2026-003', 'Cambio de rol', 'Ana Sofía Hernández Ruiz', 'ana.hernandez', 'AH', '#94427a', 'SSPC', '05/05/2026 16:45', 'Media', 'Aprobada', 5),
-    this.request('SOL-2026-004', 'Desbloqueo de cuenta', 'Luis Gerardo Méndez Ortiz', 'luis.mendez', 'LM', '#946f42', 'SSPC', '05/05/2026 14:20', 'Alta', 'Pendiente', 2),
-    this.request('SOL-2026-005', 'Alta de usuario', 'Claudia Ivonne Pérez Salazar', 'claudia.perez', 'CP', '#799442', 'SSPC', '05/05/2026 11:55', 'Alta', 'Rechazada', 3),
-    this.request('SOL-2026-006', 'Restablecimiento de contraseña', 'Diego Alejandro Vargas López', 'diego.vargas', 'DV', '#944248', 'SSPC', '04/05/2026 17:30', 'Baja', 'Aprobada', 4),
-    this.request('SOL-2026-007', 'Alta de usuario', 'Valeria Jiménez Castillo', 'valeria.jimenez', 'VJ', '#429471', 'SSPC', '04/05/2026 13:22', 'Media', 'Pendiente', 2),
-    this.request('SOL-2026-008', 'Cambio de rol', 'Roberto Luna Castillo', 'roberto.luna', 'RL', '#5f5794', 'SSPC', '03/05/2026 12:18', 'Media', 'Corrección solicitada', 2),
+    this.request('SOL-2026-001', 'Alta de usuario', 'María Fernanda López García', 'maria.lopez', 'ML', '#426094', 'SSPC', '06/05/2026 09:14', 'Alta', 'Pendiente', 4, 'mine'),
+    this.request('SOL-2026-002', 'Modificación de datos', 'Juan Pablo Ramírez Torres', 'juan.ramirez', 'JR', '#94426c', 'SSPC', '06/05/2026 08:32', 'Media', 'En revisión', 3, 'others'),
+    this.request('SOL-2026-003', 'Cambio de rol', 'Ana Sofía Hernández Ruiz', 'ana.hernandez', 'AH', '#94427a', 'SSPC', '05/05/2026 16:45', 'Media', 'Aprobada', 5, 'mine'),
+    this.request('SOL-2026-004', 'Desbloqueo de cuenta', 'Luis Gerardo Méndez Ortiz', 'luis.mendez', 'LM', '#946f42', 'SSPC', '05/05/2026 14:20', 'Alta', 'Pendiente', 2, 'others'),
+    this.request('SOL-2026-005', 'Alta de usuario', 'Claudia Ivonne Pérez Salazar', 'claudia.perez', 'CP', '#799442', 'SSPC', '05/05/2026 11:55', 'Alta', 'Rechazada', 3, 'others'),
+    this.request('SOL-2026-006', 'Restablecimiento de contraseña', 'Diego Alejandro Vargas López', 'diego.vargas', 'DV', '#944248', 'SSPC', '04/05/2026 17:30', 'Baja', 'Aprobada', 4, 'mine'),
+    this.request('SOL-2026-007', 'Alta de usuario', 'Valeria Jiménez Castillo', 'valeria.jimenez', 'VJ', '#429471', 'SSPC', '04/05/2026 13:22', 'Media', 'Pendiente', 2, 'others'),
+    this.request('SOL-2026-008', 'Cambio de rol', 'Roberto Luna Castillo', 'roberto.luna', 'RL', '#5f5794', 'SSPC', '03/05/2026 12:18', 'Media', 'Corrección solicitada', 2, 'mine'),
   ]);
 
   create(input: CreateMockRequestInput): RequestRecord {
@@ -62,6 +63,7 @@ export class RequestMockStore {
       createdAt,
       priority: input.priority,
       status: 'Pendiente',
+      ownership: 'mine',
       profiles: input.profiles,
       documents: input.documents,
       userData: input.userData,
@@ -69,6 +71,11 @@ export class RequestMockStore {
 
     this.requests.update((current) => [record, ...current]);
     return record;
+  }
+
+  findByFolio(folio: string): RequestRecord | null {
+    const normalized = folio.trim().toUpperCase();
+    return this.requests().find((request) => request.folio.toUpperCase() === normalized) ?? null;
   }
 
   updateDocuments(folio: string, documents: readonly RequestDocument[]): void {
@@ -113,6 +120,7 @@ export class RequestMockStore {
     priority: 'Alta' | 'Media' | 'Baja',
     status: RequestStatus,
     documentCount: number,
+    ownership: RequestOwnership,
   ): RequestRecord {
     const sampleNames = [
       ['Identificación oficial.pdf', 'application/pdf', 1_250_000],
@@ -187,6 +195,7 @@ export class RequestMockStore {
       createdAt,
       priority,
       status,
+      ownership,
       profiles,
       documents,
       userData,

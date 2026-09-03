@@ -119,7 +119,7 @@ export class RequestModal implements OnDestroy {
     return this.sanitizer.bypassSecurityTrustResourceUrl(document.objectUrl);
   });
 
-  protected readonly steps: readonly StepDefinition[] = [
+  private readonly allSteps: readonly StepDefinition[] = [
     { id: 'personal-data', label: 'Datos Personales', helper: 'Identidad oficial', icon: 'user' },
     { id: 'assignment', label: 'Adscripción', helper: 'Centro de trabajo', icon: 'building-2' },
     { id: 'commission', label: 'Comisión', helper: 'Si aplica', icon: 'briefcase' },
@@ -128,6 +128,12 @@ export class RequestModal implements OnDestroy {
     { id: 'documents', label: 'Documentos', helper: 'Expediente y vista previa', icon: 'file-text' },
     { id: 'review', label: 'Revisión', helper: 'Motivo y resolución', icon: 'circle-check' },
   ];
+
+  protected readonly visibleSteps = computed<readonly StepDefinition[]>(() =>
+    this.isAccountRegistration()
+      ? this.allSteps.filter((step) => step.id !== 'review')
+      : this.allSteps,
+  );
 
   protected readonly typeOptions: readonly RequestType[] = [
     'Alta de usuario',
@@ -226,7 +232,7 @@ export class RequestModal implements OnDestroy {
         : 'El expediente quedó registrado correctamente';
     }
     return this.isAccountRegistration()
-      ? 'Completa tus datos, adjunta los documentos y explica el motivo para solicitar tu cuenta'
+      ? 'Completa tus datos y adjunta los documentos necesarios para solicitar tu cuenta'
       : 'Mismos datos del registro de Usuario, más documentos, motivo y flujo de revisión';
   }
 
@@ -254,11 +260,11 @@ export class RequestModal implements OnDestroy {
   }
 
   protected stepIndex(stepId = this.activeStep()): number {
-    return this.steps.findIndex((step) => step.id === stepId);
+    return this.visibleSteps().findIndex((step) => step.id === stepId);
   }
 
   protected progressPercent(): number {
-    return Math.round(((this.stepIndex() + 1) / this.steps.length) * 100);
+    return Math.round(((this.stepIndex() + 1) / this.visibleSteps().length) * 100);
   }
 
   protected sectionNumber(): string {
@@ -281,19 +287,25 @@ export class RequestModal implements OnDestroy {
       }
     }
 
+    const steps = this.visibleSteps();
     const index = this.stepIndex();
-    if (index < this.steps.length - 1) {
-      this.activeStep.set(this.steps[index + 1].id);
+    if (index < steps.length - 1) {
+      this.activeStep.set(steps[index + 1].id);
       this.feedback.set(null);
     }
   }
 
   protected previousStep(): void {
+    const steps = this.visibleSteps();
     const index = this.stepIndex();
     if (index > 0) {
-      this.activeStep.set(this.steps[index - 1].id);
+      this.activeStep.set(steps[index - 1].id);
       this.feedback.set(null);
     }
+  }
+
+  protected isLastVisibleStep(): boolean {
+    return this.stepIndex() === this.visibleSteps().length - 1;
   }
 
   protected showDrafts(): void {
@@ -370,7 +382,7 @@ export class RequestModal implements OnDestroy {
 
   protected draftProgress(draft: RequestDraft): number {
     const normalized = this.normalizeStep(draft.activeStep);
-    const index = this.steps.findIndex((step) => step.id === normalized);
+    const index = this.visibleSteps().findIndex((step) => step.id === normalized);
     return Math.max(1, index + 1);
   }
 
@@ -606,7 +618,7 @@ export class RequestModal implements OnDestroy {
       priority: 'Media',
       profiles: this.userData.profiles,
       documents: this.documents(),
-      description: this.requestReason,
+      description: this.requestReason.trim() || (this.isAccountRegistration() ? 'Solicitud de creación de cuenta.' : ''),
       userData: this.cloneUserData(this.userData),
     });
 
@@ -698,9 +710,9 @@ export class RequestModal implements OnDestroy {
   }
 
   private validateForm(): { readonly step: CurrentRequestStepId; readonly message: string } | null {
-    const requiredSteps: readonly CurrentRequestStepId[] = [
-      'personal-data', 'assignment', 'commission', 'contact', 'profiles', 'review',
-    ];
+    const requiredSteps: readonly CurrentRequestStepId[] = this.isAccountRegistration()
+      ? ['personal-data', 'assignment', 'commission', 'contact', 'profiles']
+      : ['personal-data', 'assignment', 'commission', 'contact', 'profiles', 'review'];
     for (const step of requiredSteps) {
       const message = this.validateStep(step);
       if (message) return { step, message };
@@ -794,6 +806,7 @@ export class RequestModal implements OnDestroy {
   private normalizeStep(step: RequestCreationStepId): CurrentRequestStepId {
     if (step === 'requester') return 'personal-data';
     if (step === 'request') return 'assignment';
+    if (this.isAccountRegistration() && step === 'review') return 'documents';
     return step;
   }
 

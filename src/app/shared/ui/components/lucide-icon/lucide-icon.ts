@@ -76,6 +76,10 @@ const ICON_ALIASES: Record<string, string> = {
   // Aliases seguros para solicitudes
   funnel_filter: 'funnel',
   request_filter: 'funnel',
+  'user-round': 'user',
+  'rotate-ccw': 'refresh-cw',
+  'loader-circle': 'refresh-cw',
+  'search-x': 'search',
 };
 
 const LUCIDE_ICONS: Record<string, string> = {

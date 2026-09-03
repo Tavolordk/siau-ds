@@ -14,6 +14,8 @@ export type RequestStatus =
 
 export type RequestPriority = 'Alta' | 'Media' | 'Baja';
 
+export type RequestOwnership = 'mine' | 'others';
+
 export type RequestDocumentMimeType = 'application/pdf' | 'image/jpeg' | 'image/png';
 
 export interface RequestDocument {
@@ -81,6 +83,7 @@ export interface RequestRecord {
   readonly createdAt: string;
   readonly priority: RequestPriority;
   readonly status: RequestStatus;
+  readonly ownership: RequestOwnership;
   readonly profiles?: readonly string[];
   readonly documents?: readonly RequestDocument[];
   readonly userData?: RequestUserData;

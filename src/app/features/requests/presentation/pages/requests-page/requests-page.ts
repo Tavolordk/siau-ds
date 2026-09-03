@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { finalize, take } from 'rxjs';
 import {
   RequestDocument,
+  RequestOwnership,
   RequestRecord,
   RequestStatus,
   RequestType,
@@ -20,6 +21,7 @@ import type { RequestModalInitialView } from '../../components/request-modal/req
 type StatusTone = 'pending' | 'review' | 'correction' | 'approved' | 'rejected';
 type RequestTypeTone = 'primary' | 'info' | 'blue' | 'warning' | 'muted';
 type RequestStatusFilter = RequestStatus | 'Todos';
+type RequestListScope = RequestOwnership;
 
 @Component({
   selector: 'app-requests-page',
@@ -34,6 +36,7 @@ export class RequestsPage {
   private readonly mockStore = inject(RequestMockStore);
 
   protected readonly searchTerm = signal('');
+  protected readonly activeList = signal<RequestListScope>('mine');
   protected readonly selectedStatus = signal<RequestStatusFilter>('Todos');
   protected readonly statusFilterOpen = signal(false);
   protected readonly selectedRequest = signal<RequestRecord | null>(null);
@@ -54,11 +57,22 @@ export class RequestsPage {
 
   protected readonly requests = this.mockStore.requests;
 
+  protected readonly scopedRequests = computed(() =>
+    this.requests().filter((request) => request.ownership === this.activeList()),
+  );
+
+  protected readonly mineRequestsCount = computed(() =>
+    this.requests().filter((request) => request.ownership === 'mine').length,
+  );
+  protected readonly otherRequestsCount = computed(() =>
+    this.requests().filter((request) => request.ownership === 'others').length,
+  );
+
   protected readonly filteredRequests = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
     const status = this.selectedStatus();
 
-    return this.requests().filter((request) => {
+    return this.scopedRequests().filter((request) => {
       const matchesStatus = status === 'Todos' || request.status === status;
       const searchable = `${request.folio} ${request.applicant} ${request.applicantUsername} ${request.institution} ${request.type}`.toLowerCase();
       return matchesStatus && (!term || searchable.includes(term));
@@ -71,6 +85,15 @@ export class RequestsPage {
   );
   protected readonly approvedRequests = computed(() => this.countByStatus('Aprobada'));
   protected readonly rejectedRequests = computed(() => this.countByStatus('Rechazada'));
+
+
+  protected selectList(scope: RequestListScope): void {
+    if (this.activeList() === scope) return;
+    this.activeList.set(scope);
+    this.searchTerm.set('');
+    this.selectedStatus.set('Todos');
+    this.statusFilterOpen.set(false);
+  }
 
   protected openNewRequest(): void {
     this.selectedRequest.set(null);
@@ -186,6 +209,6 @@ export class RequestsPage {
   }
 
   private countByStatus(status: RequestStatus): number {
-    return this.requests().filter((request) => request.status === status).length;
+    return this.scopedRequests().filter((request) => request.status === status).length;
   }
 }

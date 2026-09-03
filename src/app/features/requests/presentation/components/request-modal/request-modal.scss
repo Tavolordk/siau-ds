@@ -2073,3 +2073,416 @@
     width: 100%;
   }
 }
+
+/* =========================================================
+   LOGIN / SOLICITUD DE NUEVA CUENTA
+   Paleta alineada al login: azul marino + dorado institucional.
+   El violeta se reserva únicamente para la acción primaria.
+========================================================= */
+.request-creation-wizard--account-registration {
+  --account-surface: rgba(7, 15, 32, 0.88);
+  --account-surface-soft: rgba(12, 25, 48, 0.78);
+  --account-surface-elevated: rgba(22, 36, 61, 0.66);
+  --account-field: rgba(27, 42, 68, 0.78);
+  --account-border: rgba(190, 201, 220, 0.24);
+  --account-border-soft: rgba(190, 201, 220, 0.14);
+  --account-text: #f6f7fa;
+  --account-muted: rgba(226, 231, 239, 0.74);
+  --account-subtle: rgba(196, 205, 220, 0.62);
+  --account-gold: #d8b566;
+  --account-gold-strong: #e8c97c;
+  --account-primary: #4d45a9;
+  --account-primary-strong: #3d378d;
+
+  background:
+    radial-gradient(circle at 76% 12%, rgba(216, 181, 102, 0.055), transparent 34%),
+    linear-gradient(145deg, rgba(12, 24, 47, 0.92), rgba(6, 13, 29, 0.9));
+  color: var(--account-text);
+  backdrop-filter: blur(16px) saturate(108%);
+  -webkit-backdrop-filter: blur(16px) saturate(108%);
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__sidebar {
+  background: linear-gradient(180deg, rgba(14, 29, 54, 0.92), rgba(8, 18, 37, 0.9));
+  border-right-color: var(--account-border-soft);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__sidebar-title {
+  color: rgba(231, 218, 188, 0.72);
+}
+
+.request-creation-wizard--account-registration .request-create-step__copy small,
+.request-creation-wizard--account-registration .request-creation-wizard__progress-copy,
+.request-creation-wizard--account-registration .request-section__header p,
+.request-creation-wizard--account-registration .request-field > small,
+.request-creation-wizard--account-registration .request-document-dropzone small,
+.request-creation-wizard--account-registration .request-documents-empty span,
+.request-creation-wizard--account-registration .request-document-row__copy small,
+.request-creation-wizard--account-registration .request-document-viewer__identity small,
+.request-creation-wizard--account-registration .profiles-preview__empty,
+.request-creation-wizard--account-registration .request-toggle-card small {
+  color: var(--account-muted);
+}
+
+.request-creation-wizard--account-registration .request-create-step {
+  color: rgba(246, 248, 252, 0.84);
+}
+
+.request-creation-wizard--account-registration .request-create-step:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.request-creation-wizard--account-registration .request-create-step--active {
+  border-color: rgba(216, 181, 102, 0.58);
+  background: linear-gradient(90deg, rgba(216, 181, 102, 0.12), rgba(216, 181, 102, 0.035));
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.request-creation-wizard--account-registration .request-create-step--active::before {
+  background: var(--account-gold);
+}
+
+.request-creation-wizard--account-registration .request-create-step__icon,
+.request-creation-wizard--account-registration .request-drafts-button__icon {
+  border: 1px solid var(--account-border-soft);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(245, 247, 251, 0.82);
+}
+
+.request-creation-wizard--account-registration .request-create-step--active .request-create-step__icon {
+  border-color: rgba(216, 181, 102, 0.62);
+  background: rgba(216, 181, 102, 0.08);
+  color: var(--account-gold-strong);
+  box-shadow: none;
+}
+
+.request-creation-wizard--account-registration .request-create-step__check {
+  background: rgba(247, 248, 250, 0.92);
+  color: #25314a;
+}
+
+.request-creation-wizard--account-registration .request-drafts-button,
+.request-creation-wizard--account-registration .request-creation-wizard__progress {
+  border-color: var(--account-border-soft);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--account-text);
+}
+
+.request-creation-wizard--account-registration .request-drafts-button:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(216, 181, 102, 0.3);
+}
+
+.request-creation-wizard--account-registration .request-drafts-button__icon {
+  color: var(--account-gold);
+}
+
+.request-creation-wizard--account-registration .request-drafts-button small {
+  color: var(--account-muted);
+}
+
+.request-creation-wizard--account-registration .request-drafts-button__count {
+  background: rgba(216, 181, 102, 0.1);
+  color: var(--account-gold-strong);
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__progress-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__progress-track span {
+  background: linear-gradient(90deg, #cda85a, #e5c579);
+  box-shadow: none;
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__main,
+.request-creation-wizard--account-registration .request-creation-wizard__content {
+  background: linear-gradient(180deg, rgba(10, 22, 43, 0.76), rgba(6, 14, 30, 0.76));
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__content {
+  scrollbar-color: rgba(196, 205, 220, 0.46) rgba(255, 255, 255, 0.025);
+}
+
+.request-creation-wizard--account-registration .request-section__header {
+  border-bottom-color: var(--account-border-soft);
+}
+
+.request-creation-wizard--account-registration .request-section__eyebrow {
+  color: var(--account-gold-strong);
+}
+
+.request-creation-wizard--account-registration .request-section__header h3,
+.request-creation-wizard--account-registration .request-field > span,
+.request-creation-wizard--account-registration .request-document-dropzone strong,
+.request-creation-wizard--account-registration .request-documents-empty strong,
+.request-creation-wizard--account-registration .request-document-row__copy strong,
+.request-creation-wizard--account-registration .request-document-viewer__identity strong,
+.request-creation-wizard--account-registration .request-document-viewer__placeholder strong,
+.request-creation-wizard--account-registration .request-document-viewer__unavailable strong,
+.request-creation-wizard--account-registration .profiles-preview__label,
+.request-creation-wizard--account-registration .request-toggle-card strong {
+  color: var(--account-text);
+}
+
+.request-creation-wizard--account-registration .request-field > span strong {
+  color: var(--account-gold-strong);
+}
+
+.request-creation-wizard--account-registration .documents-counter {
+  border: 1px solid var(--account-border-soft);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--account-muted);
+}
+
+.request-creation-wizard--account-registration .request-field input,
+.request-creation-wizard--account-registration .request-field select,
+.request-creation-wizard--account-registration .request-field textarea {
+  border-color: var(--account-border);
+  background: var(--account-field);
+  color: #ffffff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.request-creation-wizard--account-registration .request-field input:hover,
+.request-creation-wizard--account-registration .request-field select:hover,
+.request-creation-wizard--account-registration .request-field textarea:hover {
+  border-color: rgba(216, 181, 102, 0.34);
+  background: rgba(32, 48, 76, 0.82);
+}
+
+.request-creation-wizard--account-registration .request-field input::placeholder,
+.request-creation-wizard--account-registration .request-field textarea::placeholder {
+  color: rgba(218, 224, 235, 0.58);
+}
+
+.request-creation-wizard--account-registration .request-field select option {
+  background: #111e35;
+  color: #ffffff;
+}
+
+.request-creation-wizard--account-registration .request-field input:focus,
+.request-creation-wizard--account-registration .request-field select:focus,
+.request-creation-wizard--account-registration .request-field textarea:focus {
+  border-color: rgba(232, 201, 124, 0.88);
+  background: rgba(32, 48, 76, 0.9);
+  box-shadow: 0 0 0 3px rgba(216, 181, 102, 0.1);
+}
+
+.request-creation-wizard--account-registration .request-toggle-card,
+.request-creation-wizard--account-registration .request-profile-builder,
+.request-creation-wizard--account-registration .profiles-preview,
+.request-creation-wizard--account-registration .request-document-dropzone,
+.request-creation-wizard--account-registration .request-documents-list,
+.request-creation-wizard--account-registration .request-document-row,
+.request-creation-wizard--account-registration .request-document-viewer,
+.request-creation-wizard--account-registration .request-create-draft-banner,
+.request-creation-wizard--account-registration .request-create-feedback {
+  border-color: var(--account-border);
+  background: var(--account-surface-elevated);
+  color: var(--account-text);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.request-creation-wizard--account-registration .request-document-dropzone {
+  border-style: dashed;
+  background: rgba(15, 29, 53, 0.5);
+}
+
+.request-creation-wizard--account-registration .request-document-dropzone:hover {
+  border-color: rgba(216, 181, 102, 0.58);
+  background: rgba(22, 37, 63, 0.58);
+}
+
+.request-creation-wizard--account-registration .request-document-dropzone__icon,
+.request-creation-wizard--account-registration .request-document-viewer__placeholder-icon,
+.request-creation-wizard--account-registration .request-document-viewer__unavailable-icon {
+  border: 1px solid rgba(216, 181, 102, 0.28);
+  background: rgba(216, 181, 102, 0.07);
+  color: var(--account-gold);
+  box-shadow: none;
+}
+
+.request-creation-wizard--account-registration .request-documents-empty {
+  border-color: rgba(190, 201, 220, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(218, 225, 236, 0.72);
+}
+
+.request-creation-wizard--account-registration .request-documents-empty > siau-lucide-icon {
+  color: rgba(211, 220, 234, 0.78);
+}
+
+.request-creation-wizard--account-registration .request-document-viewer {
+  background: linear-gradient(145deg, rgba(17, 31, 57, 0.7), rgba(9, 20, 40, 0.68));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.request-creation-wizard--account-registration .request-document-viewer__header,
+.request-creation-wizard--account-registration .request-document-viewer__footer {
+  border-color: var(--account-border-soft);
+  background: rgba(14, 28, 52, 0.78);
+}
+
+.request-creation-wizard--account-registration .request-document-viewer__canvas {
+  background:
+    linear-gradient(rgba(205, 217, 240, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(205, 217, 240, 0.02) 1px, transparent 1px),
+    rgba(8, 18, 36, 0.58);
+  background-size: 18px 18px;
+}
+
+.request-creation-wizard--account-registration .request-document-viewer__placeholder,
+.request-creation-wizard--account-registration .request-document-viewer__unavailable,
+.request-creation-wizard--account-registration .request-document-viewer__placeholder p,
+.request-creation-wizard--account-registration .request-document-viewer__unavailable p,
+.request-creation-wizard--account-registration .request-document-viewer__footer,
+.request-creation-wizard--account-registration .request-document-viewer__footer > span {
+  color: var(--account-muted);
+}
+
+.request-creation-wizard--account-registration .request-document-row--selected,
+.request-creation-wizard--account-registration .request-toggle-card--active {
+  border-color: rgba(216, 181, 102, 0.58);
+  background: rgba(216, 181, 102, 0.075);
+  box-shadow: 0 0 0 2px rgba(216, 181, 102, 0.035);
+}
+
+.request-creation-wizard--account-registration .request-document-row__type,
+.request-creation-wizard--account-registration .request-document-viewer__badge,
+.request-creation-wizard--account-registration .profile-chip {
+  border-color: rgba(216, 181, 102, 0.28);
+  background: rgba(216, 181, 102, 0.075);
+  color: #f1d99d;
+}
+
+.request-creation-wizard--account-registration .profile-chip__remove {
+  background: rgba(255, 255, 255, 0.055);
+  color: #f5f7fb;
+}
+
+.request-creation-wizard--account-registration .request-profile-builder__add,
+.request-creation-wizard--account-registration .request-document-viewer__tools button,
+.request-creation-wizard--account-registration .request-document-viewer__footer button,
+.request-creation-wizard--account-registration .request-document-row__actions button {
+  border-color: var(--account-border-soft);
+  background: rgba(255, 255, 255, 0.045);
+  color: #f5f7fb;
+}
+
+.request-creation-wizard--account-registration .request-profile-builder__add:hover,
+.request-creation-wizard--account-registration .request-document-viewer__tools button:hover:not(:disabled),
+.request-creation-wizard--account-registration .request-document-viewer__footer button:hover:not(:disabled),
+.request-creation-wizard--account-registration .request-document-row__actions button:hover:not(:disabled),
+.request-creation-wizard--account-registration .request-document-row__action--active {
+  border-color: rgba(216, 181, 102, 0.46);
+  background: rgba(216, 181, 102, 0.08) !important;
+  color: var(--account-gold-strong) !important;
+}
+
+.request-creation-wizard--account-registration .request-document-row__actions .request-document-row__delete {
+  color: #eaa0ae;
+  background: rgba(194, 79, 102, 0.09);
+}
+
+.request-creation-wizard--account-registration .request-creation-wizard__footer {
+  border-top-color: var(--account-border-soft);
+  background: rgba(7, 15, 31, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.request-creation-wizard--account-registration .request-footer-button--draft,
+.request-creation-wizard--account-registration .request-footer-button--secondary {
+  border-color: var(--account-border);
+  background: rgba(255, 255, 255, 0.035);
+  color: #f5f7fa;
+}
+
+.request-creation-wizard--account-registration .request-footer-button--draft:hover,
+.request-creation-wizard--account-registration .request-footer-button--secondary:hover {
+  border-color: rgba(216, 181, 102, 0.38);
+  background: rgba(216, 181, 102, 0.05);
+}
+
+.request-creation-wizard--account-registration .request-footer-button--primary,
+.request-creation-wizard--account-registration .request-footer-button--submit {
+  border: 1px solid rgba(148, 140, 224, 0.34);
+  background: linear-gradient(145deg, var(--account-primary), var(--account-primary-strong));
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(28, 24, 94, 0.2);
+}
+
+.request-drafts-view--account-registration,
+.request-create-success--account-registration {
+  background:
+    radial-gradient(circle at 76% 10%, rgba(216, 181, 102, 0.05), transparent 35%),
+    linear-gradient(145deg, rgba(12, 24, 47, 0.94), rgba(6, 13, 29, 0.92));
+  color: #ffffff;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.request-drafts-view--account-registration .request-drafts-view__toolbar {
+  border-bottom-color: rgba(190, 201, 220, 0.14);
+  background: rgba(10, 22, 43, 0.82);
+}
+
+.request-drafts-view--account-registration .request-drafts-view__back,
+.request-drafts-view--account-registration .request-draft-card,
+.request-drafts-view--account-registration .request-drafts-empty,
+.request-create-success--account-registration .request-create-success__summary {
+  border-color: rgba(190, 201, 220, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+}
+
+.request-drafts-view--account-registration .request-drafts-view__new,
+.request-create-success--account-registration > button {
+  border: 1px solid rgba(148, 140, 224, 0.3);
+  background: linear-gradient(145deg, #4d45a9, #3d378d);
+  color: #ffffff;
+}
+
+.request-drafts-view--account-registration .request-drafts-view__intro h3,
+.request-drafts-view--account-registration .request-draft-card__copy strong,
+.request-drafts-view--account-registration .request-drafts-empty h3,
+.request-create-success--account-registration h3,
+.request-create-success--account-registration > p,
+.request-create-success--account-registration .request-create-success__summary strong {
+  color: #ffffff;
+}
+
+.request-drafts-view--account-registration .request-drafts-view__intro p,
+.request-drafts-view--account-registration .request-draft-card__copy small,
+.request-drafts-view--account-registration .request-draft-card__meta,
+.request-drafts-view--account-registration .request-drafts-empty p,
+.request-create-success--account-registration .request-create-success__summary small {
+  color: rgba(226, 231, 239, 0.72);
+}
+
+/* Mensajes informativos del alta de cuenta: contraste sobre tema oscuro. */
+.request-creation-wizard--account-registration .request-review-notice {
+  border-color: rgba(216, 181, 102, 0.22);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(238, 242, 248, 0.88);
+}
+
+.request-creation-wizard--account-registration .request-review-notice > siau-lucide-icon {
+  color: var(--account-gold-strong);
+  flex: 0 0 auto;
+  opacity: 0.96;
+}
+
+.request-creation-wizard--account-registration .request-review-notice > span {
+  color: rgba(238, 242, 248, 0.88);
+}
+
+.request-creation-wizard--account-registration .request-review-notice strong {
+  color: #ffffff;
+  font-weight: 650;
+}

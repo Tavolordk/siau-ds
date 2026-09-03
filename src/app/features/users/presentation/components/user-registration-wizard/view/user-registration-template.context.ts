@@ -11,6 +11,7 @@ import {
 import { UserRegistrationPresenter } from './user-registration.presenter';
 import { UserRegistrationState } from '../state/user-registration.state';
 import { UserRegistrationViewFacade } from './user-registration-view.facade';
+import { UserEditLockFacade } from '../../../../edit-lock/application/user-edit-lock.facade';
 
 /**
  * Contexto común para los fragmentos visuales del wizard.
@@ -23,6 +24,14 @@ export abstract class UserRegistrationTemplateContext {
     protected readonly state = inject(UserRegistrationState);
     protected readonly presenter = inject(UserRegistrationPresenter);
     protected readonly view = inject(UserRegistrationViewFacade);
+    protected readonly editLock = inject(UserEditLockFacade);
+
+    protected readonly editLockStatus = this.editLock.status;
+    protected readonly editLockMessage = this.editLock.message;
+    protected readonly editLockCurrent = this.editLock.current;
+    protected readonly editLockBusy = this.editLock.busy;
+    protected readonly editLockBlocked = this.editLock.blocked;
+    protected readonly editLockOwnerName = this.editLock.ownerName;
 
     protected readonly readonlyMode = this.state.readonlyMode;
     protected readonly activeStepId = this.state.activeStepId;
@@ -152,7 +161,7 @@ export abstract class UserRegistrationTemplateContext {
     protected previousProfile(origin: ProfileOrigin): void { this.view.previousProfile(origin); }
     protected nextProfile(origin: ProfileOrigin): void { this.view.nextProfile(origin); }
     protected getProfileCarouselIndex(origin: ProfileOrigin): number { return this.view.getProfileCarouselIndex(origin); }
-    protected enableEditing(): void { this.view.enableEditing(this.readonlyMode()); }
+    protected enableEditing(): void { void this.view.enableEditing(this.readonlyMode()); }
     protected goToStep(stepId: string): void { this.view.goToStep(stepId); }
     protected nextStep(): void { this.view.nextStep(); }
     protected previousStep(): void { this.view.previousStep(); }

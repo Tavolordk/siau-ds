@@ -1,0 +1,110 @@
+:host { display: contents; }
+
+.request-status-modal {
+  min-height: 390px;
+  padding: 22px;
+  overflow: auto;
+  background: linear-gradient(180deg, #11182f 0%, #0b1125 100%);
+  color: #fff;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+}
+
+.request-status-modal__search {
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.055);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.request-status-modal__search > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,.86);
+}
+
+.request-status-modal__search-row { display: grid; grid-template-columns: minmax(0,1fr) 140px; gap: 10px; }
+.request-status-modal__input-wrap { position: relative; }
+.request-status-modal__input-wrap siau-lucide-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #dfe7f2; }
+
+.request-status-modal__input-wrap input {
+  width: 100%;
+  min-height: 43px;
+  box-sizing: border-box;
+  padding: 0 14px 0 40px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(153,168,190,.26);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.request-status-modal__input-wrap input::placeholder { color: rgba(231,241,243,.62); }
+.request-status-modal__input-wrap input:focus { border-color: rgba(166,164,255,.9); box-shadow: 0 0 0 3px rgba(127,124,242,.15); }
+
+.request-status-modal__search-row button {
+  min-height: 43px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 10px;
+  background: #1b1f4a;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+}
+.request-status-modal__search-row button:disabled { opacity: .48; cursor: not-allowed; }
+.request-status-modal__search > small { display: block; margin-top: 9px; color: rgba(255,255,255,.55); font-size: 10px; }
+.request-status-modal__search > small strong { color: rgba(255,255,255,.78); }
+
+.request-status-result { margin-top: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,.15); border-radius: 14px; background: rgba(255,255,255,.055); }
+.request-status-result__header { padding: 15px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.request-status-result__header > div { display: grid; gap: 2px; }
+.request-status-result__header > div span { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.52); }
+.request-status-result__header > div strong { font-size: 16px; color: #fff; }
+
+.request-status-badge { padding: 5px 10px; border-radius: 999px; border: 1px solid currentColor; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.request-status-badge--pending { color: #d7ddea; background: rgba(215,221,234,.08); }
+.request-status-badge--review { color: #f8c94f; background: rgba(248,201,79,.11); }
+.request-status-badge--correction { color: #f6a84a; background: rgba(246,168,74,.11); }
+.request-status-badge--approved { color: #70d58a; background: rgba(112,213,138,.1); }
+.request-status-badge--rejected { color: #ff8585; background: rgba(255,133,133,.1); }
+
+.request-status-result__body { display: grid; grid-template-columns: 1.15fr .85fr; gap: 20px; padding: 16px; }
+.request-status-result__data { margin: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.request-status-result__data div { min-width: 0; }
+.request-status-result__data dt { margin-bottom: 3px; color: rgba(255,255,255,.5); font-size: 10px; }
+.request-status-result__data dd { margin: 0; color: #fff; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+
+.request-status-history { padding-left: 18px; border-left: 1px solid rgba(255,255,255,.12); }
+.request-status-history__title { font-size: 11px; font-weight: 800; color: rgba(255,255,255,.8); }
+.request-status-history ol { margin: 10px 0 0; padding: 0; list-style: none; }
+.request-status-history li { position: relative; display: grid; grid-template-columns: 14px 1fr; gap: 8px; min-height: 47px; }
+.request-status-history li:not(:last-child)::after { content: ''; position: absolute; left: 5px; top: 13px; bottom: -1px; width: 1px; background: rgba(255,255,255,.16); }
+.request-status-history__dot { position: relative; z-index: 1; width: 11px; height: 11px; margin-top: 2px; border-radius: 50%; background: #6d6ae3; box-shadow: 0 0 0 3px rgba(109,106,227,.18); }
+.request-status-history__item--current .request-status-history__dot { background: #f8c94f; box-shadow: 0 0 0 3px rgba(248,201,79,.14); }
+.request-status-history li div { display: grid; gap: 2px; }
+.request-status-history li small { color: rgba(255,255,255,.45); font-size: 9px; }
+.request-status-history li strong { color: rgba(255,255,255,.85); font-size: 11px; }
+
+.request-status-result__notice { padding: 11px 14px; display: flex; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,.1); background: rgba(153,168,190,.12); color: rgba(255,255,255,.72); font-size: 11px; }
+
+.request-status-placeholder, .request-status-empty { margin-top: 16px; min-height: 118px; border: 1px dashed rgba(255,255,255,.16); border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 12px; color: rgba(255,255,255,.72); text-align: left; }
+.request-status-placeholder > span, .request-status-empty > span { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(255,255,255,.08); color: #aaa8ff; }
+.request-status-placeholder > div, .request-status-empty > div { display: grid; gap: 3px; }
+.request-status-placeholder strong, .request-status-empty strong { color: #fff; font-size: 12px; }
+.request-status-placeholder small, .request-status-empty small { color: rgba(255,255,255,.5); font-size: 10px; }
+
+@media (max-width: 680px) {
+  .request-status-modal { padding: 14px; }
+  .request-status-modal__search-row, .request-status-result__body { grid-template-columns: 1fr; }
+  .request-status-history { padding: 14px 0 0; border-left: 0; border-top: 1px solid rgba(255,255,255,.12); }
+}

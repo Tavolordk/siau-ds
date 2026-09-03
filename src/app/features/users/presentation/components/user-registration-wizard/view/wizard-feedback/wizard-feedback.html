@@ -62,23 +62,66 @@
 
             @if (isEditMode()) {
             <div class="registration-wizard__edit-bar"
-                [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode()">
+                [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode() && editLockStatus() === 'owned'"
+                [class.registration-wizard__edit-bar--blocked]="editLockStatus() === 'blocked'"
+                [class.registration-wizard__edit-bar--error]="editLockStatus() === 'lost' || editLockStatus() === 'error'">
                 <div class="registration-wizard__edit-bar-text">
-                    <strong>{{ readonlyMode() ? getReadonlyModeTitle() : (editEnabled() ? 'Edición habilitada' :
-                        'Vista de usuario') }}</strong>
+                    <strong>
+                        @if (readonlyMode()) {
+                        {{ getReadonlyModeTitle() }}
+                        } @else if (editLockStatus() === 'checking') {
+                        Validando disponibilidad
+                        } @else if (editLockStatus() === 'acquiring') {
+                        Solicitando bloqueo
+                        } @else if (editLockStatus() === 'blocked') {
+                        Edición en uso
+                        } @else if (editLockStatus() === 'lost') {
+                        Se perdió el bloqueo
+                        } @else if (editLockStatus() === 'error') {
+                        Edición no disponible
+                        } @else if (editEnabled() && editLockStatus() === 'owned') {
+                        Edición habilitada
+                        } @else {
+                        Vista de usuario
+                        }
+                    </strong>
                     <span>
-                        {{ readonlyMode()
-                        ? getReadonlyModeDescription()
-                        : (editEnabled() ? 'Puedes modificar los campos del usuario.' : 'Los campos están bloqueados.
-                        Presiona Editar para modificarlos.') }}
+                        @if (readonlyMode()) {
+                        {{ getReadonlyModeDescription() }}
+                        } @else if (editLockMessage()) {
+                        {{ editLockMessage() }}
+                        } @else {
+                        Los campos están bloqueados. Presiona Editar para obtener acceso exclusivo antes de modificarlos.
+                        }
                     </span>
+                    @if (editLockStatus() === 'blocked' && editLockCurrent(); as lock) {
+                    <small class="registration-wizard__edit-lock-owner">
+                        <siau-lucide-icon name="user-round" size="12" strokeWidth="2" aria-hidden="true" />
+                        En edición por <strong>{{ lock.bloqueadoPorNombre || 'otro administrador' }}</strong>
+                    </small>
+                    }
+                    @if (editLockStatus() === 'owned') {
+                    <small class="registration-wizard__edit-lock-owner registration-wizard__edit-lock-owner--owned">
+                        <siau-lucide-icon name="shield-check" size="12" strokeWidth="2" aria-hidden="true" />
+                        Bloqueo activo · heartbeat automático cada 30 segundos
+                    </small>
+                    }
                 </div>
 
                 <button type="button" class="registration-wizard__edit-button"
-                    [disabled]="readonlyMode() || editEnabled()" (click)="enableEditing()">
-                    <siau-lucide-icon [name]="readonlyMode() ? 'lock' : 'pencil'" size="14" strokeWidth="2"
-                        aria-hidden="true" />
-                    {{ readonlyMode() ? 'Solo consulta' : (editEnabled() ? 'Editando' : 'Editar') }}
+                    [disabled]="readonlyMode() || editEnabled() || editLockBusy()" (click)="enableEditing()">
+                    <siau-lucide-icon
+                        [name]="readonlyMode() ? 'lock' : (editLockBusy() ? 'loader-circle' : (editLockBlocked() ? 'rotate-ccw' : 'pencil'))"
+                        size="14" strokeWidth="2" aria-hidden="true" />
+                    {{ readonlyMode()
+                        ? 'Solo consulta'
+                        : (editEnabled()
+                            ? 'Editando'
+                            : (editLockBusy()
+                                ? 'Validando...'
+                                : (editLockBlocked() || editLockStatus() === 'lost' || editLockStatus() === 'error'
+                                    ? 'Reintentar'
+                                    : 'Editar'))) }}
                 </button>
             </div>
             }

@@ -8,12 +8,14 @@
   (close)="closeModal()">
 
   @if (view() === 'form' || view() === 'detail') {
-  <section class="request-creation-wizard" [class.request-creation-wizard--readonly]="isDetailMode()">
+  <section class="request-creation-wizard"
+    [class.request-creation-wizard--readonly]="isDetailMode()"
+    [class.request-creation-wizard--account-registration]="isAccountRegistration()">
     <aside class="request-creation-wizard__sidebar" aria-label="Secciones de la solicitud">
       <span class="request-creation-wizard__sidebar-title">SECCIONES</span>
 
       <nav class="request-creation-wizard__steps">
-        @for (step of steps; track step.id; let index = $index) {
+        @for (step of visibleSteps(); track step.id; let index = $index) {
         <button
           type="button"
           class="request-create-step"
@@ -57,7 +59,7 @@
       <div class="request-creation-wizard__progress">
         <div class="request-creation-wizard__progress-copy">
           <span>{{ isDetailMode() ? 'SECCIÓN' : 'PROGRESO' }}</span>
-          <strong>{{ stepIndex() + 1 }} / {{ steps.length }}</strong>
+          <strong>{{ stepIndex() + 1 }} / {{ visibleSteps().length }}</strong>
         </div>
         <div class="request-creation-wizard__progress-track" aria-hidden="true">
           <span [style.width.%]="progressPercent()"></span>
@@ -707,7 +709,7 @@
             Anterior
           </button>
 
-          @if (activeStep() !== 'review') {
+          @if (!isLastVisibleStep()) {
           <button type="button" class="request-footer-button request-footer-button--primary" (click)="nextStep()">
             Siguiente
             <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2" aria-hidden="true" />
@@ -727,7 +729,7 @@
   }
 
   @if (view() === 'drafts') {
-  <section class="request-drafts-view">
+  <section class="request-drafts-view" [class.request-drafts-view--account-registration]="isAccountRegistration()">
     <header class="request-drafts-view__toolbar">
       <button type="button" class="request-drafts-view__back" (click)="returnToForm()">
         <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2" aria-hidden="true" />
@@ -764,7 +766,7 @@
               <span class="request-draft-card__meta">
                 <span>Actualizado {{ draftUpdatedAt(draft) }}</span>
                 <span>{{ draft.documents.length }} documentos</span>
-                <span>Paso {{ draftProgress(draft) }} de {{ steps.length }}</span>
+                <span>Paso {{ draftProgress(draft) }} de {{ visibleSteps().length }}</span>
               </span>
             </span>
             <span class="request-draft-card__continue">
@@ -801,7 +803,7 @@
   }
 
   @if (view() === 'success') {
-  <section class="request-create-success">
+  <section class="request-create-success" [class.request-create-success--account-registration]="isAccountRegistration()">
     <div class="request-create-success__halo">
       <span>
         <siau-lucide-icon name="circle-check" size="34" strokeWidth="1.9" aria-hidden="true" />

@@ -618,3 +618,79 @@
     width: auto;
   }
 }
+
+/* Pestañas del listado: conservan la paleta y superficies originales del módulo. */
+.requests-list-tabs {
+  min-height: 48px;
+  padding: 0 1rem;
+  display: flex;
+  align-items: end;
+  gap: 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+}
+
+.requests-list-tabs__tab {
+  position: relative;
+  min-height: 47px;
+  padding: 0 0.85rem;
+  border: 0;
+  background: transparent;
+  color: #62748e;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.requests-list-tabs__tab:hover {
+  color: #1b1f4a;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.requests-list-tabs__tab::after {
+  content: '';
+  position: absolute;
+  left: 0.65rem;
+  right: 0.65rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px 999px 0 0;
+  background: transparent;
+}
+
+.requests-list-tabs__tab--active {
+  color: #1b1f4a;
+}
+
+.requests-list-tabs__tab--active::after {
+  background: #1b1f4a;
+}
+
+.requests-list-tabs__tab small {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(27, 31, 74, 0.08);
+  color: currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.59rem;
+  font-weight: 850;
+}
+
+@media (max-width: 640px) {
+  .requests-list-tabs {
+    padding-inline: 0.55rem;
+    overflow-x: auto;
+  }
+
+  .requests-list-tabs__tab {
+    flex: 0 0 auto;
+  }
+}

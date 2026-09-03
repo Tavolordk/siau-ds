@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { effect, inject, Injectable } from '@angular/core';
 import { SiauStep } from '../../../../../../shared/ui';
 import { MINIMUM_BIRTH_DATE, getAdultCutoffDateInput } from '../../../../../../shared/validation/field-validators';
 import { UserRegistrationContextFactory } from '../configuration/user-registration-context.factory';
@@ -12,6 +12,7 @@ import { UserRegistrationProfileController } from '../profiles/user-registration
 import { UserRegistrationState } from '../state/user-registration.state';
 import { UserRegistrationStructureController } from '../structure/user-registration-structure.controller';
 import { UserRegistrationSubmissionCoordinator } from '../submission/user-registration-submission.coordinator';
+import { UserEditLockFacade } from '../../../../edit-lock/application/user-edit-lock.facade';
 import {
     ALL_WIZARD_STEPS,
     AccountStatus,
@@ -43,6 +44,21 @@ export class UserRegistrationViewFacade {
     private readonly profiles = inject(UserRegistrationProfileController);
     private readonly structure = inject(UserRegistrationStructureController);
     private readonly submission = inject(UserRegistrationSubmissionCoordinator);
+    private readonly editLock = inject(UserEditLockFacade);
+
+    constructor() {
+        effect(() => {
+            const status = this.editLock.status();
+            if (
+                this.state.mode() === 'edit'
+                && this.state.editEnabled()
+                && status !== 'owned'
+                && status !== 'acquiring'
+            ) {
+                this.state.editEnabled.set(false);
+            }
+        });
+    }
 
     dismissRenapoMessage(): void { this.state.renapoMessageVisible.set(false); }
     dismissSubmitError(): void { this.fieldController.clearFieldError('submit'); }
@@ -72,8 +88,21 @@ export class UserRegistrationViewFacade {
     nextProfile(origin: ProfileOrigin): void { this.profiles.nextProfile(origin, this.contextFactory.profile()); }
     getProfileCarouselIndex(origin: ProfileOrigin): number { return this.profiles.getCarouselIndex(origin, this.contextFactory.profile()); }
 
-    enableEditing(readonlyMode: boolean): void {
-        if (!this.presenter.isEditMode() || readonlyMode) return;
+    async enableEditing(readonlyMode: boolean): Promise<void> {
+        if (!this.presenter.isEditMode() || readonlyMode || this.editLock.busy()) return;
+
+        const usuarioId = this.resolveTargetUserId();
+        if (!usuarioId) {
+            this.state.editEnabled.set(false);
+            return;
+        }
+
+        const acquired = await this.editLock.acquire(usuarioId);
+        if (!acquired) {
+            this.state.editEnabled.set(false);
+            return;
+        }
+
         this.state.editEnabled.set(true);
         this.contextFactory.loadHydratedAssignmentCatalogs(this.state.form());
     }
@@ -86,12 +115,14 @@ export class UserRegistrationViewFacade {
 
     closeWizard(onClosed: () => void): void {
         if (this.state.isSubmitting() || this.presenter.isDraftBusy()) return;
+        this.editLock.releaseCurrent();
         onClosed();
         this.contextFactory.resetWizard();
     }
 
     closeSaveSuccessModal(onSaved: () => void, onClosed: () => void): void {
         this.state.saveSuccess.set(null);
+        this.editLock.releaseCurrent();
         onSaved();
         onClosed();
         this.contextFactory.resetWizard();
@@ -199,4 +230,9 @@ export class UserRegistrationViewFacade {
     private isWizardStep(value: string): value is WizardStepId {
         return ALL_WIZARD_STEPS.includes(value as WizardStepId);
     }
+    private resolveTargetUserId(): number | null {
+        const value = this.state.userDetail()?.userId ?? this.state.user()?.userId;
+        return Number.isFinite(value) && Number(value) > 0 ? Number(value) : null;
+    }
+
 }

@@ -49,6 +49,28 @@
         </div>
       </header>
 
+      <nav class="requests-list-tabs" aria-label="Tipo de listado de solicitudes">
+        <button
+          type="button"
+          class="requests-list-tabs__tab"
+          [class.requests-list-tabs__tab--active]="activeList() === 'mine'"
+          (click)="selectList('mine')">
+          <siau-lucide-icon name="user-round" size="15" strokeWidth="2" aria-hidden="true" />
+          <span>Mis solicitudes</span>
+          <small>{{ mineRequestsCount() }}</small>
+        </button>
+
+        <button
+          type="button"
+          class="requests-list-tabs__tab"
+          [class.requests-list-tabs__tab--active]="activeList() === 'others'"
+          (click)="selectList('others')">
+          <siau-lucide-icon name="users" size="15" strokeWidth="2" aria-hidden="true" />
+          <span>Otras solicitudes</span>
+          <small>{{ otherRequestsCount() }}</small>
+        </button>
+      </nav>
+
       <div class="requests-toolbar">
         <label class="requests-search">
           <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
@@ -170,7 +192,7 @@
       </div>
 
       <footer class="requests-table-card__footer">
-        <span>Mostrando {{ filteredRequests().length }} de {{ requests().length }} solicitudes</span>
+        <span>Mostrando {{ filteredRequests().length }} de {{ scopedRequests().length }} solicitudes</span>
         @if (selectedStatus() !== 'Todos') {
         <button type="button" class="clear-filter" (click)="setSelectedStatus('Todos')">
           <siau-lucide-icon name="x" size="14" strokeWidth="2" aria-hidden="true" />
