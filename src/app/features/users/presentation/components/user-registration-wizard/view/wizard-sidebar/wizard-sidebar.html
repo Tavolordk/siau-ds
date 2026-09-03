@@ -1,0 +1,82 @@
+        <aside class="registration-wizard__sidebar">
+            <div class="registration-wizard__sidebar-title">Secciones</div>
+
+            <div class="registration-wizard__steps">
+                @for (step of steps(); track step.id; let index = $index) {
+                <button type="button" [class]="getStepClass(step, index)" (click)="goToStep(step.id)">
+                    <span class="registration-wizard__step-icon">
+                        <siau-lucide-icon [name]="getStepIcon(step)" size="13" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <span class="registration-wizard__step-label">{{ step.label }}</span>
+                </button>
+                }
+            </div>
+
+            @if (curpValidationSummaryForDisplay(); as curpValidation) {
+            <section class="registration-wizard__curp-validation registration-wizard__curp-validation--sidebar"
+                aria-live="polite">
+                <div class="registration-wizard__curp-validation-header">
+                    <span class="registration-wizard__curp-validation-icon">
+                        <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div>
+                        <span>Validación CURP</span>
+                        <strong>Personal, SAU y ECCC</strong>
+                    </div>
+                </div>
+
+                <dl class="registration-wizard__curp-validation-list">
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>Personal</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
+                                {{ getCurpValidationStatusLabel(curpValidation.personal) }}
+                            </span>
+                        </dd>
+                    </div>
+
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>SAU</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass(curpValidation.sau)">
+                                {{ getCurpValidationStatusLabel(curpValidation.sau) }}
+                            </span>
+                        </dd>
+                    </div>
+
+                    <div
+                        class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
+                        <dt>ECCC</dt>
+                        <dd class="registration-wizard__curp-validation-eccc">
+                            <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
+                                {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                            </span>
+                            <small class="registration-wizard__curp-validation-expiration">
+                                Vence: {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </small>
+                        </dd>
+                    </div>
+
+                </dl>
+
+                @if (curpValidation.message) {
+                <div [class]="getCurpValidationMessageClass(curpValidation.messageTone)" role="status">
+                    {{ curpValidation.message }}
+                </div>
+                }
+            </section>
+            }
+
+            <div class="registration-wizard__sidebar-progress">
+                <div class="registration-wizard__sidebar-progress-text">
+                    <span>Progreso</span>
+                    <strong>{{ activeStepNumber() }}/{{ stepOrder().length }}</strong>
+                </div>
+
+                <div class="registration-wizard__sidebar-progress-track">
+                    <span [style.width.%]="(activeStepNumber() / stepOrder().length) * 100"></span>
+                </div>
+            </div>
+        </aside>

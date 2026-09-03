@@ -1,0 +1,179 @@
+<section class="new-request-page">
+  <header class="new-request-page__header">
+    <div class="new-request-page__heading">
+      <span class="new-request-page__accent"></span>
+      <div>
+        <h1>Nueva solicitud</h1>
+        <p>Captura la solicitud y adjunta libremente los documentos que correspondan.</p>
+      </div>
+    </div>
+
+    <button type="button" class="new-request-page__back" (click)="backToRequests()">
+      <siau-lucide-icon name="chevron-left" size="18" strokeWidth="2" aria-hidden="true" />
+      <span>Volver a solicitudes</span>
+    </button>
+  </header>
+
+  <main class="new-request-page__content">
+    @if (createdFolio(); as folio) {
+      <section class="creation-success" role="status">
+        <div class="creation-success__icon">
+          <siau-lucide-icon name="circle-check" size="30" strokeWidth="2" aria-hidden="true" />
+        </div>
+        <div>
+          <span>SOLICITUD REGISTRADA</span>
+          <h2>{{ folio }}</h2>
+          <p>La solicitud quedó registrada en el mockup con estado <strong>Pendiente</strong> y ya aparece en el listado.</p>
+        </div>
+        <button type="button" (click)="backToRequests()">Ver solicitudes</button>
+      </section>
+    } @else {
+      <section class="request-form-grid">
+        <article class="request-form-card request-form-card--identity">
+          <header class="request-form-card__header">
+            <span class="request-form-card__step">01</span>
+            <div>
+              <h2>Datos del solicitante</h2>
+              <p>Información de identificación asociada al expediente.</p>
+            </div>
+          </header>
+
+          <div class="form-grid">
+            <label class="field field--wide">
+              <span>Nombre completo <strong>*</strong></span>
+              <input type="text" [(ngModel)]="applicant" placeholder="Ej. María Fernanda López García" />
+            </label>
+
+            <label class="field">
+              <span>Usuario <strong>*</strong></span>
+              <input type="text" [(ngModel)]="username" placeholder="maria.lopez" />
+            </label>
+
+            <label class="field">
+              <span>Correo electrónico <strong>*</strong></span>
+              <input type="email" [(ngModel)]="email" placeholder="usuario@sspc.gob.mx" />
+            </label>
+
+            <label class="field">
+              <span>CURP <strong>*</strong></span>
+              <input type="text" maxlength="18" [(ngModel)]="curp" placeholder="18 caracteres" />
+            </label>
+
+            <label class="field">
+              <span>Institución <strong>*</strong></span>
+              <input type="text" [(ngModel)]="institution" />
+            </label>
+
+            <label class="field field--wide">
+              <span>Adscripción <strong>*</strong></span>
+              <input type="text" [(ngModel)]="department" placeholder="Dirección / unidad administrativa" />
+            </label>
+          </div>
+        </article>
+
+        <article class="request-form-card request-form-card--request">
+          <header class="request-form-card__header">
+            <span class="request-form-card__step">02</span>
+            <div>
+              <h2>Información de la solicitud</h2>
+              <p>Define el movimiento que requiere atención.</p>
+            </div>
+          </header>
+
+          <div class="form-grid">
+            <label class="field field--wide">
+              <span>Tipo de solicitud <strong>*</strong></span>
+              <select [(ngModel)]="type">
+                @for (option of typeOptions; track option) {
+                  <option [ngValue]="option">{{ option }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Prioridad</span>
+              <select [(ngModel)]="priority">
+                @for (option of priorityOptions; track option) {
+                  <option [ngValue]="option">{{ option }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Perfiles solicitados</span>
+              <input type="text" [(ngModel)]="profiles" placeholder="Separados por coma" />
+            </label>
+
+            <label class="field field--wide">
+              <span>Descripción / observaciones</span>
+              <textarea rows="5" [(ngModel)]="comments" placeholder="Describe el motivo de la solicitud o cualquier información relevante."></textarea>
+            </label>
+          </div>
+        </article>
+      </section>
+
+      <article class="documents-card">
+        <header class="documents-card__header">
+          <div class="documents-card__title">
+            <span class="request-form-card__step">03</span>
+            <div>
+              <h2>Documentos adjuntos</h2>
+              <p>Carga libre. No existe catálogo ni tipo de documento obligatorio.</p>
+            </div>
+          </div>
+          <span class="documents-card__counter">{{ documents().length }} archivos</span>
+        </header>
+
+        <div class="documents-card__body">
+          <label class="document-dropzone">
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              (change)="onFilesSelected($event)" />
+            <span class="document-dropzone__icon">
+              <siau-lucide-icon name="upload" size="25" strokeWidth="1.8" aria-hidden="true" />
+            </span>
+            <strong>Arrastra archivos o haz clic para seleccionarlos</strong>
+            <small>PDF, JPG, JPEG y PNG · Máximo 10 MB por archivo</small>
+          </label>
+
+          <section class="document-list" aria-label="Documentos seleccionados">
+            @for (document of documents(); track document.id) {
+              <article class="document-item">
+                <span class="document-item__type">{{ fileType(document) }}</span>
+                <span class="document-item__copy">
+                  <strong>{{ document.name }}</strong>
+                  <small>{{ formatSize(document.sizeBytes) }} · {{ document.uploadedAt }}</small>
+                </span>
+                <button type="button" title="Eliminar documento" (click)="removeDocument(document.id)">
+                  <siau-lucide-icon name="trash-2" size="17" strokeWidth="2" aria-hidden="true" />
+                </button>
+              </article>
+            } @empty {
+              <div class="document-list__empty">
+                <siau-lucide-icon name="file-text" size="24" strokeWidth="1.8" aria-hidden="true" />
+                <span>Aún no has agregado documentos.</span>
+              </div>
+            }
+          </section>
+        </div>
+      </article>
+
+      @if (validationMessage()) {
+        <div class="form-alert" role="alert">
+          <siau-lucide-icon name="triangle-alert" size="17" strokeWidth="2" aria-hidden="true" />
+          {{ validationMessage() }}
+        </div>
+      }
+
+      <footer class="new-request-actions">
+        <button type="button" class="new-request-actions__secondary" (click)="backToRequests()">Cancelar</button>
+        <button type="button" class="new-request-actions__primary" (click)="createRequest()">
+          <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
+          Registrar solicitud
+        </button>
+      </footer>
+    }
+  </main>
+</section>

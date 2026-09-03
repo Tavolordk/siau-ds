@@ -1,0 +1,93 @@
+/* =========================================================
+   RESTORE: estilos de Subir Archivos
+========================================================= */
+
+.registration-wizard__documents-grid {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+@media (min-width: 769px) {
+  .registration-wizard__documents-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.registration-wizard__document-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.registration-wizard__document-label {
+  margin: 0 0 6px;
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.registration-wizard__document-label span {
+  color: rgb(155, 34, 71);
+}
+
+.registration-wizard__file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.registration-wizard__upload-box {
+  min-height: 118px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed rgba(160, 178, 187, 0.7);
+  background: rgba(255, 255, 255, 0.55);
+  color: rgb(98, 116, 142);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.registration-wizard__upload-box:hover {
+  border-color: rgba(27, 31, 74, 0.35);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 10px 22px rgba(27, 31, 74, 0.08);
+  transform: translateY(-1px);
+}
+
+.registration-wizard__upload-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: rgba(160, 178, 187, 0.18);
+  color: rgb(98, 116, 142);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-wizard__upload-title {
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.registration-wizard__upload-text {
+  color: rgba(27, 31, 74, 0.32);
+  font-size: 10px;
+  line-height: 1.3;
+}
+

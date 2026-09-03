@@ -1,0 +1,399 @@
+/* =========================
+   MODAL EDITAR USUARIO
+   Replica el diseño original del modal de edición
+========================= */
+
+.edit-user-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  padding: 16px;
+  background: rgba(8, 10, 20, 0.58);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-user-modal__surface {
+  position: relative;
+  width: 100%;
+  max-width: 920px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background: rgb(241, 247, 251);
+  border: 1px solid rgba(160, 178, 187, 0.28);
+  box-shadow:
+    0 24px 72px rgba(8, 10, 20, 0.3),
+    0 4px 20px rgba(8, 10, 20, 0.1);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  color: rgb(27, 31, 74);
+}
+
+.edit-user-modal__header {
+  position: relative;
+  flex-shrink: 0;
+  padding: 13px 20px;
+  background: rgb(153, 168, 190);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 1px 3px rgba(0, 0, 0, 0.07);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.edit-user-modal__header-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.48);
+  pointer-events: none;
+}
+
+.edit-user-modal__avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(27, 31, 74, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.edit-user-modal__title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-user-modal__title-group h2 {
+  margin: 0;
+  color: rgba(27, 31, 74, 0.92);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-user-modal__subtitle {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.edit-user-modal__subtitle span {
+  min-width: 0;
+  color: rgba(27, 31, 74, 0.6);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-user-modal__subtitle span:last-child {
+  color: rgba(27, 31, 74, 0.55);
+  font-weight: 400;
+}
+
+.edit-user-modal__dot {
+  width: 2px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(27, 31, 74, 0.3);
+  flex: none;
+}
+
+.edit-user-modal__badge {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(27, 31, 74, 0.3);
+  background: rgba(27, 31, 74, 0.16);
+  color: rgb(27, 31, 74);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-user-modal__badge span {
+  color: rgb(27, 31, 74);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.edit-user-modal__edit {
+  flex: none;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(27, 31, 74, 0.22);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.28);
+  color: rgb(27, 31, 74);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.edit-user-modal__edit:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.46);
+  border-color: rgba(27, 31, 74, 0.34);
+  transform: translateY(-1px);
+}
+
+.edit-user-modal__edit--active {
+  background: rgb(27, 31, 74);
+  border-color: rgb(27, 31, 74);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(27, 31, 74, 0.24);
+}
+
+.edit-user-modal__edit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.edit-user-modal__close {
+  flex: none;
+  padding: 7px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(27, 31, 74, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.edit-user-modal__close:hover {
+  background: rgba(27, 31, 74, 0.08);
+  color: rgb(27, 31, 74);
+}
+
+.edit-user-modal__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.edit-user-modal__sidebar {
+  width: 198px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  background: rgb(132, 148, 168);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.edit-user-modal__sidebar-title {
+  padding: 0 14px 8px;
+  color: rgba(255, 255, 255, 0.42);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.edit-user-modal__steps {
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.edit-user-modal__step {
+  position: relative;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    color 200ms ease;
+}
+
+.edit-user-modal__step:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.edit-user-modal__step--active {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(255, 255, 255, 0.68);
+  color: rgb(27, 31, 74);
+  box-shadow:
+    0 2px 14px rgba(27, 31, 74, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.edit-user-modal__step-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(
+    transparent 0%,
+    rgb(27, 31, 74) 28%,
+    rgb(27, 31, 74) 72%,
+    transparent 100%
+  );
+  box-shadow: 2px 0 8px rgba(27, 31, 74, 0.22);
+  pointer-events: none;
+}
+
+.edit-user-modal__step-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.edit-user-modal__step--active .edit-user-modal__step-icon {
+  background: rgba(27, 31, 74, 0.1);
+  color: rgb(27, 31, 74);
+}
+
+.edit-user-modal__step-label {
+  flex: 1;
+  min-width: 0;
+  color: currentColor;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-user-modal__step--active .edit-user-modal__step-label {
+  font-weight: 600;
+}
+
+.edit-user-modal__step-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgb(27, 31, 74);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-user-modal__sidebar-progress {
+  flex: none;
+  margin-top: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.edit-user-modal__sidebar-progress-text {
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.edit-user-modal__sidebar-progress-text span {
+  color: rgba(255, 255, 255, 0.42);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.edit-user-modal__sidebar-progress-text strong {
+  color: rgba(255, 255, 255, 0.55);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.edit-user-modal__sidebar-progress-track {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.edit-user-modal__sidebar-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.65);
+}
+

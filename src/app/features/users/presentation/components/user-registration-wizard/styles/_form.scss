@@ -1,0 +1,89 @@
+/* =========================
+   FORM GRID
+========================= */
+
+.registration-wizard__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-content: start;
+  padding: 22px 26px 20px;
+}
+
+.registration-wizard__documents-grid,
+.registration-wizard__profiles-panel,
+.registration-wizard__account-panel {
+  padding: 22px 26px 20px;
+}
+
+/* =========================
+   INPUTS EXACTOS
+========================= */
+
+.registration-wizard siau-input,
+.registration-wizard siau-select {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.registration-wizard siau-input *,
+.registration-wizard siau-select * {
+  box-sizing: border-box !important;
+}
+
+.registration-wizard siau-input label,
+.registration-wizard siau-select label,
+.registration-wizard__field-label,
+.registration-wizard__document-label,
+.registration-wizard__profiles-field-title {
+  margin: 0 0 6px !important;
+  color: rgb(98, 116, 142) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+}
+
+.registration-wizard siau-input input,
+.registration-wizard siau-select select,
+.registration-wizard input,
+.registration-wizard select,
+.registration-wizard__text-input {
+  width: 100% !important;
+  height: 41px !important;
+  min-height: 41px !important;
+  padding: 9px 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgb(160, 178, 187) !important;
+  background-color: rgb(255, 255, 255) !important;
+  background-image: none !important;
+  color: rgb(27, 31, 74) !important;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.registration-wizard siau-input div,
+.registration-wizard siau-select div {
+  background-color: transparent !important;
+}
+
+.registration-wizard siau-input input::placeholder,
+.registration-wizard siau-select select::placeholder,
+.registration-wizard input::placeholder,
+.registration-wizard__text-input::placeholder {
+  color: rgba(27, 31, 74, 0.3) !important;
+  opacity: 1 !important;
+}
+
+.registration-wizard siau-input input:focus,
+.registration-wizard siau-select select:focus,
+.registration-wizard input:focus,
+.registration-wizard select:focus,
+.registration-wizard__text-input:focus {
+  border-color: rgb(27, 31, 74) !important;
+  box-shadow: 0 0 0 3px rgba(27, 31, 74, 0.1) !important;
+}
+

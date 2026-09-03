@@ -1,0 +1,168 @@
+            @if (informationMessage(); as information) {
+            <div class="users-table-card__message users-table-card__message--info" role="status">
+                <siau-lucide-icon name="info" size="17" strokeWidth="2" aria-hidden="true" />
+                <span>{{ information }}</span>
+            </div>
+            }
+
+            @if (isDetailLoading()) {
+            <div class="users-table-card__message users-table-card__message--info" role="status">
+                <span class="users-table__loader" aria-hidden="true"></span>
+                <span>Consultando detalle del usuario...</span>
+            </div>
+            }
+
+            <div class="users-table-card__scroll">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre de usuario</th>
+                            <th>Nombre completo</th>
+                            <th>Estatus</th>
+                            <th>Correo electrónico</th>
+                            <th>Institución</th>
+                            <th>Entidad</th>
+                            @if (isAdminUser()) {
+                            <th class="users-table__center">Acciones</th>
+                            }
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @if (isLoading()) {
+                        <tr class="users-table__state-row">
+                            <td [attr.colspan]="isAdminUser() ? 7 : 6">
+                                <div class="users-table__state">
+                                    <span class="users-table__loader" aria-hidden="true"></span>
+                                    <strong>Consultando usuarios...</strong>
+                                    <small>Conectando con el servicio de usuarios</small>
+                                </div>
+                            </td>
+                        </tr>
+                        } @else if (!filteredUsers().length) {
+                        <tr class="users-table__state-row">
+                            <td [attr.colspan]="isAdminUser() ? 7 : 6">
+                                <div class="users-table__state">
+                                    <siau-lucide-icon name="users" size="24" strokeWidth="2" aria-hidden="true" />
+                                    <strong>No hay usuarios para mostrar</strong>
+                                    @if (isAdminUser()) {
+                                    <small>Intenta con otros criterios de búsqueda.</small>
+                                    } @else {
+                                    <small>No fue posible localizar el perfil asociado a tu sesión.</small>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                        } @else {
+                        @for (user of filteredUsers(); track user.userId) {
+                        <tr>
+                            <td data-label="Nombre de usuario">
+                                @if (isAdminUser()) {
+                                <span class="users-table__username">{{ user.username }}</span>
+                                } @else {
+                                <button type="button" class="users-table__profile-link" [disabled]="isDetailLoading()"
+                                    (click)="openUserDetail(user)">
+                                    {{ user.username }}
+                                </button>
+                                }
+                            </td>
+
+                            <td data-label="Nombre completo">
+                                <span>{{ user.fullName }}</span>
+                            </td>
+
+                            <td data-label="Estatus">
+                                <span class="badge" [class]="'badge badge--' + getStatusTone(user)">
+                                    {{ user.status }}
+                                </span>
+                            </td>
+
+                            <td data-label="Correo electrónico">
+                                <span>{{ user.email }}</span>
+                            </td>
+
+                            <td data-label="Institución">
+                                <span>{{ user.institution }}</span>
+                            </td>
+
+                            <td data-label="Entidad">
+                                <span>{{ user.entity }}</span>
+                            </td>
+
+                            @if (isAdminUser()) {
+                            <td data-label="Acciones">
+                                <div class="users-table__actions">
+                                    <button type="button" class="users-table__action users-table__action--detail"
+                                        [attr.title]="isUserReadOnly(user) ? 'Ver detalle' : 'Ver / editar'"
+                                        [attr.aria-label]="isUserReadOnly(user) ? 'Ver detalle de usuario' : 'Ver o editar usuario'"
+                                        [disabled]="isDetailLoading()" (click)="openUserDetail(user)">
+                                        <siau-lucide-icon name="eye" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+
+                                    @if (shouldShowStatusButton(user)) {
+                                    <button type="button" [class]="getToggleActionClass(user)"
+                                        [attr.title]="getToggleTitle(user)"
+                                        [attr.aria-label]="getToggleTitle(user) + ' usuario'"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting() || isCurrentSessionUser(user)"
+                                        (click)="openStatusModal(user)">
+                                        <siau-lucide-icon [name]="getToggleIcon(user)" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                    }
+
+                                    @if (shouldShowUnlockButton(user)) {
+                                    <button type="button" class="users-table__action users-table__action--unlock"
+                                        title="Desbloquear usuario" aria-label="Desbloquear usuario"
+                                        [disabled]="isDetailLoading() || isStatusSubmitting() || isCurrentSessionUser(user)"
+                                        (click)="openUnlockModal(user)">
+                                        <siau-lucide-icon name="unlock" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+                                    }
+
+                                    @if (shouldShowDeleteButton(user)) {
+                                    <button type="button" class="users-table__action users-table__action--delete"
+                                        title="Dar de baja" aria-label="Dar de baja usuario"
+                                        [disabled]="isDetailLoading() || isBajaSubmitting() || isCurrentSessionUser(user)"
+                                        (click)="openBajaModal(user)">
+                                        <siau-lucide-icon name="trash-2" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+                                    }
+                                </div>
+                            </td>
+                            }
+                        </tr>
+                        }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="users-table-card__footer">
+                <p>
+                    Mostrando {{ shownUsersCount() }} de {{ pagination().totalRegistros }} usuarios · Página
+                    {{ currentPage() }} de {{ pagination().totalPaginas }}
+                </p>
+
+                <nav class="users-table-card__pagination" aria-label="Paginación de usuarios">
+                    <button type="button" [disabled]="!canGoPrevious() || isLoading()" (click)="previousPage()">
+                        Anterior
+                    </button>
+
+                    @for (item of pageItems(); track item.key) {
+                    @if (item.isGap) {
+                    <span class="users-table-card__page-gap" aria-hidden="true">…</span>
+                    } @else {
+                    <button type="button" class="users-table-card__page-number"
+                        [class.is-active]="item.page === currentPage()" [disabled]="isLoading()"
+                        [attr.aria-current]="item.page === currentPage() ? 'page' : null"
+                        [attr.aria-label]="'Ir a la página ' + item.page" (click)="goToPage(item.page)">
+                        {{ item.page }}
+                    </button>
+                    }
+                    }
+
+                    <button type="button" [disabled]="!canGoNext() || isLoading()" (click)="nextPage()">
+                        Siguiente
+                    </button>
+                </nav>
+            </footer>

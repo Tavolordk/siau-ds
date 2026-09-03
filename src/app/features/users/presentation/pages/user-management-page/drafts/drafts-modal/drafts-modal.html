@@ -1,0 +1,39 @@
+<siau-modal [open]="isDraftsModalOpen()" title="Borradores guardados"
+    subtitle="Selecciona un borrador para continuar el registro donde lo dejaste" icon="clipboard-list" size="md"
+    headerBadge="Registros en proceso" (close)="closeDraftsModal()">
+    <section class="drafts-modal">
+        @if (isDraftsLoading()) {
+        <p class="drafts-modal__state">Cargando borradores...</p>
+        } @else if (draftsError(); as draftsErrorMessage) {
+        <p class="drafts-modal__state drafts-modal__state--error">{{ draftsErrorMessage }}</p>
+
+        <button type="button" class="drafts-modal__retry" (click)="loadDrafts()">Reintentar</button>
+        } @else if (!drafts().length) {
+        <p class="drafts-modal__state">
+            No tienes borradores guardados. Usa "Nueva solicitud" para iniciar un registro.
+        </p>
+        } @else {
+        <ul class="drafts-modal__list">
+            @for (draft of drafts(); track trackDraft($index, draft)) {
+            <li>
+                <button type="button" class="drafts-modal__item" (click)="openDraft(draft)">
+                    <span class="drafts-modal__item-icon">
+                        <siau-lucide-icon name="file-text" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <span class="drafts-modal__item-copy">
+                        <strong>{{ draftTitle(draft) }}</strong>
+                        <small>{{ draftSubtitle(draft) }}</small>
+                        <small class="drafts-modal__item-date">
+                            Actualizado: {{ draftTimestamp(draft) }}
+                        </small>
+                    </span>
+
+                    <siau-lucide-icon name="chevron-right" size="18" strokeWidth="2" aria-hidden="true" />
+                </button>
+            </li>
+            }
+        </ul>
+        }
+    </section>
+</siau-modal>

@@ -1,0 +1,34 @@
+        @if (isAdminUser()) {
+        <div class="users-page__actions">
+            <div class="users-page__new-menu">
+                <button type="button" class="users-page__new-button" [attr.aria-expanded]="isNewUserMenuOpen()"
+                    aria-haspopup="menu" aria-controls="new-user-menu" (click)="toggleNewUserMenu()">
+                    <siau-lucide-icon name="plus" size="18" strokeWidth="2" aria-hidden="true" />
+                    <span>Nuevo Usuario</span>
+                    <siau-lucide-icon name="chevron-down" size="16" strokeWidth="2" aria-hidden="true" />
+                </button>
+
+                @if (isNewUserMenuOpen()) {
+                <div class="users-page__new-menu-backdrop" (click)="closeNewUserMenu()"></div>
+
+                <div class="users-page__new-menu-list" id="new-user-menu" role="menu">
+                    <button type="button" role="menuitem" (click)="startNewRegistration()">
+                        <siau-lucide-icon name="user-plus" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>
+                            <strong>Nueva solicitud</strong>
+                            <small>Captura un registro desde cero</small>
+                        </span>
+                    </button>
+
+                    <button type="button" role="menuitem" (click)="openDraftsModal()">
+                        <siau-lucide-icon name="clipboard-list" size="16" strokeWidth="2" aria-hidden="true" />
+                        <span>
+                            <strong>Ver borradores</strong>
+                            <small>Continúa un registro guardado</small>
+                        </span>
+                    </button>
+                </div>
+                }
+            </div>
+        </div>
+        }

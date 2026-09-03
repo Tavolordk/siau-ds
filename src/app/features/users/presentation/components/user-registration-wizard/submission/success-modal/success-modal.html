@@ -1,0 +1,117 @@
+<siau-modal [open]="saveSuccess() !== null"
+    [title]="saveSuccess()?.isUpdate ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente'"
+    [subtitle]="saveSuccess()?.isUpdate ? 'Actualización y envío de nuevas credenciales' : 'Registro y notificación de acceso'"
+    icon="circle-check" size="md" headerBadge="Éxito"
+    (close)="confirmClose()">
+    @if (saveSuccess(); as success) {
+    <section class="registration-wizard__success-modal">
+        <div class="registration-wizard__success-hero">
+            <div class="registration-wizard__success-icon" aria-hidden="true">
+                <siau-lucide-icon name="circle-check" size="42" strokeWidth="1.9" />
+            </div>
+
+            <div class="registration-wizard__success-heading">
+                <p class="registration-wizard__success-eyebrow">
+                    {{ success.isUpdate ? 'Actualización confirmada' : 'Registro confirmado' }}
+                </p>
+                <h3>{{ success.isUpdate ? 'Actualización de usuario completada' : 'Creación de usuario completada' }}</h3>
+                <p>{{ success.message }}</p>
+            </div>
+        </div>
+
+        @if (success.hasAccessEmail) {
+        <section class="registration-wizard__success-account">
+            <span>Cuenta de acceso</span>
+            <strong>{{ success.account || 'Pendiente de confirmación' }}</strong>
+            @if (success.userNumber) {
+            <small>Número de usuario · {{ success.userNumber }}</small>
+            }
+        </section>
+
+        <section class="registration-wizard__success-delivery"
+            [class.registration-wizard__success-delivery--pending]="!success.emailAccepted">
+            <div>
+                <span>{{ success.emailAccepted ? 'Correo de acceso enviado' : 'Correo de acceso pendiente' }}</span>
+                <strong>{{ success.accessEmail }}</strong>
+            </div>
+
+            <p>
+                @if (success.emailAccepted) {
+                @if (success.isUpdate) {
+                Hemos enviado la nueva cuenta y la contraseña temporal al correo registrado.
+                } @else {
+                Hemos enviado tu cuenta y tus medios registrados para recibir el código de acceso. Podrás ingresar con
+                Telegram o con correo electrónico.
+                }
+                } @else {
+                {{ success.emailMessage }}
+                }
+            </p>
+
+            @if (success.emailStatus || success.emailReference) {
+            <div class="registration-wizard__success-delivery-meta">
+                @if (success.emailStatus) {
+                <span>Estado: {{ success.emailStatus }}</span>
+                }
+                @if (success.emailReference) {
+                <span>Referencia: {{ success.emailReference }}</span>
+                }
+            </div>
+            }
+        </section>
+
+        <section class="registration-wizard__success-access">
+            <p class="registration-wizard__success-access-title">Tus medios para ingresar a SIAU</p>
+            <div class="registration-wizard__success-access-grid">
+                <article>
+                    <span>01</span>
+                    <strong>Telegram</strong>
+                    <p>{{ success.accessPhone }}</p>
+                    <small>Recibe el código de acceso en tu número registrado.</small>
+                </article>
+
+                <article>
+                    <span>02</span>
+                    <strong>Correo electrónico</strong>
+                    <p>{{ success.accessEmail }}</p>
+                    <small>También puedes recibir el código en este correo.</small>
+                </article>
+            </div>
+        </section>
+
+        <p class="registration-wizard__success-security">
+            Por seguridad, nunca compartas tu código de verificación con otra persona.
+        </p>
+        } @else if (success.fullName || success.account || success.system) {
+        <dl class="registration-wizard__success-detail">
+            @if (success.fullName) {
+            <div>
+                <dt>Nombre</dt>
+                <dd>{{ success.fullName }}</dd>
+            </div>
+            }
+
+            @if (success.account) {
+            <div>
+                <dt>Cuenta</dt>
+                <dd>{{ success.account }}</dd>
+            </div>
+            }
+
+            @if (success.system) {
+            <div>
+                <dt>Sistema</dt>
+                <dd>{{ success.system }}</dd>
+            </div>
+            }
+        </dl>
+        }
+
+        <button type="button" class="registration-wizard__button registration-wizard__button--primary"
+            (click)="confirmClose()">
+            <siau-lucide-icon name="check" size="14" strokeWidth="2" aria-hidden="true" />
+            Aceptar
+        </button>
+    </section>
+    }
+</siau-modal>

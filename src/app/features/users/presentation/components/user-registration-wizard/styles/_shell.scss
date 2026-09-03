@@ -1,0 +1,182 @@
+app-user-registration-wizard {
+  display: block;
+  width: 100%;
+}
+
+.registration-wizard {
+  width: 100%;
+  height: 640px;
+  min-height: 640px;
+  max-height: 640px;
+  display: flex;
+  overflow: hidden;
+  background: rgb(241, 247, 251);
+  color: rgb(27, 31, 74);
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+
+.registration-wizard__sidebar {
+  width: 198px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  background: rgb(132, 148, 168);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.registration-wizard__sidebar-title {
+  padding: 0 14px 6px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.registration-wizard__steps {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+  overflow-y: hidden;
+  overflow-x: hidden;
+}
+
+.registration-wizard__step {
+  position: relative;
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 10px 7px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
+}
+
+.registration-wizard__step:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.registration-wizard__step--active {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(255, 255, 255, 0.68);
+  color: rgb(27, 31, 74);
+  box-shadow:
+    0 2px 14px rgba(27, 31, 74, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.registration-wizard__step--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(
+    transparent 0%,
+    rgb(27, 31, 74) 28%,
+    rgb(27, 31, 74) 72%,
+    transparent 100%
+  );
+  box-shadow: 2px 0 8px rgba(27, 31, 74, 0.22);
+}
+
+.registration-wizard__step-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.68);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-wizard__step--active .registration-wizard__step-icon {
+  background: rgba(27, 31, 74, 0.1);
+  color: rgb(27, 31, 74);
+}
+
+.registration-wizard__step-label {
+  flex: 1;
+  min-width: 0;
+  color: currentColor;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registration-wizard__step--active .registration-wizard__step-label {
+  font-weight: 600;
+}
+
+.registration-wizard__sidebar-progress {
+  flex: none;
+  margin-top: 5px;
+  padding: 8px 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.registration-wizard__sidebar-progress-text {
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.registration-wizard__sidebar-progress-text span {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.registration-wizard__sidebar-progress-text strong {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.registration-wizard__sidebar-progress-track {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.registration-wizard__sidebar-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.65);
+}
+

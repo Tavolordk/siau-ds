@@ -1,0 +1,300 @@
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="shield" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Perfiles</h3>
+                        <p>{{ isEditMode() ? 'Perfiles separados por adscripción y comisión' : 'Sistemas y perfiles de
+                            la última estructura capturada' }}</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Opcional</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                @if (profileResetNotice(); as notice) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--warning"
+                    role="status">
+                    <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+                    <span>{{ notice.message }}</span>
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissProfileResetNotice()" aria-label="Cerrar aviso de perfiles">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
+
+                <div class="registration-wizard__profiles-panel">
+                    <div class="registration-wizard__profiles-field-title">
+                        Sistemas y perfiles asignados
+                    </div>
+
+                    <p class="registration-wizard__profiles-field-help">
+                        @if (isEditMode()) {
+                        Los perfiles se conservan separados según la estructura que les dio origen.
+                        } @else {
+                        En creación se usa un solo catálogo: comisión cuando existe; de lo contrario, adscripción.
+                        }
+                    </p>
+
+                    @if (!isEditMode()) {
+                    @if (assignedSystemProfiles().length === 0) {
+                    <div class="registration-wizard__profiles-empty">
+                        Sin sistemas asignados.
+                    </div>
+                    } @else {
+                    <div class="registration-wizard__profiles-list">
+                        @for (item of assignedSystemProfiles(); track item.id) {
+                        <div class="registration-wizard__profiles-item">
+                            <div class="registration-wizard__profiles-item-content">
+                                <span class="registration-wizard__profiles-item-system">{{ item.systemLabel }}</span>
+                                <span class="registration-wizard__profiles-item-separator">•</span>
+                                <span class="registration-wizard__profiles-item-role">{{ item.roleLabel }}</span>
+                            </div>
+                            <button type="button" class="registration-wizard__profiles-remove"
+                                [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !canRemoveAssignedProfile(item)"
+                                (click)="removeAssignedProfile(item.id)" aria-label="Eliminar sistema asignado">
+                                <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                            </button>
+                        </div>
+                        }
+                    </div>
+                    }
+                    } @else {
+                    <div class="registration-wizard__profiles-origin-grid">
+                        <article class="registration-wizard__profiles-origin-card">
+                            <div class="registration-wizard__profiles-origin-header">
+                                <div>
+                                    <span class="registration-wizard__profiles-origin-kicker">Adscripción</span>
+                                    <strong>Perfiles de adscripción</strong>
+                                </div>
+                                <span class="registration-wizard__profiles-origin-count">
+                                    {{ assignmentAssignedProfiles().length }}
+                                </span>
+                            </div>
+
+                            @if (assignmentCarouselProfile(); as item) {
+                            <div class="registration-wizard__profiles-carousel" aria-live="polite">
+                                <div
+                                    class="registration-wizard__profiles-item registration-wizard__profiles-item--carousel">
+                                    <div class="registration-wizard__profiles-item-content">
+                                        <span class="registration-wizard__profiles-item-system">{{ item.systemLabel
+                                            }}</span>
+                                        <span class="registration-wizard__profiles-item-separator">•</span>
+                                        <span class="registration-wizard__profiles-item-role">{{ item.roleLabel
+                                            }}</span>
+                                    </div>
+
+                                    @if (canRemoveAssignedProfile(item)) {
+                                    <button type="button" class="registration-wizard__profiles-remove"
+                                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy()"
+                                        (click)="removeAssignedProfile(item.id)"
+                                        aria-label="Eliminar perfil de adscripción">
+                                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+                                    }
+                                </div>
+
+                                @if (assignmentAssignedProfiles().length > 1) {
+                                <div class="registration-wizard__profiles-carousel-nav">
+                                    <button type="button" class="registration-wizard__profiles-carousel-button"
+                                        (click)="previousProfile('adscripcion')"
+                                        aria-label="Perfil anterior de adscripción">
+                                        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                    <span>{{ getProfileCarouselIndex('adscripcion') + 1 }} / {{
+                                        assignmentAssignedProfiles().length }}</span>
+                                    <button type="button" class="registration-wizard__profiles-carousel-button"
+                                        (click)="nextProfile('adscripcion')"
+                                        aria-label="Siguiente perfil de adscripción">
+                                        <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                </div>
+                                }
+                            </div>
+                            } @else {
+                            <div
+                                class="registration-wizard__profiles-empty registration-wizard__profiles-empty--origin">
+                                Sin perfiles de adscripción.
+                            </div>
+                            }
+                        </article>
+
+                        <article class="registration-wizard__profiles-origin-card">
+                            <div class="registration-wizard__profiles-origin-header">
+                                <div>
+                                    <span class="registration-wizard__profiles-origin-kicker">Comisión</span>
+                                    <strong>Perfiles de comisión</strong>
+                                </div>
+                                <span class="registration-wizard__profiles-origin-count">
+                                    {{ commissionAssignedProfiles().length }}
+                                </span>
+                            </div>
+
+                            @if (commissionCarouselProfile(); as item) {
+                            <div class="registration-wizard__profiles-carousel" aria-live="polite">
+                                <div
+                                    class="registration-wizard__profiles-item registration-wizard__profiles-item--carousel">
+                                    <div class="registration-wizard__profiles-item-content">
+                                        <span class="registration-wizard__profiles-item-system">{{ item.systemLabel
+                                            }}</span>
+                                        <span class="registration-wizard__profiles-item-separator">•</span>
+                                        <span class="registration-wizard__profiles-item-role">{{ item.roleLabel
+                                            }}</span>
+                                    </div>
+
+                                    @if (canRemoveAssignedProfile(item)) {
+                                    <button type="button" class="registration-wizard__profiles-remove"
+                                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy()"
+                                        (click)="removeAssignedProfile(item.id)"
+                                        aria-label="Eliminar perfil de comisión">
+                                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                                    </button>
+                                    }
+                                </div>
+
+                                @if (commissionAssignedProfiles().length > 1) {
+                                <div class="registration-wizard__profiles-carousel-nav">
+                                    <button type="button" class="registration-wizard__profiles-carousel-button"
+                                        (click)="previousProfile('comision')" aria-label="Perfil anterior de comisión">
+                                        <siau-lucide-icon name="chevron-left" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                    <span>{{ getProfileCarouselIndex('comision') + 1 }} / {{
+                                        commissionAssignedProfiles().length }}</span>
+                                    <button type="button" class="registration-wizard__profiles-carousel-button"
+                                        (click)="nextProfile('comision')" aria-label="Siguiente perfil de comisión">
+                                        <siau-lucide-icon name="chevron-right" size="16" strokeWidth="2"
+                                            aria-hidden="true" />
+                                    </button>
+                                </div>
+                                }
+                            </div>
+                            } @else {
+                            <div
+                                class="registration-wizard__profiles-empty registration-wizard__profiles-empty--origin">
+                                {{ form().commissionEnabled ? 'Sin perfiles de comisión.' : 'El usuario no tiene
+                                comisión activa.' }}
+                            </div>
+                            }
+                        </article>
+                    </div>
+
+                    }
+
+                    <div class="registration-wizard__profiles-add-card">
+                        <div class="registration-wizard__profiles-add-header">
+                            <div>
+                                <div class="registration-wizard__profiles-add-title">Agregar sistema y perfil</div>
+                                @if (isEditMode()) {
+                                <p>Los perfiles sólo se editan en la sección activa. Si existen adscripción y comisión,
+                                    comisión tiene prioridad; si sólo existe adscripción, se editan sus perfiles.</p>
+                                } @else {
+                                <p>Los perfiles disponibles corresponden a {{ selectedProfileOriginLabel() }}.</p>
+                                }
+                            </div>
+
+                            @if (isEditMode()) {
+                            <div class="registration-wizard__profiles-origin-selector" role="group"
+                                aria-label="Origen del perfil">
+                                <button type="button" class="registration-wizard__profiles-origin-option"
+                                    [class.registration-wizard__profiles-origin-option--active]="selectedProfileOrigin() === 'adscripcion'"
+                                    [disabled]="isFormDisabled() || isSubmitting() || assignmentProfilesLocked()"
+                                    (click)="selectProfileOrigin('adscripcion')">
+                                    Adscripción
+                                </button>
+                                <button type="button" class="registration-wizard__profiles-origin-option"
+                                    [class.registration-wizard__profiles-origin-option--active]="selectedProfileOrigin() === 'comision'"
+                                    [disabled]="isFormDisabled() || isSubmitting() || commissionProfilesLocked() || !form().commissionEnabled"
+                                    (click)="selectProfileOrigin('comision')">
+                                    Comisión
+                                </button>
+                            </div>
+                            }
+                        </div>
+
+                        @if (!canAssignProfiles()) {
+                        <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                            <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                            <span>
+                                {{ activeProfileOrigin() === 'comision'
+                                ? 'Completa una comisión válida para consultar sus sistemas y perfiles.'
+                                : 'Completa la adscripción para consultar sus sistemas y perfiles.' }}
+                            </span>
+                        </div>
+                        }
+
+                        @if (structureProfileLookupStatus() === 'loading') {
+                        <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                            <siau-lucide-icon name="loader-circle" size="16" strokeWidth="2" aria-hidden="true" />
+                            <span>{{ structureProfileMessage() }}</span>
+                        </div>
+                        }
+
+                        @if (structureProfileLookupStatus() === 'error') {
+                        <div class="registration-wizard__info-box registration-wizard__info-box--compact registration-wizard__info-box--error"
+                            role="alert">
+                            <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+                            <span>{{ structureProfileMessage() }}</span>
+                            <button type="button" class="registration-wizard__info-box-close"
+                                (click)="dismissStructureProfileError()" aria-label="Cerrar error de perfiles"
+                                title="Cerrar mensaje">
+                                <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                            </button>
+                        </div>
+                        }
+
+                        @if (structureProfileLookupStatus() === 'success' && systemOptions().length === 0) {
+                        <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                            <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                            <span>{{ structureProfileMessage() }}</span>
+                        </div>
+                        }
+
+                        @if (isSiauProfileLocked()) {
+                        <div class="registration-wizard__info-box registration-wizard__info-box--compact">
+                            <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+                            <span>{{ siauProfileLockMessage() }}</span>
+                        </div>
+                        }
+
+                        <div class="registration-wizard__profiles-add-grid">
+                            <siau-select label="Sistema" placeholder="Seleccione sistema" [options]="systemOptions()"
+                                [value]="selectedSystem()" (valueChange)="updateSelectedSystem($event)"
+                                [hint]="structureProfileHint()"
+                                [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles()" />
+
+                            @if (shouldShowRoleSelect()) {
+                            <siau-select label="Perfil / Rol" placeholder="Seleccione rol"
+                                [options]="availableRoleOptions()" [value]="selectedRole()"
+                                (valueChange)="updateSelectedRole($event)"
+                                [disabled]="isFormDisabled() || isSubmitting() || !canSelectProfiles() || !selectedSystem() || isSelectedSiauProfileBlocked()" />
+                            }
+
+                            <div class="registration-wizard__profiles-add-action">
+                                <button type="button"
+                                    class="registration-wizard__button registration-wizard__button--secondary registration-wizard__button--add"
+                                    [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !canSelectProfiles() || !canAddSelectedProfile()"
+                                    (click)="addAssignedProfile()">
+                                    <siau-lucide-icon name="plus" size="15" strokeWidth="2" aria-hidden="true" />
+                                    Agregar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>

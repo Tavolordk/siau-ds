@@ -15,6 +15,7 @@ import {
 import { UserRegistrationFormRules } from '../validation/user-registration-form.rules';
 import { UserProfileMatcher } from '../profiles/user-profile.matcher';
 import { UserRegistrationState } from '../state/user-registration.state';
+import { UserEditLockFacade } from '../../../../edit-lock/application/user-edit-lock.facade';
 import {
     UserRegistrationValidationContext,
     UserRegistrationValidator,
@@ -32,6 +33,7 @@ export class UserRegistrationPresenter {
     private readonly formRules = inject(UserRegistrationFormRules);
     private readonly validator = inject(UserRegistrationValidator);
     private readonly profileMatcher = inject(UserProfileMatcher);
+    private readonly editLock = inject(UserEditLockFacade);
 
     readonly assignmentDecentralizedBodyLocked = computed(() => {
         const current = this.state.form();
@@ -295,7 +297,11 @@ export class UserRegistrationPresenter {
     });
 
     readonly isFormDisabled = computed(() =>
-        this.isEditMode() && (this.state.readonlyMode() || !this.state.editEnabled()),
+        this.isEditMode() && (
+            this.state.readonlyMode()
+            || !this.state.editEnabled()
+            || !this.editLock.owned()
+        ),
     );
     readonly isDraftBusy = computed(() =>
         this.state.isDraftLoading() || this.state.isDraftSaving() || this.state.isDraftDeleting(),

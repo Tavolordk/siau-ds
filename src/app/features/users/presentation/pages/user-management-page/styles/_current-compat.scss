@@ -1,0 +1,33 @@
+/* Reglas vigentes que antes vivían mezcladas con variantes de filtros ya retiradas. */
+.user-action-modal__confirmation-note {
+  padding: 0.78rem 0.9rem;
+  border: 1px solid rgba(62, 92, 118, 0.22);
+  border-radius: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #314d68;
+  background: rgba(62, 92, 118, 0.08);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.users-table__profile-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.users-table__profile-link:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

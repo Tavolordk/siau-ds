@@ -1,0 +1,209 @@
+            @if (submitError() || currentStepErrors().length > 0) {
+            <section class="registration-wizard__validation-area" aria-live="assertive">
+                @if (submitError(); as error) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--error" role="alert">
+                    <siau-lucide-icon name="triangle-alert" size="18" strokeWidth="2" aria-hidden="true" />
+
+                    <div>
+                        <strong>{{ isEditMode() ? 'No se pudieron guardar los cambios.' : 'No fue posible registrar al
+                            usuario.' }}</strong>
+                        <div>{{ error }}</div>
+                    </div>
+
+                    <button type="button" class="registration-wizard__info-box-close" (click)="dismissSubmitError()"
+                        aria-label="Cerrar mensaje de error" title="Cerrar mensaje">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
+
+                @if (currentStepErrors().length > 0) {
+                <div class="registration-wizard__info-box registration-wizard__info-box--error" role="alert">
+                    <siau-lucide-icon name="triangle-alert" size="16" strokeWidth="2" aria-hidden="true" />
+
+                    <div>
+                        <strong>Revisa la información capturada.</strong>
+                        @for (error of currentStepErrors(); track error.key) {
+                        <div>{{ error.message }}</div>
+                        }
+                    </div>
+
+                    <button type="button" class="registration-wizard__info-box-close"
+                        (click)="dismissCurrentStepErrors()" aria-label="Cerrar mensajes de validación"
+                        title="Cerrar mensajes">
+                        <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                    </button>
+                </div>
+                }
+            </section>
+            }
+
+            @if (activeStepId() === 'personal-data' && renapoLookupStatus() !== 'idle' && renapoMessageVisible()) {
+            <div class="registration-wizard__renapo-status registration-wizard__renapo-status--top"
+                [class.registration-wizard__renapo-status--loading]="renapoLookupStatus() === 'loading'"
+                [class.registration-wizard__renapo-status--success]="renapoLookupStatus() === 'success'"
+                [class.registration-wizard__renapo-status--warning]="renapoLookupStatus() === 'not-found'"
+                [class.registration-wizard__renapo-status--error]="renapoLookupStatus() === 'error'" aria-live="polite">
+                <span class="registration-wizard__renapo-status-icon">
+                    <siau-lucide-icon [name]="renapoStatusIcon()" size="17" strokeWidth="2" aria-hidden="true" />
+                </span>
+
+                <div class="registration-wizard__renapo-status-content">
+                    <strong>{{ renapoStatusTitle() }}</strong>
+                    <span>{{ renapoMessage() }}</span>
+                </div>
+
+                <button type="button" class="registration-wizard__renapo-status-close" (click)="dismissRenapoMessage()"
+                    aria-label="Cerrar mensaje de RENAPO" title="Cerrar mensaje">
+                    <siau-lucide-icon name="x" size="16" strokeWidth="2" aria-hidden="true" />
+                </button>
+            </div>
+            }
+
+            @if (isEditMode()) {
+            <div class="registration-wizard__edit-bar"
+                [class.registration-wizard__edit-bar--active]="editEnabled() && !readonlyMode() && editLockStatus() === 'owned'"
+                [class.registration-wizard__edit-bar--blocked]="editLockStatus() === 'blocked'"
+                [class.registration-wizard__edit-bar--error]="editLockStatus() === 'lost' || editLockStatus() === 'error'">
+                <div class="registration-wizard__edit-bar-text">
+                    <strong>
+                        @if (readonlyMode()) {
+                        {{ getReadonlyModeTitle() }}
+                        } @else if (editLockStatus() === 'checking') {
+                        Validando disponibilidad
+                        } @else if (editLockStatus() === 'acquiring') {
+                        Solicitando bloqueo
+                        } @else if (editLockStatus() === 'blocked') {
+                        Edición en uso
+                        } @else if (editLockStatus() === 'lost') {
+                        Se perdió el bloqueo
+                        } @else if (editLockStatus() === 'error') {
+                        Edición no disponible
+                        } @else if (editEnabled() && editLockStatus() === 'owned') {
+                        Edición habilitada
+                        } @else {
+                        Vista de usuario
+                        }
+                    </strong>
+                    <span>
+                        @if (readonlyMode()) {
+                        {{ getReadonlyModeDescription() }}
+                        } @else if (editLockMessage()) {
+                        {{ editLockMessage() }}
+                        } @else {
+                        Los campos están bloqueados. Presiona Editar para obtener acceso exclusivo antes de modificarlos.
+                        }
+                    </span>
+                    @if (editLockStatus() === 'blocked' && editLockCurrent(); as lock) {
+                    <small class="registration-wizard__edit-lock-owner">
+                        <siau-lucide-icon name="user-round" size="12" strokeWidth="2" aria-hidden="true" />
+                        En edición por <strong>{{ lock.bloqueadoPorNombre || 'otro administrador' }}</strong>
+                    </small>
+                    }
+                    @if (editLockStatus() === 'owned') {
+                    <small class="registration-wizard__edit-lock-owner registration-wizard__edit-lock-owner--owned">
+                        <siau-lucide-icon name="shield-check" size="12" strokeWidth="2" aria-hidden="true" />
+                        Bloqueo activo · heartbeat automático cada 30 segundos
+                    </small>
+                    }
+                </div>
+
+                <button type="button" class="registration-wizard__edit-button"
+                    [disabled]="readonlyMode() || editEnabled() || editLockBusy()" (click)="enableEditing()">
+                    <siau-lucide-icon
+                        [name]="readonlyMode() ? 'lock' : (editLockBusy() ? 'loader-circle' : (editLockBlocked() ? 'rotate-ccw' : 'pencil'))"
+                        size="14" strokeWidth="2" aria-hidden="true" />
+                    {{ readonlyMode()
+                        ? 'Solo consulta'
+                        : (editEnabled()
+                            ? 'Editando'
+                            : (editLockBusy()
+                                ? 'Validando...'
+                                : (editLockBlocked() || editLockStatus() === 'lost' || editLockStatus() === 'error'
+                                    ? 'Reintentar'
+                                    : 'Editar'))) }}
+                </button>
+            </div>
+            }
+
+            @if (!isEditMode()) {
+            @if (isDraftLoading() || draftMessage() || draftError() || hasBackendDraft()) {
+            <section class="registration-wizard__draft-bar" [class.registration-wizard__draft-bar--error]="draftError()"
+                aria-live="polite">
+                <div class="registration-wizard__draft-bar-icon">
+                    <siau-lucide-icon
+                        [name]="draftError() ? 'triangle-alert' : (isDraftLoading() || isDraftSaving() ? 'loader-circle' : 'save')"
+                        size="16" strokeWidth="2" aria-hidden="true" />
+                </div>
+                <div class="registration-wizard__draft-bar-copy">
+                    <strong>{{ draftError() ? 'Aviso del borrador' : 'Guardado automático' }}</strong>
+                    <span>{{ draftError() || draftMessage() || 'Tu avance se guarda al continuar a la siguiente
+                        sección.' }}</span>
+                </div>
+                @if (hasBackendDraft()) {
+                <button type="button" class="registration-wizard__draft-delete"
+                    [disabled]="isDraftBusy() || isSubmitting()" (click)="deleteRegistrationDraft()">
+                    <siau-lucide-icon name="trash-2" size="14" strokeWidth="2" aria-hidden="true" />
+                    {{ isDraftDeleting() ? 'Eliminando...' : 'Eliminar borrador' }}
+                </button>
+                }
+            </section>
+            }
+
+            }
+
+            @if (curpValidationSummaryForDisplay(); as curpValidation) {
+            <section class="registration-wizard__curp-validation registration-wizard__curp-validation--mobile"
+                aria-live="polite">
+                <div class="registration-wizard__curp-validation-header">
+                    <span class="registration-wizard__curp-validation-icon">
+                        <siau-lucide-icon name="shield-check" size="15" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div>
+                        <span>Validación CURP</span>
+                        <strong>Personal, SAU y ECCC</strong>
+                    </div>
+                </div>
+
+                <dl class="registration-wizard__curp-validation-list">
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>Personal</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass(curpValidation.personal)">
+                                {{ getCurpValidationStatusLabel(curpValidation.personal) }}
+                            </span>
+                        </dd>
+                    </div>
+
+                    <div class="registration-wizard__curp-validation-row">
+                        <dt>SAU</dt>
+                        <dd>
+                            <span [class]="getCurpValidationStatusClass(curpValidation.sau)">
+                                {{ getCurpValidationStatusLabel(curpValidation.sau) }}
+                            </span>
+                        </dd>
+                    </div>
+
+                    <div
+                        class="registration-wizard__curp-validation-row registration-wizard__curp-validation-row--eccc">
+                        <dt>ECCC</dt>
+                        <dd class="registration-wizard__curp-validation-eccc">
+                            <span [class]="getCurpValidationStatusClass(curpValidation.eccc)">
+                                {{ getCurpValidationStatusLabel(curpValidation.eccc) }}
+                            </span>
+                            <small class="registration-wizard__curp-validation-expiration">
+                                Vence: {{ getCurpValidationStatusLabel(curpValidation.expirationDate) }}
+                            </small>
+                        </dd>
+                    </div>
+
+                </dl>
+
+                @if (curpValidation.message) {
+                <div [class]="getCurpValidationMessageClass(curpValidation.messageTone)" role="status">
+                    {{ curpValidation.message }}
+                </div>
+                }
+            </section>
+            }

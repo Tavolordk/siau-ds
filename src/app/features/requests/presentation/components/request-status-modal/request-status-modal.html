@@ -1,0 +1,82 @@
+<siau-modal
+  [open]="open()"
+  title="Consultar estatus de solicitud"
+  subtitle="Ingresa el folio de tu solicitud de creación de cuenta"
+  icon="file-search"
+  size="lg"
+  headerBadge="Consulta pública"
+  (close)="closeModal()">
+  <section class="request-status-modal">
+    <form class="request-status-modal__search" (ngSubmit)="search()">
+      <label for="request-status-folio">Folio de solicitud</label>
+      <div class="request-status-modal__search-row">
+        <div class="request-status-modal__input-wrap">
+          <siau-lucide-icon name="file-text" size="17" strokeWidth="2" aria-hidden="true" />
+          <input
+            id="request-status-folio"
+            type="text"
+            [ngModel]="folio()"
+            (ngModelChange)="normalizeFolio($event)"
+            name="folio"
+            autocomplete="off"
+            placeholder="Ej. SOL-2026-001" />
+        </div>
+        <button type="submit" [disabled]="!folio().trim()">
+          <siau-lucide-icon name="search" size="17" strokeWidth="2" aria-hidden="true" />
+          Buscar
+        </button>
+      </div>
+      <small>Para este mockup puedes usar <strong>SOL-2026-001</strong>, <strong>SOL-2026-005</strong> o <strong>SOL-2026-007</strong>.</small>
+    </form>
+
+    @if (result(); as request) {
+      <section class="request-status-result" aria-live="polite">
+        <header class="request-status-result__header">
+          <div>
+            <span>Resultado de la búsqueda</span>
+            <strong>{{ request.folio }}</strong>
+          </div>
+          <span class="request-status-badge" [class]="'request-status-badge request-status-badge--' + statusTone(request.status)">
+            {{ request.status }}
+          </span>
+        </header>
+
+        <div class="request-status-result__body">
+          <dl class="request-status-result__data">
+            <div><dt>Solicitante</dt><dd>{{ request.applicant }}</dd></div>
+            <div><dt>Tipo</dt><dd>{{ request.type }}</dd></div>
+            <div><dt>Fecha de solicitud</dt><dd>{{ request.createdAt }}</dd></div>
+            <div><dt>Institución</dt><dd>{{ request.institution }}</dd></div>
+          </dl>
+
+          <div class="request-status-history">
+            <span class="request-status-history__title">Historial de estatus</span>
+            <ol>
+              @for (item of history(); track item.label) {
+                <li [class.request-status-history__item--current]="item.current">
+                  <span class="request-status-history__dot"></span>
+                  <div><small>{{ item.date }}</small><strong>{{ item.label }}</strong></div>
+                </li>
+              }
+            </ol>
+          </div>
+        </div>
+
+        <footer class="request-status-result__notice">
+          <siau-lucide-icon name="info" size="16" strokeWidth="2" aria-hidden="true" />
+          <span>{{ statusMessage(request.status) }}</span>
+        </footer>
+      </section>
+    } @else if (searched()) {
+      <div class="request-status-empty" role="status">
+        <span><siau-lucide-icon name="search-x" size="22" strokeWidth="2" aria-hidden="true" /></span>
+        <div><strong>No encontramos ese folio</strong><small>Verifica que sea un folio de creación de cuenta y vuelve a intentarlo.</small></div>
+      </div>
+    } @else {
+      <div class="request-status-placeholder">
+        <span><siau-lucide-icon name="shield-check" size="24" strokeWidth="1.8" aria-hidden="true" /></span>
+        <div><strong>Consulta el seguimiento sin iniciar sesión</strong><small>Solo se mostrará la información asociada al folio capturado.</small></div>
+      </div>
+    }
+  </section>
+</siau-modal>

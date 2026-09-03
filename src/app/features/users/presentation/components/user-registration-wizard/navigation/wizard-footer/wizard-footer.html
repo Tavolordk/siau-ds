@@ -1,0 +1,34 @@
+            <footer class="registration-wizard__footer">
+                <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
+                    [disabled]="activeIndex() === 0 || isSubmitting() || isDraftBusy()" (click)="previousStep()">
+                    <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
+                    Anterior
+                </button>
+
+                <div class="registration-wizard__dots" aria-hidden="true">
+                    @for (step of stepOrder(); track step; let index = $index) {
+                    <span [class.registration-wizard__dot--active]="index === activeIndex()"></span>
+                    }
+                </div>
+
+                <div class="registration-wizard__actions">
+                    <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
+                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting() || isDraftBusy()"
+                        (click)="nextStep()">
+                        Siguiente
+                        <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
+                    </button>
+
+                    <button type="button" class="registration-wizard__button registration-wizard__button--ghost"
+                        [disabled]="isSubmitting() || isDraftBusy()" (click)="requestClose()">
+                        Cancelar
+                    </button>
+
+                    <button type="button" class="registration-wizard__button registration-wizard__button--primary"
+                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !isLastStep()"
+                        (click)="submit()">
+                        <siau-lucide-icon [name]="primaryButtonIcon()" size="14" strokeWidth="2" aria-hidden="true" />
+                        {{ primaryButtonLabel() }}
+                    </button>
+                </div>
+            </footer>

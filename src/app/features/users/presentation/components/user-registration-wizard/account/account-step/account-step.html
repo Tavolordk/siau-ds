@@ -1,0 +1,114 @@
+            @if (isEditMode()) {
+            <section class="registration-wizard__section">
+                <div class="registration-wizard__section-header">
+                    <span class="registration-wizard__section-icon">
+                        <siau-lucide-icon name="key-round" size="18" strokeWidth="2" aria-hidden="true" />
+                    </span>
+
+                    <div class="registration-wizard__section-title">
+                        <h3>Cuenta</h3>
+                        <p>Credenciales y estado de la cuenta de acceso</p>
+                    </div>
+
+                    <div class="registration-wizard__section-meta">
+                        <span class="registration-wizard__required-pill">Campos obligatorios</span>
+                        <span class="registration-wizard__section-count">
+                            {{ activeStepNumber() }} / {{ stepOrder().length }}
+                        </span>
+                    </div>
+
+                    <div class="registration-wizard__progress-strip" aria-hidden="true">
+                        @for (segment of stepProgressSegments(); track segment.id) {
+                        <span [class.registration-wizard__progress-segment--active]="segment.active"></span>
+                        }
+                    </div>
+                </div>
+
+                <div class="registration-wizard__account-panel">
+                    <div class="registration-wizard__account-grid">
+                        <div class="registration-wizard__field">
+                            <label class="registration-wizard__field-label">
+                                Nombre de usuario
+                            </label>
+
+                            <input type="text" class="registration-wizard__text-input" placeholder="Ej. ana.martinez"
+                                [value]="form().username"
+                                [disabled]="isFormDisabled() || isSubmitting() || isEditMode()"
+                                (input)="updateForm('username', $any($event.target).value)" />
+                        </div>
+
+                    </div>
+
+                    <div class="registration-wizard__account-status-block">
+                        <div class="registration-wizard__field-label">
+                            Estatus de la cuenta
+                        </div>
+
+                        <p class="registration-wizard__account-status-help">
+                            El estatus se muestra únicamente como referencia y no puede modificarse desde este
+                            formulario.
+                        </p>
+
+                        <div class="registration-wizard__account-status-grid">
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'active'"
+                                [disabled]="isAccountStatusDisabled('active')" (click)="setAccountStatus('active')">
+                                <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'active') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
+                                    Activo
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    El usuario puede ingresar al sistema desde el primer día
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'baja'"
+                                [disabled]="isAccountStatusDisabled('baja')" (click)="setAccountStatus('baja')">
+                                <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'baja') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
+                                    Baja
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Cuenta bloqueada de forma permanente
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'suspended'"
+                                [disabled]="isAccountStatusDisabled('suspended')"
+                                (click)="setAccountStatus('suspended')">
+                                <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'suspended') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
+                                    Suspendido
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Acceso bloqueado temporalmente hasta resolución del caso
+                                </div>
+                            </button>
+
+                            <button type="button" class="registration-wizard__status-card"
+                                [class.registration-wizard__status-card--selected]="form().accountStatus === 'blocked'"
+                                [disabled]="isAccountStatusDisabled('blocked')" (click)="setAccountStatus('blocked')">
+                                <div class="registration-wizard__status-card-title">
+                                    @if (form().accountStatus === 'blocked') {
+                                    <siau-lucide-icon name="check" size="16" strokeWidth="2" aria-hidden="true" />
+                                    }
+                                    Bloqueado
+                                </div>
+                                <div class="registration-wizard__status-card-text">
+                                    Acceso bloqueado temporalmente por seguridad
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+            }

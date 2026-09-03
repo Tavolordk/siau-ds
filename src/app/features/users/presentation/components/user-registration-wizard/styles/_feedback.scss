@@ -1,0 +1,135 @@
+/* =========================================================
+   PATCH: aviso opcional de Comisión igual al Figma
+========================================================= */
+
+.registration-wizard__info-box {
+  width: calc(100% - 52px);
+  min-height: 47px;
+  margin: 18px 26px 0;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(160, 178, 187, 0.32);
+  background: rgba(255, 255, 255, 0.42);
+  color: rgb(98, 116, 142);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+
+.registration-wizard__info-box siau-lucide-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: rgb(27, 31, 74);
+  opacity: 0.9;
+  margin: 0;
+}
+
+.registration-wizard__info-box span {
+  display: block;
+  color: rgb(98, 116, 142);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.registration-wizard__info-box strong {
+  color: rgb(27, 31, 74);
+  font-weight: 700;
+}
+
+.registration-wizard__info-box--error {
+  align-items: flex-start;
+  border-color: rgba(190, 24, 93, 0.3);
+  background: rgb(255, 241, 242);
+  color: rgb(159, 18, 57);
+}
+
+.registration-wizard__info-box--error siau-lucide-icon,
+.registration-wizard__info-box--error strong {
+  color: rgb(159, 18, 57);
+}
+
+
+.registration-wizard__info-box--warning {
+  align-items: flex-start;
+  border-color: rgba(180, 122, 28, 0.28);
+  background: rgb(255, 249, 235);
+}
+
+.registration-wizard__info-box--warning siau-lucide-icon,
+.registration-wizard__info-box--warning strong {
+  color: rgb(142, 92, 18);
+}
+
+.registration-wizard__info-box--warning span {
+  color: rgb(110, 78, 30);
+}
+
+.registration-wizard__info-box--error > div {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.registration-wizard__info-box > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.registration-wizard__info-box-close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin: -3px -5px 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.registration-wizard__info-box-close:hover {
+  background: rgba(159, 18, 57, 0.08);
+  opacity: 1;
+}
+
+.registration-wizard__info-box-close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.registration-wizard__info-box-close siau-lucide-icon {
+  margin: 0;
+  opacity: 1;
+}
+
+.registration-wizard__info-box + .registration-wizard__grid {
+  padding-top: 18px;
+}
+
+.registration-wizard__section .registration-wizard__info-box,
+.registration-wizard__section .registration-wizard__info-box * {
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .registration-wizard__info-box {
+    width: calc(100% - 32px);
+    margin: 14px 16px 0;
+    padding: 10px 12px;
+    align-items: flex-start;
+  }
+}
+

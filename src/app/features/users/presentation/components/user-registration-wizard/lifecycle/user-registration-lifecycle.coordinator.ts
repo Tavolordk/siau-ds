@@ -8,6 +8,7 @@ import { UserRegistrationIdentityCoordinator } from '../identity/user-registrati
 import { UserRegistrationPresenter } from '../view/user-registration.presenter';
 import { UserRegistrationState } from '../state/user-registration.state';
 import { UserWizardMode } from '../models/user-registration-wizard.models';
+import { UserEditLockFacade } from '../../../../edit-lock/application/user-edit-lock.facade';
 
 export interface UserRegistrationLifecycleInputs {
     open: () => boolean;
@@ -35,6 +36,7 @@ export class UserRegistrationLifecycleCoordinator {
     private readonly identity = inject(UserRegistrationIdentityCoordinator);
     private readonly draftProfiles = inject(UserRegistrationDraftProfileService);
     private readonly formRules = inject(UserRegistrationFormRules);
+    private readonly editLock = inject(UserEditLockFacade);
     private hydrationKey = '';
 
     connect(inputs: UserRegistrationLifecycleInputs): void {
@@ -69,6 +71,7 @@ export class UserRegistrationLifecycleCoordinator {
 
         if (!isOpen) {
             this.hydrationKey = '';
+            this.editLock.releaseCurrent();
             return;
         }
 
@@ -124,6 +127,11 @@ export class UserRegistrationLifecycleCoordinator {
     }
 
     private hydrateEditForm(detail: UserDetailRecord, user: UserRecord | null): void {
+        if (this.editLock.targetUserId() && this.editLock.targetUserId() !== detail.userId) {
+            this.editLock.releaseCurrent();
+        }
+        void this.editLock.inspect(detail.userId);
+
         this.contextFactory.bumpAssignmentCatalogGeneration();
         this.contextFactory.bumpCommissionCatalogGeneration();
         this.identity.resetRenapoLookupState();

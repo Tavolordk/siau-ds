@@ -1,0 +1,80 @@
+/* =========================================================
+   FILTER DROPDOWN - Solicitudes
+========================================================= */
+
+.requests-table-card__filter-wrap {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.requests-table-card__filter {
+  min-width: 124px;
+}
+
+.requests-table-card__filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 70;
+  width: 184px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(160, 178, 187, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 18px 36px rgba(5, 8, 24, 0.18),
+    0 4px 10px rgba(5, 8, 24, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.requests-table-card__filter-option {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #1b1f4a;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-family: 'Noto Sans', Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.requests-table-card__filter-option:hover {
+  background: rgba(27, 31, 74, 0.06);
+}
+
+.requests-table-card__filter-option--active {
+  background: rgba(27, 31, 74, 0.08);
+  color: #1b1f4a;
+  font-weight: 800;
+}
+
+@media (max-width: 768px) {
+  .requests-table-card__filter-wrap {
+    width: 100%;
+  }
+
+  .requests-table-card__filter {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .requests-table-card__filter-menu {
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+}
