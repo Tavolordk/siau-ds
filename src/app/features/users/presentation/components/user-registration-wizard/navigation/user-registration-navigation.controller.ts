@@ -4,8 +4,8 @@ import { finalize } from 'rxjs';
 import { UsersFacade } from '../../../../application/facades/users.facade';
 import { BorradorGuardarRequest } from '../../../../domain/models/user-record.model';
 import { WizardStepId } from '../models/user-registration-wizard.models';
-import { UserRegistrationPresenter } from '../view/user-registration.presenter';
 import { UserRegistrationState } from '../state/user-registration.state';
+import { UserRegistrationPresenter } from '../view/user-registration.presenter';
 
 export interface UserRegistrationNavigationActions {
     readonly validateStep: (stepId: WizardStepId) => boolean;
@@ -26,11 +26,14 @@ export class UserRegistrationNavigationController {
     private readonly destroyRef = inject(DestroyRef);
 
     goToStep(stepId: WizardStepId, actions: UserRegistrationNavigationActions): void {
+        const current = this.state.activeStepId();
+        if (stepId === current) {
+            return;
+        }
+
         if (this.presenter.isEditMode()) {
-            const currentStep = this.state.activeStepId();
             if (
-                currentStep === 'personal-data' &&
-                stepId !== currentStep &&
+                current === 'personal-data' &&
                 !actions.validateChangedIdentityFields()
             ) {
                 return;
@@ -39,17 +42,31 @@ export class UserRegistrationNavigationController {
             return;
         }
 
-        const current = this.state.activeStepId();
+        if (this.state.isDraftLoading() || this.state.isDraftDeleting()) {
+            return;
+        }
+
         const order = this.presenter.stepOrder();
         const currentIndex = order.indexOf(current);
         const targetIndex = order.indexOf(stepId);
-        if (targetIndex < 0) {
+        if (currentIndex < 0 || targetIndex < 0) {
             return;
         }
-        if (targetIndex > currentIndex && !actions.validateStep(current)) {
+
+        const movingForward = targetIndex > currentIndex;
+        if (movingForward && !actions.validateStep(current)) {
             return;
         }
-        this.state.activeStepId.set(stepId);
+
+        const completedSteps = movingForward
+            ? this.withCompletedStep(current)
+            : this.state.completedSteps();
+
+        this.saveDraftAndNavigate(stepId, completedSteps, actions, () => {
+            if (movingForward && current === 'personal-data') {
+                actions.consultEcccAndPersonal();
+            }
+        });
     }
 
     nextStep(actions: UserRegistrationNavigationActions): void {
@@ -77,25 +94,83 @@ export class UserRegistrationNavigationController {
             return;
         }
 
-        if (this.presenter.isDraftBusy() || currentIndex >= order.length - 1) {
+        if (
+            this.state.isDraftLoading() ||
+            this.state.isDraftDeleting() ||
+            currentIndex < 0 ||
+            currentIndex >= order.length - 1
+        ) {
             return;
         }
 
         const nextStepId = order[currentIndex + 1];
         const completedSteps = this.withCompletedStep(current);
-        this.state.completedSteps.set(completedSteps);
-        this.state.activeStepId.set(nextStepId);
 
-        if (current === 'personal-data') {
-            actions.consultEcccAndPersonal();
+        this.saveDraftAndNavigate(nextStepId, completedSteps, actions, () => {
+            if (current === 'personal-data') {
+                actions.consultEcccAndPersonal();
+            }
+        });
+    }
+
+    previousStep(actions: UserRegistrationNavigationActions): void {
+        const currentIndex = this.presenter.activeIndex();
+        if (currentIndex <= 0) {
+            return;
         }
 
+        const previousStepId = this.presenter.stepOrder()[currentIndex - 1];
+
+        if (this.presenter.isEditMode()) {
+            const current = this.state.activeStepId();
+            if (
+                current === 'personal-data' &&
+                !actions.validateChangedIdentityFields()
+            ) {
+                return;
+            }
+            this.state.activeStepId.set(previousStepId);
+            return;
+        }
+
+        if (this.state.isDraftLoading() || this.state.isDraftDeleting()) {
+            return;
+        }
+
+        this.saveDraftAndNavigate(
+            previousStepId,
+            this.state.completedSteps(),
+            actions,
+        );
+    }
+
+    markCompleted(stepId: WizardStepId): void {
+        this.state.completedSteps.update((current) =>
+            current.includes(stepId) ? current : [...current, stepId],
+        );
+    }
+
+    withCompletedStep(stepId: WizardStepId): readonly WizardStepId[] {
+        const completed = this.state.completedSteps();
+        return completed.includes(stepId) ? completed : [...completed, stepId];
+    }
+
+    private saveDraftAndNavigate(
+        targetStepId: WizardStepId,
+        completedSteps: readonly WizardStepId[],
+        actions: UserRegistrationNavigationActions,
+        afterNavigation?: () => void,
+    ): void {
         let request: BorradorGuardarRequest;
+
         try {
-            request = actions.buildDraftSaveRequest(nextStepId, completedSteps);
+            request = actions.buildDraftSaveRequest(targetStepId, completedSteps);
         } catch {
             this.state.draftMessage.set('');
-            this.state.draftError.set('No se pudo guardar el borrador. Puedes continuar con el registro.');
+            this.state.draftError.set(
+                'No se pudo preparar el guardado del borrador. Puedes continuar con el registro.',
+            );
+            this.completeNavigation(targetStepId, completedSteps, afterNavigation);
             return;
         }
 
@@ -115,30 +190,27 @@ export class UserRegistrationNavigationController {
                     if (savedDraftId && savedDraftId > 0) {
                         this.state.draftId.set(savedDraftId);
                     }
+
                     this.state.draftMessage.set(response.mensaje?.trim() || 'Avance guardado.');
                 },
                 error: () => {
                     this.state.draftMessage.set('');
-                    this.state.draftError.set('No se pudo guardar el borrador. Puedes continuar con el registro.');
+                    this.state.draftError.set(
+                        'No se pudo guardar el borrador. Puedes continuar con el registro.',
+                    );
                 },
             });
+
+        this.completeNavigation(targetStepId, completedSteps, afterNavigation);
     }
 
-    previousStep(): void {
-        const currentIndex = this.presenter.activeIndex();
-        if (currentIndex > 0) {
-            this.state.activeStepId.set(this.presenter.stepOrder()[currentIndex - 1]);
-        }
-    }
-
-    markCompleted(stepId: WizardStepId): void {
-        this.state.completedSteps.update((current) =>
-            current.includes(stepId) ? current : [...current, stepId],
-        );
-    }
-
-    withCompletedStep(stepId: WizardStepId): readonly WizardStepId[] {
-        const completed = this.state.completedSteps();
-        return completed.includes(stepId) ? completed : [...completed, stepId];
+    private completeNavigation(
+        targetStepId: WizardStepId,
+        completedSteps: readonly WizardStepId[],
+        afterNavigation?: () => void,
+    ): void {
+        this.state.completedSteps.set(completedSteps);
+        this.state.activeStepId.set(targetStepId);
+        afterNavigation?.();
     }
 }

@@ -111,7 +111,7 @@ export class UserRegistrationViewFacade {
         if (this.isWizardStep(stepId)) this.navigation.goToStep(stepId, this.navigationActions());
     }
     nextStep(): void { this.navigation.nextStep(this.navigationActions()); }
-    previousStep(): void { this.navigation.previousStep(); }
+    previousStep(): void { this.navigation.previousStep(this.navigationActions()); }
 
     closeWizard(onClosed: () => void): void {
         if (this.state.isSubmitting() || this.presenter.isDraftBusy()) return;
