@@ -1,6 +1,8 @@
 import { Injectable, WritableSignal, computed, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 import { AuthStorage } from '../../../../../../core/auth/data-access/auth.storage';
+import { SessionRevocationApi } from '../../../../../../core/auth/data-access/session-revocation.api';
+import { SessionRevocationReason } from '../../../../../../core/auth/domain/session-revocation.model';
 import {
     RESTRICTED_TEXT_LIMITS,
     getRestrictedTextError,
@@ -21,6 +23,7 @@ import {
 export class UserAccountOperationsController {
     private readonly usersFacade = inject(UsersFacade);
     private readonly authStorage = inject(AuthStorage);
+    private readonly sessionRevocationApi = inject(SessionRevocationApi);
 
     readonly isBajaModalOpen = signal<boolean>(false);
     readonly bajaTargetUser = signal<UserRecord | null>(null);
@@ -147,6 +150,7 @@ export class UserAccountOperationsController {
                     this.bajaComment.set('');
                     this.bajaCommentError.set(null);
                     this.showOperationSuccess('baja', user, response, onSuccess);
+                    this.revokeRestrictedSession(userId, 'BAJA_CUENTA');
                 },
                 error: (error: unknown) => {
                     this.bajaCommentError.set(this.toFriendlyError(error));
@@ -284,6 +288,10 @@ export class UserAccountOperationsController {
                     this.statusComment.set('');
                     this.statusCommentError.set(null);
                     this.showOperationSuccess(operationName, user, response, onSuccess);
+
+                    if (operationName === 'suspension') {
+                        this.revokeRestrictedSession(userId, 'SUSPENSION_CUENTA');
+                    }
                 },
                 error: (error: unknown) => {
                     this.statusCommentError.set(this.toFriendlyError(error));
@@ -500,6 +508,43 @@ export class UserAccountOperationsController {
         });
 
         onSuccess();
+    }
+
+    private revokeRestrictedSession(
+        userId: number,
+        reason: SessionRevocationReason,
+    ): void {
+        this.sessionRevocationApi.revoke(userId, reason).subscribe({
+            next: (response) => {
+                const currentSuccess = this.operationSuccess();
+
+                if (!currentSuccess || currentSuccess.userId !== userId) {
+                    return;
+                }
+
+                const revocationMessage = response.mensaje?.trim() || 'La sesión activa del usuario fue cerrada.';
+
+                this.operationSuccess.set({
+                    ...currentSuccess,
+                    message: `${currentSuccess.message} ${revocationMessage}`.trim(),
+                });
+            },
+            error: (error: unknown) => {
+                const currentSuccess = this.operationSuccess();
+
+                if (!currentSuccess || currentSuccess.userId !== userId) {
+                    return;
+                }
+
+                // La operación de cuenta ya fue aplicada. No se revierte ni se invita a
+                // reintentarla para evitar una baja/suspensión duplicada; solo se informa
+                // que falló el cierre remoto para que soporte revise el servicio de sesiones.
+                this.operationSuccess.set({
+                    ...currentSuccess,
+                    message: `${currentSuccess.message} El estado de la cuenta sí se actualizó, pero no fue posible cerrar la sesión activa de inmediato: ${this.toFriendlyError(error)}`,
+                });
+            },
+        });
     }
 
     private getOperationSuccessConfig(operation: AccountOperationKind): {

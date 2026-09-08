@@ -71,5 +71,15 @@
         "pathRewrite": {
             "^/bloqueos-api": ""
         }
+    },
+    "/sesiones-api": {
+        "target": "http://10.237.3.12:62374",
+        "secure": false,
+        "changeOrigin": true,
+        "logLevel": "debug",
+        "ws": true,
+        "pathRewrite": {
+            "^/sesiones-api": ""
+        }
     }
 }

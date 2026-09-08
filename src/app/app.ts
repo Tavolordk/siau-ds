@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { AuthFacade } from './core/auth/application/auth.facade';
 
 @Component({
   selector: 'app-root',
@@ -8,4 +9,7 @@ import { RouterOutlet } from '@angular/router';
   imports: [RouterOutlet],
   template: '<router-outlet />',
 })
-export class App { }
+export class App {
+  // Fuerza la inicialización del listener global de /hubs/sesiones desde la raíz.
+  private readonly auth = inject(AuthFacade);
+}
