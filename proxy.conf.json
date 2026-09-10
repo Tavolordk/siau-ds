@@ -1,6 +1,6 @@
 {
     "/captcha-api": {
-        "target": "http://10.241.83.7:3200",
+        "target": "http://10.241.67.8:3200",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -9,7 +9,7 @@
         }
     },
     "/catalogos-api": {
-        "target": "http://10.241.83.7:3200",
+        "target": "http://10.241.67.8:3200",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -18,7 +18,7 @@
         }
     },
     "/consultas-api": {
-        "target": "http://10.241.83.7:3200",
+        "target": "http://10.241.67.8:3200",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -27,7 +27,7 @@
         }
     },
     "/eccc-personal-api": {
-        "target": "http://10.241.83.7:3204",
+        "target": "http://10.241.67.8:3204",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -36,7 +36,7 @@
         }
     },
     "/auth-api": {
-        "target": "http://10.241.83.7:3200",
+        "target": "http://10.241.67.8:3200",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -54,7 +54,7 @@
         }
     },
     "/correo-api": {
-        "target": "https://desarrollo.sspcpm.gob.mx",
+        "target": "http://10.241.34.10:3205",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -63,7 +63,7 @@
         }
     },
     "/bloqueos-api": {
-        "target": "http://10.237.3.12:62374",
+        "target": "http://10.241.67.8:3210",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
@@ -73,7 +73,7 @@
         }
     },
     "/sesiones-api": {
-        "target": "http://10.237.3.12:62374",
+        "target": "http://10.241.67.8:3210",
         "secure": false,
         "changeOrigin": true,
         "logLevel": "debug",
