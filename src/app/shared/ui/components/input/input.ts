@@ -48,13 +48,17 @@ export class SiauInput {
   readonly error = input<string | null>(null);
 
   readonly valueChange = output<string>();
+  /** Se emite cuando el usuario termina de capturar y abandona el campo. */
+  readonly blurValue = output<string>();
 
   protected handleBlur(event: Event): void {
+    const inputElement = event.target as HTMLInputElement;
+
     if (!this.clampOnBlur() || this.type() !== 'date') {
+      this.blurValue.emit(inputElement.value);
       return;
     }
 
-    const inputElement = event.target as HTMLInputElement;
     const clampedValue = clampDateInput(
       inputElement.value,
       this.min() ?? '',
@@ -65,6 +69,8 @@ export class SiauInput {
       inputElement.value = clampedValue;
       this.valueChange.emit(clampedValue);
     }
+
+    this.blurValue.emit(inputElement.value);
   }
 
   protected handleInput(event: Event): void {
@@ -94,7 +100,7 @@ export class SiauInput {
         const normalizedValue = value
           .normalize('NFKC')
           .toUpperCase()
-          .replace(/[^A-Z\s]/g, '')
+          .replace(/[^A-ZÑ\s]/g, '')
           .replace(/\s+/g, ' ')
           .replace(/^\s+/, '');
 

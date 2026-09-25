@@ -9,6 +9,7 @@ import { UserRegistrationPresenter } from '../view/user-registration.presenter';
 
 export interface UserRegistrationNavigationActions {
     readonly validateStep: (stepId: WizardStepId) => boolean;
+    readonly canLeavePersonalData: () => boolean;
     readonly validateChangedIdentityFields: () => boolean;
     readonly consultEcccAndPersonal: () => void;
     readonly buildDraftSaveRequest: (
@@ -54,6 +55,9 @@ export class UserRegistrationNavigationController {
         }
 
         const movingForward = targetIndex > currentIndex;
+        if (movingForward && current === 'personal-data' && !actions.canLeavePersonalData()) {
+            return;
+        }
         if (movingForward && !actions.validateStep(current)) {
             return;
         }
@@ -73,6 +77,10 @@ export class UserRegistrationNavigationController {
         const current = this.state.activeStepId();
         const order = this.presenter.stepOrder();
         const currentIndex = order.indexOf(current);
+
+        if (current === 'personal-data' && !actions.canLeavePersonalData()) {
+            return;
+        }
 
         if (
             (this.presenter.isEditMode() &&

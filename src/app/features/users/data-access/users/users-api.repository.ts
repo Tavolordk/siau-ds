@@ -15,6 +15,8 @@ import {
     BorradorPerfil,
     RegistroAdminRequest,
     RegistroAdminResponse,
+    RegistroValidacionRequest,
+    RegistroValidacionResponse,
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
     UserDetailRecord,
@@ -29,6 +31,8 @@ const USERS_SEARCH_PATH = `${REGISTRO_ROOT_PATH}/usuarios/busqueda-avanzada`;
 const USERS_MANAGEMENT_PATH = `${REGISTRO_ROOT_PATH}/usuarios/gestion`;
 const USERS_DETAIL_PATH = '/api/v1/consultas/usuarios';
 const REGISTRO_ADMIN_PATH = `${REGISTRO_ROOT_PATH}/registro_admin`;
+// El gateway del frontend conserva el prefijo /api/v1 aunque el contrato directo publique /api/validacion.
+const REGISTRO_VALIDACION_PATH = '/api/v1/validacion';
 const BORRADORES_PATH = `${REGISTRO_ROOT_PATH}/borradores`;
 const PASSWORD_TEMPORAL_PATH = `${REGISTRO_ROOT_PATH}/usuarios`;
 const ACTUALIZAR_ADMIN_PATH = '/api/v1/solicitudes/actualizar_admin';
@@ -185,6 +189,34 @@ export class UsersApiRepository {
                 catchError((error: unknown) =>
                     this.handleError(error, 'No fue posible obtener la contraseña temporal.'),
                 ),
+            );
+    }
+
+    validateRegistrationAvailability(
+        request: RegistroValidacionRequest,
+    ): Observable<RegistroValidacionResponse> {
+        return this.http
+            .post<RegistroValidacionResponse>(
+                `${this.baseUrl}${REGISTRO_VALIDACION_PATH}`,
+                request,
+                { observe: 'response' },
+            )
+            .pipe(
+                map((response) => {
+                    // Regla del flujo: solamente HTTP 200 habilita el avance.
+                    // Cualquier otro status, incluso otro 2xx, se trata como validación no concluyente.
+                    if (response.status !== 200) {
+                        throw new HttpErrorResponse({
+                            status: response.status,
+                            statusText: response.statusText,
+                            url: response.url ?? undefined,
+                            error: response.body,
+                        });
+                    }
+                    return response.body ?? {};
+                }),
+                // El consumidor necesita distinguir 409 de cualquier otro status y leer el body real.
+                catchError((error: unknown) => throwError(() => error)),
             );
     }
 

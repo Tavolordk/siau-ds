@@ -194,7 +194,7 @@ export class UserRegistrationFormRules {
         return this.toText(value)
             .normalize('NFKC')
             .toUpperCase()
-            .replace(/[^A-Z\s]/g, '')
+            .replace(/[^A-ZÑ\s]/g, '')
             .replace(/\s+/g, ' ')
             .trim();
     }

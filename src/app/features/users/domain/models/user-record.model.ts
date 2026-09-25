@@ -256,6 +256,35 @@ export interface RegistroAuditoria {
     readonly correlationId: string;
 }
 
+
+export interface RegistroValidacionRequest {
+    readonly curp?: string | null;
+    readonly rfc?: string | null;
+    readonly correo?: string | null;
+    readonly celular?: string | null;
+}
+
+export interface RegistroValidacionResponse {
+    readonly curpProporcionado?: string | null;
+    readonly curpFormatoValido?: number | null;
+    readonly curpDisponible?: number | null;
+    readonly curpMensaje?: string | null;
+    readonly rfcProporcionado?: string | null;
+    readonly rfcFormatoValido?: number | null;
+    readonly rfcDisponible?: number | null;
+    readonly rfcMensaje?: string | null;
+    readonly correoProporcionado?: string | null;
+    readonly correoFormatoValido?: number | null;
+    readonly correoDisponible?: number | null;
+    readonly correoMensaje?: string | null;
+    readonly celularProporcionado?: string | null;
+    readonly celularFormatoValido?: number | null;
+    readonly celularDisponible?: number | null;
+    readonly celularMensaje?: string | null;
+    readonly fechaRespuesta?: string | null;
+    readonly traceId?: string | null;
+}
+
 export interface RegistroAdminRequest {
     readonly datosPersonales: RegistroDatosPersonales;
     readonly adscripcion: RegistroAsignacion;

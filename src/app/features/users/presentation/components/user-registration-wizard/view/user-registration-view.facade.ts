@@ -134,6 +134,7 @@ export class UserRegistrationViewFacade {
         this.fieldController.updateForm(key, value, (origin) => this.claimEditStructureScope(origin));
     }
     updateCurp(value: string): void { this.fieldController.updateCurp(value); }
+    validateCurpAvailability(value: string): void { this.fieldController.validateCurpAvailability(value); }
     updateRfc(value: string): void { this.fieldController.updateRfc(value); }
     toggleCurpUnlock(checked: boolean): void { this.fieldController.toggleCurpUnlock(checked); }
 
@@ -221,6 +222,11 @@ export class UserRegistrationViewFacade {
     private navigationActions(): UserRegistrationNavigationActions {
         return {
             validateStep: (stepId) => this.contextFactory.validateStep(stepId),
+            canLeavePersonalData: () => this.identity.canContinueWithCurp(
+                this.state.form().curp,
+                this.state.formErrors,
+                this.presenter.isEditMode(),
+            ),
             validateChangedIdentityFields: () => this.contextFactory.validateChangedIdentityFields(),
             consultEcccAndPersonal: () => this.consultEcccAndPersonal(),
             buildDraftSaveRequest: (nextStepId, completedSteps) => this.contextFactory.buildDraftSaveRequest(nextStepId, completedSteps),

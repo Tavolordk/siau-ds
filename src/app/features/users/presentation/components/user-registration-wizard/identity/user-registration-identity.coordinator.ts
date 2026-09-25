@@ -5,8 +5,10 @@ import {
     signal,
     WritableSignal,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RenapoCurpData, RenapoFacade } from '../../../../../../core/renapo';
+import { UsersFacade } from '../../../../application/facades/users.facade';
 import { SiauSelectOption } from '../../../../../../shared/ui';
 import {
     EcccPersonalApiRepository,
@@ -34,11 +36,13 @@ interface RenapoLookupContext {
 @Injectable()
 export class UserRegistrationIdentityCoordinator {
     private readonly renapoFacade = inject(RenapoFacade);
+    private readonly usersFacade = inject(UsersFacade);
     private readonly ecccPersonalApi = inject(EcccPersonalApiRepository);
     private readonly formRules = inject(UserRegistrationFormRules);
     private readonly destroyRef = inject(DestroyRef);
 
     private curpLookupSequence = 0;
+    private curpAvailabilitySequence = 0;
     private ecccPersonalLookupSequence = 0;
 
     readonly lastRenapoCurp = signal<string>('');
@@ -48,6 +52,142 @@ export class UserRegistrationIdentityCoordinator {
     readonly curpLocked = signal<boolean>(false);
     readonly curpUnlockChecked = signal<boolean>(false);
     readonly curpValidationSummary = signal<CurpValidationSummary | null>(null);
+    readonly curpAvailabilityStatus = signal<'idle' | 'loading' | 'available' | 'unavailable' | 'error'>('idle');
+    readonly curpAvailabilityValue = signal<string>('');
+
+    validateCurpAvailabilityAndConsultRenapo(curp: string, context: RenapoLookupContext): void {
+        const normalizedCurp = this.formRules.toText(curp).toUpperCase();
+
+        if (!this.formRules.isValidCurp(normalizedCurp)) {
+            return;
+        }
+
+        // En edición la CURP ya pertenece al usuario actual; no se valida como duplicada.
+        if (context.isEditMode) {
+            this.consultRenapo(normalizedCurp, context);
+            return;
+        }
+
+        if (
+            this.curpAvailabilityValue() === normalizedCurp &&
+            (this.curpAvailabilityStatus() === 'loading' ||
+                this.curpAvailabilityStatus() === 'available' ||
+                this.curpAvailabilityStatus() === 'unavailable')
+        ) {
+            return;
+        }
+
+        const requestSequence = ++this.curpAvailabilitySequence;
+        this.curpAvailabilityValue.set(normalizedCurp);
+        this.curpAvailabilityStatus.set('loading');
+        this.clearFieldError(context.formErrors, 'curp');
+
+        this.usersFacade
+            .validateRegistrationAvailability({ curp: normalizedCurp })
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: (response) => {
+                    if (
+                        requestSequence !== this.curpAvailabilitySequence ||
+                        context.form().curp !== normalizedCurp
+                    ) {
+                        return;
+                    }
+
+                    const message = response.curpMensaje?.trim();
+                    if (response.curpFormatoValido === 0 || response.curpDisponible === 0) {
+                        this.curpAvailabilityStatus.set('unavailable');
+                        this.curpLocked.set(false);
+                        context.formErrors.update((current) => ({
+                            ...current,
+                            curp:
+                                message ||
+                                (response.curpFormatoValido === 0
+                                    ? 'La CURP no tiene un formato válido.'
+                                    : 'La CURP ya se encuentra registrada.'),
+                        }));
+                        return;
+                    }
+
+                    this.curpAvailabilityStatus.set('available');
+                    this.clearFieldError(context.formErrors, 'curp');
+                    // La CURP está disponible: continúa exactamente con el flujo RENAPO existente.
+                    this.consultRenapo(normalizedCurp, context);
+                },
+                error: (error: unknown) => {
+                    if (
+                        requestSequence !== this.curpAvailabilitySequence ||
+                        context.form().curp !== normalizedCurp
+                    ) {
+                        return;
+                    }
+
+                    this.curpLocked.set(false);
+
+                    if (error instanceof HttpErrorResponse && error.status === 409) {
+                        this.curpAvailabilityStatus.set('unavailable');
+                        const body = error.error as { mensaje?: string; message?: string } | null;
+                        context.formErrors.update((current) => ({
+                            ...current,
+                            // Para 409 se muestra exactamente el mensaje funcional enviado por backend.
+                            curp: body?.mensaje?.trim() || body?.message?.trim()
+                                || 'La CURP ya se encuentra registrada o tiene una solicitud en curso.',
+                        }));
+                        return;
+                    }
+
+                    // Si el servicio de validación falla por un motivo distinto de 409,
+                    // informamos al usuario pero permitimos continuar con RENAPO y el registro.
+                    this.curpAvailabilityStatus.set('available');
+                    context.formErrors.update((current) => ({
+                        ...current,
+                        curp: 'No fue posible validar si existe o no la CURP.',
+                    }));
+                    this.consultRenapo(normalizedCurp, context);
+                },
+            });
+    }
+
+    canContinueWithCurp(
+        curp: string,
+        formErrors: WritableSignal<Record<string, string>>,
+        isEditMode: boolean,
+    ): boolean {
+        if (isEditMode) {
+            return true;
+        }
+
+        const normalizedCurp = this.formRules.toText(curp).toUpperCase();
+        // Las validaciones normales del paso se encargan del vacío/formato.
+        if (!this.formRules.isValidCurp(normalizedCurp)) {
+            return true;
+        }
+
+        if (
+            this.curpAvailabilityValue() === normalizedCurp &&
+            this.curpAvailabilityStatus() === 'available'
+        ) {
+            return true;
+        }
+
+        const status = this.curpAvailabilityStatus();
+        const message =
+            status === 'loading'
+                ? 'Espera a que termine la validación de la CURP antes de continuar.'
+                : status === 'unavailable'
+                    ? (formErrors()['curp'] || 'La CURP ya se encuentra registrada. Captura una CURP diferente.')
+                    : status === 'error'
+                        ? 'No fue posible validar si existe o no la CURP.'
+                        : 'La CURP debe validarse antes de continuar.';
+
+        if (status === 'error') {
+            formErrors.update((current) => ({ ...current, curp: message }));
+            return true;
+        }
+
+        formErrors.update((current) => ({ ...current, curp: message }));
+        return false;
+    }
 
     consultRenapo(curp: string, context: RenapoLookupContext): void {
         const normalizedCurp = this.formRules.toText(curp).toUpperCase();
@@ -255,6 +395,9 @@ export class UserRegistrationIdentityCoordinator {
 
     resetRenapoLookupState(): void {
         this.curpLookupSequence += 1;
+        this.curpAvailabilitySequence += 1;
+        this.curpAvailabilityStatus.set('idle');
+        this.curpAvailabilityValue.set('');
         this.lastRenapoCurp.set('');
         this.renapoLookupStatus.set('idle');
         this.renapoMessage.set('');
