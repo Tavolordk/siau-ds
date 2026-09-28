@@ -8,7 +8,7 @@ import {
     CorreoResponseApiResponse,
 } from '../domain/correo.model';
 
-const CORREOS_PATH = '/correo/api/v1/correos';
+const CORREOS_PATH = '/api/v1/correos';
 
 interface CorreoErrorResponse {
     readonly message?: string | null;

@@ -34,7 +34,7 @@ export function buildUserStructureUpdateEmailRequest(
         ? input.changes.map(renderChangeRow).join('')
         : `<tr>
             <td style="padding:8px 32px;color:#62748e;font-size:13px;line-height:1.5;">
-              El cambio fue procesado correctamente. Inicia sesión con las nuevas credenciales indicadas en este correo.
+              El cambio fue procesado correctamente. La cuenta y contraseña temporal indicadas en este correo corresponden a sistemas asociados que requieran usuario y contraseña; SIAU no utiliza contraseña para iniciar sesión.
             </td>
           </tr>`;
     const profiles = input.addedProfiles.length > 0
@@ -82,7 +82,7 @@ export function buildUserStructureUpdateEmailRequest(
               <td style="padding:34px 32px 12px;">
                 <p style="margin:0 0 8px;color:#8494a8;font-size:11px;font-weight:700;letter-spacing:0.08em;line-height:1.35;text-transform:uppercase;">Actualización confirmada</p>
                 <h1 style="margin:0;color:#1b1f4a;font-size:27px;font-weight:800;line-height:1.2;">Tu nueva cuenta SIAU está lista</h1>
-                <p style="margin:14px 0 0;color:#4f6076;font-size:15px;line-height:1.6;">Hola, <strong style="color:#1b1f4a;">${fullName}</strong>. La actualización de ${escapeHtml(subjectScope)} fue procesada correctamente y se generaron nuevas credenciales de acceso. A partir de ahora utiliza la siguiente cuenta y contraseña temporal.</p>
+                <p style="margin:14px 0 0;color:#4f6076;font-size:15px;line-height:1.6;">Hola, <strong style="color:#1b1f4a;">${fullName}</strong>. La actualización de ${escapeHtml(subjectScope)} fue procesada correctamente y se actualizaron tus credenciales institucionales. <strong>SIAU no utiliza contraseña para iniciar sesión.</strong> La cuenta y contraseña temporal que se muestran a continuación son para otros sistemas asociados a SIAU que requieran autenticación con usuario y contraseña.</p>
               </td>
             </tr>
             <tr>
@@ -102,9 +102,9 @@ export function buildUserStructureUpdateEmailRequest(
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#fff8e9;border:1px solid #ead7a7;border-radius:14px;overflow:hidden;">
                   <tr>
                     <td style="padding:16px 18px;">
-                      <div style="color:#8a641d;font-size:10px;font-weight:700;letter-spacing:0.08em;line-height:1.3;text-transform:uppercase;">Contraseña temporal</div>
+                      <div style="color:#8a641d;font-size:10px;font-weight:700;letter-spacing:0.08em;line-height:1.3;text-transform:uppercase;">Contraseña temporal para sistemas asociados</div>
                       <div style="margin-top:6px;color:#1b1f4a;font-size:21px;font-weight:800;letter-spacing:0.04em;line-height:1.35;word-break:break-word;">${temporaryPassword}</div>
-                      <div style="margin-top:7px;color:#76531b;font-size:12px;line-height:1.5;">Utilízala en tu próximo acceso y cámbiala cuando el sistema lo solicite. No la compartas.</div>
+                      <div style="margin-top:7px;color:#76531b;font-size:12px;line-height:1.5;">Esta contraseña <strong>no se utiliza para iniciar sesión en SIAU</strong>. Úsala únicamente en los sistemas asociados a SIAU que soliciten usuario y contraseña, y cámbiala cuando el sistema correspondiente lo solicite. No la compartas.</div>
                     </td>
                   </tr>
                 </table>
@@ -133,7 +133,7 @@ export function buildUserStructureUpdateEmailRequest(
               <td style="padding:18px 32px 12px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#fff8e9;border-left:4px solid #b9811f;border-radius:8px;">
                   <tr>
-                    <td style="padding:13px 15px;color:#76531b;font-size:12px;line-height:1.55;"><strong>Importante:</strong> SIAU nunca solicitará tu contraseña por llamada, mensaje o correo. Si no reconoces esta actualización o alguno de los datos es incorrecto, comunícate con la mesa de ayuda institucional.</td>
+                    <td style="padding:13px 15px;color:#76531b;font-size:12px;line-height:1.55;"><strong>Importante:</strong> SIAU no utiliza contraseña para iniciar sesión. La contraseña temporal de este correo es únicamente para otros sistemas asociados que la requieran. Nunca la compartas por llamada, mensaje o correo. Si no reconoces esta actualización o alguno de los datos es incorrecto, comunícate con la mesa de ayuda institucional.</td>
                   </tr>
                 </table>
               </td>
