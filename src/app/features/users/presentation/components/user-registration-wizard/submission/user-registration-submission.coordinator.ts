@@ -4,6 +4,7 @@ import {
     Injectable,
     WritableSignal,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
     catchError,
@@ -16,6 +17,7 @@ import {
 import { SiauSelectOption } from '../../../../../../shared/ui';
 import { UsersFacade } from '../../../../application/facades/users.facade';
 import {
+    RegistroValidacionResponse,
     UserDetailRecord,
     UserRecord,
 } from '../../../../domain/models/user-record.model';
@@ -178,7 +180,51 @@ export class UserRegistrationSubmissionCoordinator {
                 executorUserId: ctx.resolveCurrentUserId(),
                 resolveSystemId: (profile) => ctx.resolveAssignedSystemId(profile),
             });
-            saveRequest$ = this.usersFacade.createAdminUser(request);
+            const form = ctx.form();
+            const validationRequest$ = this.usersFacade.validateRegistrationAvailability({
+                curp: form.curp.trim().toUpperCase() || null,
+                rfc: form.rfc.trim().toUpperCase() || null,
+                correo: form.email.trim().toLowerCase() || null,
+                celular: form.phone.replace(/\D/g, '') || null,
+            }).pipe(
+                map((validation) => ({ kind: 'validated' as const, validation })),
+                catchError((error: unknown) => {
+                    if (error instanceof HttpErrorResponse && error.status === 409) {
+                        const body = error.error as { mensaje?: string; message?: string } | null;
+                        const message = body?.mensaje?.trim() || body?.message?.trim()
+                            || 'Uno de los datos ya se encuentra registrado o tiene una solicitud en curso.';
+                        ctx.formErrors.update((current) => ({ ...current, submit: message }));
+                        return of({ kind: 'blocked' as const });
+                    }
+
+                    // La validación de duplicados no debe impedir el registro si el servicio está caído.
+                    console.warn('No fue posible validar duplicados; se continuará con el registro.', error);
+                    ctx.formErrors.update((current) => ({
+                        ...current,
+                        submit: 'No fue posible validar si existen o no la CURP, RFC, correo o teléfono. Se continuará con el registro.',
+                    }));
+                    return of({ kind: 'bypass' as const });
+                }),
+            );
+
+            saveRequest$ = validationRequest$.pipe(
+                switchMap((result) => {
+                    if (result.kind === 'blocked') return of(null);
+                    if (result.kind === 'bypass') return this.usersFacade.createAdminUser(request);
+
+                    const validationErrors = this.toAvailabilityErrors(result.validation);
+                    if (Object.keys(validationErrors).length > 0) {
+                        ctx.formErrors.update((current) => ({
+                            ...current,
+                            ...validationErrors,
+                            submit: 'Corrige los datos marcados antes de registrar al usuario.',
+                        }));
+                        return of(null);
+                    }
+
+                    return this.usersFacade.createAdminUser(request);
+                }),
+            );
         } catch (error) {
             this.setSubmitError(ctx, error, 'Revisa la información capturada.');
             console.error(error);
@@ -188,8 +234,10 @@ export class UserRegistrationSubmissionCoordinator {
         ctx.isSubmitting.set(true);
         saveRequest$
             .pipe(
-                switchMap((response) =>
-                    this.notificationService.requestTemporaryPassword(response).pipe(
+                switchMap((response) => {
+                    if (!response) return of(null);
+
+                    return this.notificationService.requestTemporaryPassword(response).pipe(
                         switchMap((temporaryPassword) =>
                             this.notificationService.sendAccessCredentialsEmail(
                                 response,
@@ -204,18 +252,22 @@ export class UserRegistrationSubmissionCoordinator {
                                 emailDelivery: this.notificationService.toFailedEmailDelivery(error),
                             }),
                         ),
-                    ),
-                ),
-                switchMap(({ response, emailDelivery }) =>
-                    ctx.deleteDraftAfterSuccess().pipe(
-                        map(() => ({ response, emailDelivery })),
-                    ),
-                ),
+                    );
+                }),
+                switchMap((result) => {
+                    if (!result) return of(null);
+
+                    return ctx.deleteDraftAfterSuccess().pipe(
+                        map(() => result),
+                    );
+                }),
                 takeUntilDestroyed(this.destroyRef),
                 finalize(() => ctx.isSubmitting.set(false)),
             )
             .subscribe({
-                next: ({ response, emailDelivery }) => {
+                next: (result) => {
+                    if (!result) return;
+                    const { response, emailDelivery } = result;
                     ctx.stepOrder().forEach((stepId) => ctx.markCompleted(stepId));
                     ctx.saveSuccess.set(
                         this.notificationService.buildSaveSuccessModalState(
@@ -230,6 +282,42 @@ export class UserRegistrationSubmissionCoordinator {
                     console.error('Error registrando usuario.', error);
                 },
             });
+    }
+
+    private toAvailabilityErrors(
+        response: RegistroValidacionResponse,
+    ): Record<string, string> {
+        const errors: Record<string, string> = {};
+
+        if (response.curpFormatoValido === 0 || response.curpDisponible === 0) {
+            errors['curp'] = response.curpMensaje?.trim()
+                || (response.curpFormatoValido === 0
+                    ? 'La CURP no tiene un formato válido.'
+                    : 'La CURP ya se encuentra registrada.');
+        }
+
+        if (response.rfcFormatoValido === 0 || response.rfcDisponible === 0) {
+            errors['rfc'] = response.rfcMensaje?.trim()
+                || (response.rfcFormatoValido === 0
+                    ? 'El RFC no tiene un formato válido.'
+                    : 'El RFC ya se encuentra registrado o tiene una solicitud en curso.');
+        }
+
+        if (response.correoFormatoValido === 0 || response.correoDisponible === 0) {
+            errors['email'] = response.correoMensaje?.trim()
+                || (response.correoFormatoValido === 0
+                    ? 'El correo electrónico no tiene un formato válido.'
+                    : 'El correo electrónico ya se encuentra registrado.');
+        }
+
+        if (response.celularFormatoValido === 0 || response.celularDisponible === 0) {
+            errors['phone'] = response.celularMensaje?.trim()
+                || (response.celularFormatoValido === 0
+                    ? 'El teléfono celular no tiene un formato válido.'
+                    : 'El teléfono celular ya se encuentra registrado.');
+        }
+
+        return errors;
     }
 
     private setSubmitError(

@@ -64,8 +64,14 @@ export class UserRegistrationFieldController {
             this.identity.clearCurpValidationSummary();
         }
 
-        if (key === 'email' || key === 'phone') {
+        if (key === 'email') {
+            this.state.emailAvailabilityStatus.set('unvalidated');
             this.clearFieldError('email');
+            return;
+        }
+
+        if (key === 'phone') {
+            this.state.phoneAvailabilityStatus.set('unvalidated');
             this.clearFieldError('phone');
             return;
         }
@@ -86,6 +92,7 @@ export class UserRegistrationFieldController {
         }
 
         this.identity.clearCurpLookupResultsForEdit(this.state.form, this.state.formErrors);
+        this.state.rfcAvailabilityStatus.set('unvalidated');
         this.state.form.update((current) => ({ ...current, curp }));
         this.clearFieldError('curp');
         this.clearFieldError('rfc');
@@ -102,7 +109,20 @@ export class UserRegistrationFieldController {
             return;
         }
 
-        this.consultRenapo(curp);
+        this.validateCurpAvailability(curp);
+    }
+
+    validateCurpAvailability(value: string): void {
+        if (this.presenter.isCurpInputDisabled()) {
+            return;
+        }
+
+        const curp = this.formRules.normalizeFormInputValue('curp', value);
+        if (!this.formRules.isValidCurp(curp)) {
+            return;
+        }
+
+        this.identity.validateCurpAvailabilityAndConsultRenapo(curp, this.renapoContext());
     }
 
     updateRfc(value: string): void {
@@ -119,6 +139,7 @@ export class UserRegistrationFieldController {
         this.state.form.update((form) => ({ ...form, rfc }));
         if (rfc !== current.rfc) {
             this.identity.clearCurpValidationSummary();
+            this.state.rfcAvailabilityStatus.set('unvalidated');
         }
         this.clearFieldError('rfc');
     }
@@ -152,22 +173,26 @@ export class UserRegistrationFieldController {
 
         this.state.curpUnlockChecked.set(false);
         if (currentCurp !== this.identity.lastRenapoCurp()) {
-            this.consultRenapo(currentCurp);
+            this.validateCurpAvailability(currentCurp);
             return;
         }
         this.state.curpLocked.set(true);
     }
 
     consultRenapo(curp = this.state.form().curp): void {
-        this.identity.consultRenapo(curp, {
+        this.identity.consultRenapo(curp, this.renapoContext());
+    }
+
+    private renapoContext() {
+        return {
             form: this.state.form,
             formErrors: this.state.formErrors,
             genderOptions: () => this.state.genderOptions(),
             isEditMode: this.presenter.isEditMode(),
             detailCurpValidated: this.state.detailCurpValidated(),
-            applyLiveFieldValidation: (field, value) =>
+            applyLiveFieldValidation: (field: keyof UserRegistrationForm, value: UserRegistrationForm[keyof UserRegistrationForm]) =>
                 this.applyLiveFieldValidation(field, value),
-        });
+        };
     }
 
     clearFieldError(key: string): void {

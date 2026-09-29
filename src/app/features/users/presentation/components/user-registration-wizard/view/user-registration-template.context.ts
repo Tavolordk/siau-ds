@@ -168,6 +168,7 @@ export abstract class UserRegistrationTemplateContext {
     protected submit(): void { this.view.submit(); }
     protected updateForm<K extends keyof UserRegistrationForm>(key: K, value: UserRegistrationForm[K] | string | null): void { this.view.updateForm(key, value); }
     protected updateCurp(value: string): void { this.view.updateCurp(value); }
+    protected validateCurpAvailability(value: string): void { this.view.validateCurpAvailability(value); }
     protected updateRfc(value: string): void { this.view.updateRfc(value); }
     protected toggleCurpUnlock(checked: boolean): void { this.view.toggleCurpUnlock(checked); }
     protected toggleCommissionSection(checked: boolean): void { this.view.toggleCommissionSection(checked); }

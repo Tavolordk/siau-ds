@@ -17,6 +17,8 @@ import {
 import { CaptchaFacade } from '../../captcha/application/captcha.facade';
 import { AuthApi, AuthHttpError } from '../data-access/auth.api';
 import { AuthStorage } from '../data-access/auth.storage';
+import { SessionRevocationSignalRService } from '../data-access/session-revocation-signalr.service';
+import { SessionRevokedEvent } from '../domain/session-revocation.model';
 import {
     DEFAULT_AUTHENTICATED_ROUTE,
     SESSION_ACTIVITY_STORAGE_THROTTLE_MS,
@@ -41,6 +43,7 @@ export class AuthFacade {
     private readonly captcha = inject(CaptchaFacade);
     private readonly storage = inject(AuthStorage);
     private readonly router = inject(Router);
+    private readonly sessionSignalR = inject(SessionRevocationSignalRService);
 
     private readonly loadingState = signal(false);
     private readonly errorState = signal<string | null>(null);
@@ -131,6 +134,21 @@ export class AuthFacade {
     readonly userRole = computed(() => this.session()?.user.role ?? 'Usuario');
 
     constructor() {
+        this.sessionSignalR.sessionRevoked$.subscribe((event) => {
+            this.handleRemoteSessionRevocation(event);
+        });
+
+        effect(() => {
+            if (this.isAuthenticated()) {
+                void this.sessionSignalR.connect().catch((error: unknown) => {
+                    console.warn('[AuthFacade] No fue posible conectar al hub global de sesiones.', error);
+                });
+                return;
+            }
+
+            void this.sessionSignalR.disconnect();
+        });
+
         effect(() => {
             const closureVersion = this.storage.externalSessionClosure();
 
@@ -672,6 +690,56 @@ export class AuthFacade {
     private restartSessionMonitor(): void {
         this.stopSessionMonitor();
         this.startSessionMonitor();
+    }
+
+    private handleRemoteSessionRevocation(event: SessionRevokedEvent): void {
+        const currentSession = this.session();
+
+        if (!currentSession) {
+            return;
+        }
+
+        const currentUserId = Number(currentSession.user.id);
+        const eventUserId = Number(event.usuarioId);
+
+        // El backend usa Clients.User(usuarioId), pero se conserva esta validación
+        // defensiva por si el Hub llegara a publicar un evento a un grupo incorrecto.
+        if (
+            Number.isFinite(currentUserId) &&
+            currentUserId > 0 &&
+            Number.isFinite(eventUserId) &&
+            eventUserId > 0 &&
+            currentUserId !== eventUserId
+        ) {
+            console.warn(
+                `[AuthFacade] Se ignoró SesionRevocada para usuario ${eventUserId}; la sesión actual pertenece a ${currentUserId}.`,
+            );
+            return;
+        }
+
+        const message = event.mensaje?.trim() || this.getRemoteRevocationMessage(event.motivo);
+
+        this.challengeCaptchaToken = null;
+        this.stopSessionMonitor();
+        this.clearSessionPrompt();
+        this.storage.clearAll();
+        this.errorState.set(message);
+        void this.sessionSignalR.disconnect();
+        void this.router.navigateByUrl('/login', { replaceUrl: true });
+    }
+
+    private getRemoteRevocationMessage(reason: string): string {
+        const normalizedReason = reason.trim().toUpperCase();
+
+        if (normalizedReason === 'BAJA_CUENTA') {
+            return 'Tu cuenta fue dada de baja. La sesión se cerró automáticamente.';
+        }
+
+        if (normalizedReason === 'SUSPENSION_CUENTA') {
+            return 'Tu cuenta fue suspendida. La sesión se cerró automáticamente.';
+        }
+
+        return 'Tu sesión fue revocada y se cerró automáticamente.';
     }
 
     private forceLocalLogout(message: string): void {

@@ -88,6 +88,9 @@ export class UserRegistrationContextFactory {
             activeStepId: this.state.activeStepId,
             form: this.state.form,
             formErrors: this.state.formErrors,
+            rfcAvailabilityStatus: this.state.rfcAvailabilityStatus,
+            emailAvailabilityStatus: this.state.emailAvailabilityStatus,
+            phoneAvailabilityStatus: this.state.phoneAvailabilityStatus,
             stepOrder: () => this.presenter.stepOrder(),
             context: () => this.validationContext(),
         };

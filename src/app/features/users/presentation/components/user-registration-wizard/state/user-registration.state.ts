@@ -52,6 +52,9 @@ export class UserRegistrationState {
     readonly draftError = signal('');
     readonly deleteDraftConfirmationOpen = signal(false);
     readonly formErrors = signal<Record<string, string>>({});
+    readonly rfcAvailabilityStatus = signal<'unvalidated' | 'pending' | 'valid' | 'invalid'>('unvalidated');
+    readonly emailAvailabilityStatus = signal<'unvalidated' | 'pending' | 'valid' | 'invalid'>('unvalidated');
+    readonly phoneAvailabilityStatus = signal<'unvalidated' | 'pending' | 'valid' | 'invalid'>('unvalidated');
     readonly saveSuccess = signal<SaveSuccessModalState | null>(null);
 
     readonly renapoLookupStatus = this.identity.renapoLookupStatus;

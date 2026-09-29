@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { UserRegistrationFormRules } from '../../../components/user-registration-wizard/validation/user-registration-form.rules';
 import { UserAccountOperationsController } from '../accounts/user-account-operations.controller';
 import { UserManagementFilterCatalogController } from './user-management-filter-catalog.controller';
 import { UserManagementFilterPresenter } from './user-management-filter.presenter';
@@ -6,7 +7,6 @@ import { UserManagementFilterState } from './user-management-filter.state';
 import {
     DATE_FILTER_KEYS,
     EMPTY_USER_FILTERS,
-    NAME_FILTER_KEYS,
     UserFilterDefinition,
     UserFilterKey,
     UserFilterTabKey,
@@ -20,6 +20,7 @@ export class UserManagementFilterController {
     private readonly presenter = inject(UserManagementFilterPresenter);
     private readonly catalogs = inject(UserManagementFilterCatalogController);
     private readonly accountOperations = inject(UserAccountOperationsController);
+    private readonly registrationRules = inject(UserRegistrationFormRules);
 
     togglePanel(): void {
         if (!this.accountOperations.isAdminUser()) return;
@@ -98,15 +99,40 @@ export class UserManagementFilterController {
     }
 
     updateValue(key: UserFilterKey, value: string): void {
-        let normalizedValue = String(value ?? '');
-        if (NAME_FILTER_KEYS.includes(key) || key === 'curp' || key === 'rfc' || key === 'nombreUsuario') {
-            normalizedValue = normalizedValue.toUpperCase();
+        const rawValue = String(value ?? '');
+        let normalizedValue = rawValue;
+
+        switch (key) {
+            case 'primerApellido':
+            case 'segundoApellido':
+            case 'nombres':
+                normalizedValue = this.registrationRules.normalizeNameInput(rawValue).slice(0, 100);
+                break;
+            case 'curp':
+                normalizedValue = this.registrationRules.normalizeAlphanumericInput(rawValue, 18);
+                break;
+            case 'rfc':
+                normalizedValue = this.registrationRules.normalizeAlphanumericInput(rawValue, 13);
+                break;
+            case 'correo':
+                normalizedValue = this.registrationRules.normalizeEmail(rawValue).slice(0, 254);
+                break;
+            case 'numeroTelefonico':
+                normalizedValue = this.registrationRules.normalizeNumericInput(rawValue, 10);
+                break;
+            case 'nombreUsuario':
+                normalizedValue = this.registrationRules.normalizeAlphanumericInput(rawValue, 14);
+                break;
+            default:
+                normalizedValue = rawValue;
+                break;
         }
+
         this.state.draftFilters.update((filters) => ({ ...filters, [key]: normalizedValue }));
     }
 
     updateCatalogValue(filter: UserFilterDefinition, label: string): void {
-        const normalizedLabel = String(label ?? '');
+        const normalizedLabel = this.normalizeCatalogLabelInput(label, filter.maxLength ?? 100);
         const selectedOption = filter.options.find(
             (option) => this.presenter.normalizeForCompare(option.label) === this.presenter.normalizeForCompare(normalizedLabel),
         );
@@ -202,6 +228,15 @@ export class UserManagementFilterController {
             if (filters.comisionTipoInstitucionId && this.presenter.requiresEntityForInstitution(filters.comisionTipoInstitucionId)) this.setSelected('comisionEntidadId', true);
             if (filters.comisionTipoInstitucionId && this.presenter.requiresMunicipalityForInstitution(filters.comisionTipoInstitucionId)) this.setSelected('comisionMunicipioId', true);
         }
+    }
+
+    private normalizeCatalogLabelInput(value: unknown, maxLength: number): string {
+        return String(value ?? '')
+            .normalize('NFKC')
+            .replace(/[^\p{L}\p{N}\s]/gu, '')
+            .replace(/\s+/g, ' ')
+            .replace(/^\s+/, '')
+            .slice(0, maxLength);
     }
 
     private findDefinition(key: UserFilterKey): UserFilterDefinition | undefined {

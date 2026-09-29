@@ -122,21 +122,23 @@ export class RequestMockStore {
     documentCount: number,
     ownership: RequestOwnership,
   ): RequestRecord {
-    const sampleNames = [
-      ['Identificación oficial.pdf', 'application/pdf', 1_250_000],
-      ['Comprobante domicilio.jpg', 'image/jpeg', 980_000],
-      ['Curriculum vitae.pdf', 'application/pdf', 2_400_000],
-      ['Título profesional.png', 'image/png', 1_600_000],
-      ['Oficio de adscripción.pdf', 'application/pdf', 740_000],
+    // Expediente dummy visualizable. Estos archivos viven en /public/mock-documents
+    // y se sirven como assets estáticos de Angular; no dependen del backend.
+    const sampleDocuments = [
+      ['Identificación oficial.pdf', 'application/pdf', 2_199, '/mock-documents/identificacion-oficial.pdf'],
+      ['Comprobante domicilio.jpg', 'image/jpeg', 83_087, '/mock-documents/comprobante-domicilio.jpg'],
+      ['Curriculum vitae.pdf', 'application/pdf', 2_177, '/mock-documents/curriculum-vitae.pdf'],
+      ['Título profesional.png', 'image/png', 43_167, '/mock-documents/titulo-profesional.png'],
+      ['Oficio de adscripción.pdf', 'application/pdf', 2_192, '/mock-documents/oficio-adscripcion.pdf'],
     ] as const;
 
-    const documents: readonly RequestDocument[] = sampleNames.slice(0, documentCount).map((item, index) => ({
+    const documents: readonly RequestDocument[] = sampleDocuments.slice(0, documentCount).map((item, index) => ({
       id: `${folio}-doc-${index + 1}`,
       name: item[0],
       mimeType: item[1],
       sizeBytes: item[2],
       uploadedAt: createdAt,
-      objectUrl: null,
+      objectUrl: item[3],
     }));
 
     const nameParts = applicant.trim().split(/\s+/);

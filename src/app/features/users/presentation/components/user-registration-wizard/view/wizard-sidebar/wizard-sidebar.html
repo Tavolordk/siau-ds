@@ -3,7 +3,7 @@
 
             <div class="registration-wizard__steps">
                 @for (step of steps(); track step.id; let index = $index) {
-                <button type="button" [class]="getStepClass(step, index)" (click)="goToStep(step.id)">
+                <button type="button" [class]="getStepClass(step, index)" [disabled]="isSubmitting() || isDraftLoading() || isDraftDeleting()" (click)="goToStep(step.id)">
                     <span class="registration-wizard__step-icon">
                         <siau-lucide-icon [name]="getStepIcon(step)" size="13" strokeWidth="2" aria-hidden="true" />
                     </span>

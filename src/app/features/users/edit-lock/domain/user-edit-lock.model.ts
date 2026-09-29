@@ -14,6 +14,8 @@ export interface UserEditLock {
 
 export interface AcquireUserEditLockCommand {
     readonly clienteId: string;
+    readonly bloqueadoPorUsuarioId: number;
+    readonly bloqueadoPorNombre: string;
 }
 
 export interface RenewUserEditLockCommand {

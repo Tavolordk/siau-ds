@@ -30,6 +30,9 @@ export class UserRegistrationResetService {
         this.state.draftError.set('');
         this.state.deleteDraftConfirmationOpen.set(false);
         this.state.formErrors.set({});
+        this.state.rfcAvailabilityStatus.set('unvalidated');
+        this.state.emailAvailabilityStatus.set('unvalidated');
+        this.state.phoneAvailabilityStatus.set('unvalidated');
         this.state.saveSuccess.set(null);
         this.state.selectedSystem.set('');
         this.state.selectedRole.set('');

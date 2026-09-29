@@ -10,6 +10,8 @@ import {
     PasswordTemporalResponse,
     RegistroAdminRequest,
     RegistroAdminResponse,
+    RegistroValidacionRequest,
+    RegistroValidacionResponse,
     SolicitudOperacionRequest,
     SolicitudOperacionResponse,
     UserDetailRecord,
@@ -61,6 +63,10 @@ export class UsersFacade {
 
     getUserDetail(userId: number): Observable<UserDetailRecord> {
         return this.repository.getUserDetail(userId);
+    }
+
+    validateRegistrationAvailability(request: RegistroValidacionRequest): Observable<RegistroValidacionResponse> {
+        return this.repository.validateRegistrationAvailability(request);
     }
 
     createAdminUser(request: RegistroAdminRequest): Observable<RegistroAdminResponse> {

@@ -31,11 +31,12 @@
                     <siau-input label="Correo Electrónico" type="email" placeholder="usuario@sspc.gob.mx"
                         [required]="emailRequired()" [maxLength]="254" [value]="form().email" [emailOnly]="true"
                         [error]="fieldError('email')" (valueChange)="updateForm('email', $event)"
-                        [disabled]="isFormDisabled()" />
+                        (blurValue)="validateEmailAvailability($event)" [disabled]="isFormDisabled()" />
 
                     <siau-input label="Teléfono Celular" placeholder="Ej. 5512345678" [required]="phoneRequired()"
                         [maxLength]="10" [numericOnly]="true" [value]="form().phone" [error]="fieldError('phone')"
-                        (valueChange)="updateForm('phone', $event)" [disabled]="isFormDisabled()" />
+                        (valueChange)="updateForm('phone', $event)" (blurValue)="validatePhoneAvailability($event)"
+                        [disabled]="isFormDisabled()" />
 
                 </div>
             </section>

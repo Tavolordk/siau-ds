@@ -111,7 +111,7 @@ export class UserRegistrationViewFacade {
         if (this.isWizardStep(stepId)) this.navigation.goToStep(stepId, this.navigationActions());
     }
     nextStep(): void { this.navigation.nextStep(this.navigationActions()); }
-    previousStep(): void { this.navigation.previousStep(); }
+    previousStep(): void { this.navigation.previousStep(this.navigationActions()); }
 
     closeWizard(onClosed: () => void): void {
         if (this.state.isSubmitting() || this.presenter.isDraftBusy()) return;
@@ -134,6 +134,7 @@ export class UserRegistrationViewFacade {
         this.fieldController.updateForm(key, value, (origin) => this.claimEditStructureScope(origin));
     }
     updateCurp(value: string): void { this.fieldController.updateCurp(value); }
+    validateCurpAvailability(value: string): void { this.fieldController.validateCurpAvailability(value); }
     updateRfc(value: string): void { this.fieldController.updateRfc(value); }
     toggleCurpUnlock(checked: boolean): void { this.fieldController.toggleCurpUnlock(checked); }
 
@@ -221,6 +222,11 @@ export class UserRegistrationViewFacade {
     private navigationActions(): UserRegistrationNavigationActions {
         return {
             validateStep: (stepId) => this.contextFactory.validateStep(stepId),
+            canLeavePersonalData: () => this.identity.canContinueWithCurp(
+                this.state.form().curp,
+                this.state.formErrors,
+                this.presenter.isEditMode(),
+            ),
             validateChangedIdentityFields: () => this.contextFactory.validateChangedIdentityFields(),
             consultEcccAndPersonal: () => this.consultEcccAndPersonal(),
             buildDraftSaveRequest: (nextStepId, completedSteps) => this.contextFactory.buildDraftSaveRequest(nextStepId, completedSteps),

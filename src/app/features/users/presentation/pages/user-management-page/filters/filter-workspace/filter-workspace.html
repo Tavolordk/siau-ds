@@ -157,6 +157,7 @@
                             @if (filter.kind === 'catalog') {
                             <input type="search" autocomplete="off"
                                 [attr.list]="'users-builder-filter-options-' + filter.key"
+                                minlength="1" [attr.maxlength]="filter.maxLength ?? null"
                                 [value]="getDraftCatalogLabel(filter)" [placeholder]="getFilterPlaceholder(filter)"
                                 [disabled]="isFilterDefinitionDisabled(filter)"
                                 (input)="updateCatalogDraftFilter(filter, $any($event.target).value)" />
@@ -170,7 +171,8 @@
                                 (input)="updateDraftFilter(filter.key, $any($event.target).value)" />
                             } @else {
                             <input [type]="filter.inputMode === 'email' ? 'email' : 'text'"
-                                [attr.inputmode]="filter.inputMode" [attr.maxlength]="filter.maxLength ?? null"
+                                [attr.inputmode]="filter.inputMode" minlength="1"
+                                [attr.maxlength]="filter.maxLength ?? null"
                                 autocomplete="off" [value]="draftFilters()[filter.key]"
                                 [placeholder]="filter.placeholder"
                                 (input)="updateDraftFilter(filter.key, $any($event.target).value)" />

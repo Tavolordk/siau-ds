@@ -58,7 +58,7 @@ export function buildUserCredentialsEmailRequest(
               <td style="padding:34px 32px 12px;">
                 <p style="margin:0 0 8px;color:#8494a8;font-size:11px;font-weight:700;letter-spacing:0.08em;line-height:1.35;text-transform:uppercase;">Registro confirmado</p>
                 <h1 style="margin:0;color:#1b1f4a;font-size:27px;font-weight:800;line-height:1.2;">Tu ${accountType} está lista</h1>
-                <p style="margin:14px 0 0;color:#4f6076;font-size:15px;line-height:1.6;">Hola, <strong style="color:#1b1f4a;">${fullName}</strong>. Tu registro en <strong style="color:#1b1f4a;">${system}</strong> fue procesado correctamente. Conserva esta información para iniciar sesión.</p>
+                <p style="margin:14px 0 0;color:#4f6076;font-size:15px;line-height:1.6;">Hola, <strong style="color:#1b1f4a;">${fullName}</strong>. Tu registro en <strong style="color:#1b1f4a;">${system}</strong> fue procesado correctamente. A continuación encontrarás tu cuenta y una contraseña temporal para los sistemas asociados a SIAU que requieran autenticación con usuario y contraseña.</p>
               </td>
             </tr>
             <tr>
@@ -78,9 +78,9 @@ export function buildUserCredentialsEmailRequest(
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#fff8e9;border:1px solid #ead7a7;border-radius:14px;">
                   <tr>
                     <td style="padding:18px 20px;">
-                      <div style="margin:0;color:#8a641d;font-size:10px;font-weight:700;letter-spacing:0.08em;line-height:1.3;text-transform:uppercase;">Contraseña temporal</div>
+                      <div style="margin:0;color:#8a641d;font-size:10px;font-weight:700;letter-spacing:0.08em;line-height:1.3;text-transform:uppercase;">Contraseña temporal para sistemas asociados</div>
                       <div style="margin-top:7px;color:#1b1f4a;font-size:23px;font-weight:800;letter-spacing:0.04em;line-height:1.25;word-break:break-word;">${temporaryPassword}</div>
-                      <div style="margin-top:7px;color:#76531b;font-size:12px;line-height:1.5;">Utilízala en tu primer acceso y cámbiala cuando el sistema lo solicite. No la compartas.</div>
+                      <div style="margin-top:7px;color:#76531b;font-size:12px;line-height:1.5;">Esta contraseña <strong>no se utiliza para iniciar sesión en SIAU</strong>. Úsala únicamente en los sistemas asociados a SIAU que soliciten usuario y contraseña, y cámbiala cuando el sistema correspondiente lo solicite. No la compartas.</div>
                     </td>
                   </tr>
                 </table>
@@ -89,7 +89,7 @@ export function buildUserCredentialsEmailRequest(
             <tr>
               <td style="padding:20px 32px 8px;">
                 <p style="margin:0;color:#1b1f4a;font-size:15px;font-weight:800;line-height:1.4;">Cómo ingresar a SIAU</p>
-                <p style="margin:7px 0 0;color:#4f6076;font-size:14px;line-height:1.55;">Escribe tu cuenta y la contraseña temporal indicada arriba. Tus medios de contacto registrados seguirán disponibles para los mecanismos de verificación del sistema.</p>
+                <p style="margin:7px 0 0;color:#4f6076;font-size:14px;line-height:1.55;"><strong>SIAU no utiliza contraseña para iniciar sesión.</strong> Ingresa con alguno de tus medios de contacto registrados y completa el mecanismo de verificación mediante el código que recibirás. La contraseña temporal indicada arriba corresponde únicamente a otros sistemas asociados a SIAU que sí requieran usuario y contraseña.</p>
               </td>
             </tr>
             <tr>

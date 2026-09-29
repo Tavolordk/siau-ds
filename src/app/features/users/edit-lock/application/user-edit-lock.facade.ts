@@ -1,7 +1,9 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, interval, Subscription } from 'rxjs';
+import { AuthFacade } from '../../../../core/auth/application/auth.facade';
 import { UserEditLockClientIdService } from '../data-access/user-edit-lock-client-id.service';
 import {
+    AcquireUserEditLockCommand,
     UserEditLock,
     UserEditLockConflictError,
     UserEditLockStatus,
@@ -13,6 +15,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 @Injectable()
 export class UserEditLockFacade {
     private readonly repository = inject(UserEditLockRepository);
+    private readonly auth = inject(AuthFacade);
     private readonly clientId = inject(UserEditLockClientIdService).value;
     private readonly destroyRef = inject(DestroyRef);
     private heartbeatSubscription: Subscription | null = null;
@@ -70,8 +73,16 @@ export class UserEditLockFacade {
         this.status.set('acquiring');
         this.message.set('Solicitando exclusividad para editar...');
 
+        const command = this.buildAcquireCommand();
+        if (!command) {
+            this.current.set(null);
+            this.status.set('error');
+            this.message.set('No fue posible identificar al administrador autenticado para registrar el bloqueo de edición.');
+            return false;
+        }
+
         try {
-            const lock = await firstValueFrom(this.repository.acquire(usuarioId, { clienteId: this.clientId }));
+            const lock = await firstValueFrom(this.repository.acquire(usuarioId, command));
             if (operationVersion !== this.operationVersion) {
                 if (lock.tokenBloqueo) {
                     this.repository.release(usuarioId, { clienteId: this.clientId, tokenBloqueo: lock.tokenBloqueo })
@@ -136,6 +147,22 @@ export class UserEditLockFacade {
         this.current.set(null);
         this.message.set('');
         this.targetUserId.set(null);
+    }
+
+    private buildAcquireCommand(): AcquireUserEditLockCommand | null {
+        const session = this.auth.session();
+        const bloqueadoPorUsuarioId = Number(session?.user.id);
+        const bloqueadoPorNombre = session?.user.username?.trim() || session?.user.name?.trim() || '';
+
+        if (!Number.isFinite(bloqueadoPorUsuarioId) || bloqueadoPorUsuarioId <= 0 || !bloqueadoPorNombre) {
+            return null;
+        }
+
+        return {
+            clienteId: this.clientId,
+            bloqueadoPorUsuarioId,
+            bloqueadoPorNombre,
+        };
     }
 
     private startHeartbeat(): void {

@@ -389,8 +389,8 @@ private addNameValidationError(
 
         const normalized = this.formRules.toText(value).normalize('NFC');
 
-        if (normalized.length > 100 || !/^[A-Z ]+$/.test(normalized)) {
-            errors[key] = `${label} debe contener únicamente letras A-Z y espacios (máximo 100 caracteres).`;
+        if (normalized.length > 100 || !/^[A-ZÑ ]+$/.test(normalized)) {
+            errors[key] = `${label} debe contener únicamente letras A-Z, Ñ y espacios (máximo 100 caracteres).`;
         }
     }
 

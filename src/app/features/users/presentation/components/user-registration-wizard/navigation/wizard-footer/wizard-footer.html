@@ -1,6 +1,6 @@
             <footer class="registration-wizard__footer">
                 <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                    [disabled]="activeIndex() === 0 || isSubmitting() || isDraftBusy()" (click)="previousStep()">
+                    [disabled]="activeIndex() === 0 || isSubmitting() || isDraftLoading() || isDraftDeleting()" (click)="previousStep()">
                     <siau-lucide-icon name="chevron-left" size="14" strokeWidth="2" aria-hidden="true" />
                     Anterior
                 </button>
@@ -13,7 +13,7 @@
 
                 <div class="registration-wizard__actions">
                     <button type="button" class="registration-wizard__button registration-wizard__button--secondary"
-                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting() || isDraftBusy()"
+                        [disabled]="activeIndex() === stepOrder().length - 1 || isSubmitting() || isDraftLoading() || isDraftDeleting()"
                         (click)="nextStep()">
                         Siguiente
                         <siau-lucide-icon name="chevron-right" size="14" strokeWidth="2" aria-hidden="true" />
@@ -25,7 +25,7 @@
                     </button>
 
                     <button type="button" class="registration-wizard__button registration-wizard__button--primary"
-                        [disabled]="isFormDisabled() || isSubmitting() || isDraftBusy() || !isLastStep()"
+                        [disabled]="isFormDisabled() || isSubmitting() || isDraftLoading() || isDraftDeleting() || !isLastStep()"
                         (click)="submit()">
                         <siau-lucide-icon [name]="primaryButtonIcon()" size="14" strokeWidth="2" aria-hidden="true" />
                         {{ primaryButtonLabel() }}
