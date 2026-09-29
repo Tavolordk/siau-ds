@@ -1,7 +1,7 @@
 import { computed, inject, Injectable } from '@angular/core';
 import {
     CONTACT_EMAIL_MAX_LENGTH,
-    getContactEmailError,
+    sanitizeContactEmailInput,
 } from '../../../../../../shared/validation/field-validators';
 import {
     EMPTY_USER_FILTERS,
@@ -37,14 +37,14 @@ export class UserManagementFilterPresenter {
         { key: 'rfc', label: 'RFC', placeholder: '13 caracteres', group: 'general', kind: 'text', options: [], maxLength: 13, inputMode: 'text' },
         { key: 'correo', label: 'Correo electrónico', placeholder: 'usuario@dominio.com', group: 'general', kind: 'text', options: [], maxLength: CONTACT_EMAIL_MAX_LENGTH, inputMode: 'email' },
         { key: 'numeroTelefonico', label: 'Número telefónico', placeholder: '10 dígitos', group: 'general', kind: 'text', options: [], maxLength: 10, inputMode: 'numeric' },
-        { key: 'tipoInstitucionId', label: 'Tipo de institución', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.institutionTypeOptions() },
-        { key: 'entidadId', label: 'Entidad', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.stateOptions() },
-        { key: 'municipioId', label: 'Municipio/Alcaldía', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.municipalityOptions() },
-        { key: 'institucionId', label: 'Institución', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.institutionOptions() },
-        { key: 'organoAdministrativoDesconcentradoId', label: 'Órgano Administrativo Desconcentrado', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.decentralizedBodyOptions() },
-        { key: 'unidadAdministrativaId', label: 'Unidad Administrativa', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.administrativeUnitOptions() },
+        { key: 'tipoInstitucionId', label: 'Tipo de institución', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.institutionTypeOptions(), maxLength: 100 },
+        { key: 'entidadId', label: 'Entidad', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.stateOptions(), maxLength: 100 },
+        { key: 'municipioId', label: 'Municipio/Alcaldía', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.municipalityOptions(), maxLength: 100 },
+        { key: 'institucionId', label: 'Institución', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.institutionOptions(), maxLength: 100 },
+        { key: 'organoAdministrativoDesconcentradoId', label: 'Órgano Administrativo Desconcentrado', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.decentralizedBodyOptions(), maxLength: 100 },
+        { key: 'unidadAdministrativaId', label: 'Unidad Administrativa', placeholder: 'Escribe para buscar y selecciona', group: 'adscription', kind: 'catalog', options: this.state.administrativeUnitOptions(), maxLength: 100 },
         { key: 'nombreUsuario', label: 'Nombre de usuario', placeholder: '14 caracteres', group: 'account', kind: 'text', options: [], maxLength: 14, inputMode: 'text' },
-        { key: 'estadoCuentaId', label: 'Estatus', placeholder: 'Escribe para buscar y selecciona', group: 'account', kind: 'catalog', options: this.state.accountStatusOptions() },
+        { key: 'estadoCuentaId', label: 'Estatus', placeholder: 'Escribe para buscar y selecciona', group: 'account', kind: 'catalog', options: this.state.accountStatusOptions(), maxLength: 15 },
         { key: 'fechaInicio', label: 'Fecha de inicio del último movimiento', placeholder: 'dd/mm/aaaa', group: 'account', kind: 'date', options: [] },
         { key: 'fechaFin', label: 'Fecha de fin del último movimiento', placeholder: 'dd/mm/aaaa', group: 'account', kind: 'date', options: [] },
     ]);
@@ -83,8 +83,7 @@ export class UserManagementFilterPresenter {
     readonly draftFilterErrors = computed<Partial<Record<UserFilterKey, string>>>(() => {
         const errors: Partial<Record<UserFilterKey, string>> = {};
         const filters = this.state.draftFilters();
-        (Object.keys(filters) as UserFilterKey[]).forEach((key) => {
-            if (!filters[key]) return;
+        this.state.draftFilterKeys().forEach((key) => {
             const error = this.validateFilterValue(key, filters[key]);
             if (error) errors[key] = error;
         });
@@ -100,14 +99,7 @@ export class UserManagementFilterPresenter {
         if (Boolean(filters.fechaInicio) !== Boolean(filters.fechaFin)) {
             return 'El período de último movimiento requiere fecha de inicio y fecha de fin.';
         }
-        const capturedNameCriteria = [
-            filters.primerApellido,
-            filters.segundoApellido,
-            filters.nombres,
-        ].filter((value) => Boolean(String(value ?? '').trim())).length;
-        return capturedNameCriteria === 1
-            ? 'Para buscar por nombre debes capturar al menos dos campos entre Nombre(s), Primer apellido y Segundo apellido.'
-            : null;
+        return null;
     });
 
     readonly activeFilterCount = computed(() =>
@@ -226,30 +218,67 @@ export class UserManagementFilterPresenter {
     }
 
     validateFilterValue(key: UserFilterKey, rawValue: string): string | null {
-        const value = rawValue.trim();
-        if (!value) return 'Captura o selecciona un valor.';
+        const value = String(rawValue ?? '').trim();
+        if (!value) return 'Captura o selecciona al menos un carácter.';
+
         if (NAME_FILTER_KEYS.includes(key)) {
-            return /^[A-Z ]{1,100}$/.test(value)
+            return /^[A-ZÑ ]{1,100}$/.test(value)
                 ? null
-                : 'Solo se permiten letras A-Z y espacios, con máximo 100 caracteres.';
+                : 'Sólo se permiten letras, Ñ y espacios, de 1 a 100 caracteres.';
         }
+
         switch (key) {
             case 'curp':
-                return /^[A-Z]{4}\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/.test(value)
-                    ? null : 'La CURP debe tener 18 caracteres y cumplir el formato establecido.';
+                return /^[A-Z0-9]{1,18}$/.test(value)
+                    ? null : 'La CURP sólo permite letras y números, de 1 a 18 caracteres.';
             case 'rfc':
-                return /^[A-Z]{4}\d{6}[A-Z0-9]{3}$/.test(value)
-                    ? null : 'El RFC debe tener 13 caracteres y cumplir el formato establecido.';
-            case 'correo': return getContactEmailError(value);
+                return /^[A-Z0-9]{1,13}$/.test(value)
+                    ? null : 'El RFC sólo permite letras y números, de 1 a 13 caracteres.';
+            case 'correo':
+                return this.isValidPartialEmail(value)
+                    ? null : 'El correo contiene caracteres o una estructura no permitida.';
             case 'numeroTelefonico':
-                return /^\d{10}$/.test(value) ? null : 'El número telefónico debe contener exactamente 10 dígitos.';
+                return /^\d{1,10}$/.test(value)
+                    ? null : 'El número telefónico sólo permite de 1 a 10 dígitos.';
             case 'nombreUsuario':
-                return /^[A-Z0-9]{14}$/.test(value) ? null : 'El nombre de usuario debe contener exactamente 14 caracteres A-Z o 0-9.';
+                return /^[A-Z0-9]{1,14}$/.test(value)
+                    ? null : 'El nombre de usuario sólo permite letras y números, de 1 a 14 caracteres.';
             case 'fechaInicio':
             case 'fechaFin':
+                if (!this.isValidDateInput(value)) return 'Captura una fecha válida.';
                 return value <= this.todayDate ? null : 'La fecha no puede ser posterior a la fecha actual.';
-            default: return null;
+            default:
+                return null;
         }
+    }
+
+    private isValidPartialEmail(value: string): boolean {
+        if (value.length < 1 || value.length > CONTACT_EMAIL_MAX_LENGTH) return false;
+        if (sanitizeContactEmailInput(value) !== value) return false;
+        if (!/^[A-Za-z]/.test(value)) return false;
+        if ((value.match(/@/g) ?? []).length > 1) return false;
+
+        const [local, domain] = value.split('@');
+        if (!local) return false;
+        if (domain === undefined || domain === '') return true;
+
+        return domain
+            .split('.')
+            .every((label) => label === '' || /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label));
+    }
+
+    private isValidDateInput(value: string): boolean {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+        if (!match) return false;
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(year, month - 1, day);
+
+        return date.getFullYear() === year
+            && date.getMonth() === month - 1
+            && date.getDate() === day;
     }
 
     normalizeForCompare(value: unknown): string {
