@@ -96,6 +96,13 @@ export class UserManagementFilterPresenter {
 
     readonly filterFormError = computed<string | null>(() => {
         const filters = this.state.draftFilters();
+        const hasAnyNameFilter = NAME_FILTER_KEYS.some((key) => Boolean(filters[key]?.trim()));
+        const hasNames = Boolean(filters.nombres?.trim());
+        const hasSurname = Boolean(filters.primerApellido?.trim() || filters.segundoApellido?.trim());
+
+        if (hasAnyNameFilter && (!hasNames || !hasSurname)) {
+            return 'Para buscar por nombre debes capturar Nombre(s) y al menos un apellido.';
+        }
         if (Boolean(filters.fechaInicio) !== Boolean(filters.fechaFin)) {
             return 'El período de último movimiento requiere fecha de inicio y fecha de fin.';
         }
